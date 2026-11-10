@@ -480,7 +480,7 @@ CREATE TABLE journal_audit (
   portee_etablissement_id TEXT,
   utilisateur_id TEXT,
   appareil_id TEXT,
-  action TEXT NOT NULL CHECK (action IN ('creation', 'modification', 'suppression', 'consultation', 'telechargement', 'export', 'connexion', 'echec_connexion', 'deconnexion', 'synchronisation', 'restauration')),
+  "action" TEXT NOT NULL CHECK ("action" IN ('creation', 'modification', 'suppression', 'consultation', 'telechargement', 'export', 'connexion', 'echec_connexion', 'deconnexion', 'synchronisation', 'restauration')),
   table_cible TEXT,
   enregistrement_id TEXT,
   avant TEXT,

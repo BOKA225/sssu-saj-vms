@@ -64,8 +64,11 @@ class DepotPostgres implements DepotServeur {
   /// Les paramètres sont passés en texte et convertis dans la requête
   /// (`CAST(@x AS uuid)`…).
   Future<List<Map<String, dynamic>>> requete(String sql, [Map<String, Object?> params = const {}]) async {
-    final r = await _pool.execute(sqlTexte(sql),
-        parameters: {for (final e in params.entries) e.key: e.value?.toString()});
+    final r = await _pool.execute(sqlTexte(sql), parameters: {
+      // Seuls les paramètres présents dans la requête (filtres facultatifs).
+      for (final e in params.entries)
+        if (RegExp('@${e.key}(?![A-Za-z0-9_])').hasMatch(sql)) e.key: e.value?.toString()
+    });
     return [for (final l in r) l.toColumnMap()];
   }
 

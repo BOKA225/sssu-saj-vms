@@ -20,6 +20,7 @@ void main() {
   _mainActivity();
   _manifeste();
   _gradle();
+  _proguard();
   stdout.writeln('Projet Android configuré.');
 }
 
@@ -84,6 +85,9 @@ void _gradle() {
   final k = f == kts;
   var s = f.readAsStringSync();
 
+  // SDK de compilation exigé par les modules (caméra, stockage sécurisé…).
+  s = s.replaceAll(RegExp(r'compileSdk(Version)?\s*=?\s*flutter\.compileSdkVersion'), k ? 'compileSdk = 35' : 'compileSdkVersion 35');
+
   // Android 8.0 minimum.
   s = s.replaceAll(RegExp(r'minSdk(Version)?\s*=?\s*flutter\.minSdkVersion'), k ? 'minSdk = 26' : 'minSdkVersion 26');
 
@@ -140,9 +144,29 @@ if (fichierCle.exists()) {
         : s.replaceAll('signingConfig signingConfigs.debug',
             'signingConfig fichierCle.exists() ? signingConfigs.publication : signingConfigs.debug');
   }
+  if (!s.contains('proguard-rules.pro')) {
+    s = s.replaceFirstMapped(RegExp(r'release\s*\{\n'), (m) => k
+        ? '${m.group(0)}            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")\n'
+        : "${m.group(0)}            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\n");
+  }
   f.writeAsStringSync(s);
   if (!File('android/key.properties').existsSync()) {
     stderr.writeln('ATTENTION : android/key.properties absent — l\'APK sera signé avec la clé de débogage '
         '(acceptable pour un essai, pas pour la diffusion). Voir installation/android/LISEZMOI.md.');
   }
+}
+
+/// Règles R8 de la version publiée. Le module ML Kit référence les modèles
+/// chinois, japonais, coréen et devanagari, non embarqués (seul l'alphabet
+/// latin sert ici) : ces références sont ignorées. Le module Flutter ajoute
+/// automatiquement `android/app/proguard-rules.pro` à la compilation.
+void _proguard() {
+  const regles = '''
+# SSSU-SAJ VMS — généré par installation/android/configurer_android.dart
+-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
+''';
+  File('android/app/proguard-rules.pro').writeAsStringSync(regles);
 }

@@ -91,7 +91,7 @@ void main() {
     expect((r.crees, r.rattaches, r.ignores), (2, 1, 1));
     final apres = await requetes.elevesDeClasse(classe.id, annee);
     expect(apres.length, 32);
-    expect(apres.where((l) => l.eleve.nom == 'BAMBA').single.eleve.dateNaissance, DateTime.utc(2016, 6, 5));
+    expect(apres.where((l) => l.eleve.matricule == '55555555E').single.eleve.dateNaissance, DateTime.utc(2016, 6, 5));
     // Nouveaux élèves et inscriptions à transmettre ; journal d'importation local.
     final attente = await depot.enAttente(limite: 100);
     expect(attente.where((e) => e.table == 'eleve').length, 2);
