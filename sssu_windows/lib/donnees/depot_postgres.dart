@@ -64,8 +64,8 @@ class DepotPostgres implements DepotServeur {
   /// Les paramètres sont passés en texte et convertis dans la requête
   /// (`CAST(@x AS uuid)`…).
   Future<List<Map<String, dynamic>>> requete(String sql, [Map<String, Object?> params = const {}]) async {
-    final r = await _pool.execute(Sql.named(sql),
-        parameters: {for (final e in params.entries) e.key: TypedValue(Type.text, e.value?.toString())});
+    final r = await _pool.execute(sqlTexte(sql),
+        parameters: {for (final e in params.entries) e.key: e.value?.toString()});
     return [for (final l in r) l.toColumnMap()];
   }
 
@@ -92,6 +92,13 @@ class DepotPostgres implements DepotServeur {
 
   Future<void> fermer() => _pool.close();
 }
+
+/// Requête nommée dont chaque paramètre `@nom` est déclaré `text`
+/// (`@nom:text`) : PostgreSQL reçoit toujours du texte, converti ensuite par
+/// `CAST(@nom AS type)`. Sans cette déclaration, PostgreSQL déduirait le type
+/// du contexte (uuid, entier…) et refuserait le texte envoyé (22P03).
+Sql sqlTexte(String sql) => Sql.named(sql.replaceAllMapped(
+    RegExp(r'(?<![@\w])@([A-Za-z_][A-Za-z0-9_]*)(?![:\w])'), (m) => '@${m[1]}:text'));
 
 String _cast(TypeColonne t, String param) {
   switch (t) {
@@ -122,7 +129,7 @@ String? _texte(TypeColonne t, Object? v) {
   return v.toString();
 }
 
-TypedValue _p(String? texte) => TypedValue(Type.text, texte);
+String? _p(String? texte) => texte;
 
 Object? _depuisPg(TypeColonne t, Object? v) {
   if (v == null) return null;
@@ -171,7 +178,7 @@ class _TxPostgres implements TransactionServeur {
   }
 
   Future<List<Map<String, dynamic>>> _q(String sql, Map<String, Object?> params) async {
-    final r = await s.execute(Sql.named(sql), parameters: params);
+    final r = await s.execute(sqlTexte(sql), parameters: params);
     return [for (final ligne in r) ligne.toColumnMap()];
   }
 

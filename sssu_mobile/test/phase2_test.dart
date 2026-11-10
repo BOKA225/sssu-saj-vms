@@ -5,7 +5,7 @@ import 'package:drift/native.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sssu_core/sssu_core.dart';
-import 'package:sssu_mobile/data/base_locale.dart';
+import 'package:sssu_mobile/data/base_locale.dart' hide Utilisateur, Eleve;
 import 'package:sssu_mobile/data/depot_local_drift.dart';
 import 'package:sssu_mobile/data/requetes.dart';
 import 'package:sssu_mobile/fichiers/stockage_chiffre.dart';

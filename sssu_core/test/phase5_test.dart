@@ -217,7 +217,8 @@ void main() {
 
     test('en-tête lu dans les paramètres, par défaut si vide', () {
       final e = EnteteRapport.depuisParametres({'entete_ligne_1': 'MINISTÈRE', 'entete_ligne_2': '  ', 'nom_medecin_chef': ''});
-      expect((e.lignes, e.nomMedecinChef), (['MINISTÈRE'], null));
+      expect(e.lignes, ['MINISTÈRE']);
+      expect(e.nomMedecinChef, isNull);
       expect(EnteteRapport.depuisParametres({}).lignes, EnteteRapport.lignesParDefaut);
     });
   });

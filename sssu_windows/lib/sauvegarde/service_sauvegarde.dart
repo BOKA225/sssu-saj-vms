@@ -388,11 +388,19 @@ class ServiceSauvegarde {
     if (!r.active || !r.phraseDefinie) return false;
     final l = maintenant.toLocal();
     final heureDuJour = DateTime(l.year, l.month, l.day, r.heure, r.minute);
-    if (l.isBefore(heureDuJour)) return false;
     final derniere = r.derniereReussie?.toLocal();
-    if (derniere != null && !derniere.isBefore(heureDuJour)) return false;
+    // Créneau à honorer : celui d'aujourd'hui s'il est passé, sinon celui
+    // d'hier (rattrapage d'une sauvegarde manquée, poste éteint à l'heure prévue).
+    final DateTime creneau;
+    if (!l.isBefore(heureDuJour)) {
+      creneau = heureDuJour;
+    } else {
+      if (derniere == null) return false;
+      creneau = DateTime(l.year, l.month, l.day - 1, r.heure, r.minute);
+    }
+    if (derniere != null && !derniere.isBefore(creneau)) return false;
     final tentative = r.derniereTentative?.toLocal();
-    if (tentative != null && l.difference(tentative) < const Duration(hours: 1) && tentative.isAfter(heureDuJour)) {
+    if (tentative != null && l.difference(tentative) < const Duration(hours: 1) && tentative.isAfter(creneau)) {
       return false;
     }
     return true;

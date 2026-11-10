@@ -35,7 +35,7 @@ jobs:
       SSSU_PG_TEST_URL: postgres://sssu:sssu@localhost:5432/sssu_saj_test
       PGPASSWORD: sssu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -91,8 +91,8 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
         with:
@@ -121,9 +121,9 @@ jobs:
 
   windows:
     if: github.event_name != 'pull_request'
-    runs-on: windows-latest
+    runs-on: windows-2022  # Visual Studio 2022, reconnu par Flutter 3.24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -146,7 +146,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Version
         run: echo "VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4

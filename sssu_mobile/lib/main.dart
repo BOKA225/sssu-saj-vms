@@ -1,4 +1,3 @@
-import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -14,7 +13,6 @@ import 'ui/verrou_inactivite.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Chiffrement AES et hachages accélérés par le système Android quand c'est possible.
-  FlutterCryptography.enable();
   final services = await ServicesMobile.demarrer();
   final appaire = await services.estAppaire();
   runApp(ProviderScope(

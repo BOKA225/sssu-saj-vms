@@ -7,7 +7,7 @@ library;
 import 'package:drift/drift.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import 'base_locale.dart';
+import 'base_locale.dart' hide Utilisateur, Eleve;
 import 'conversion_sql.dart';
 
 class DepotUtilisateursDrift implements DepotUtilisateurs {

@@ -8,12 +8,12 @@ library;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:drift/drift.dart' show variable;
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import '../data/base_locale.dart';
+import '../data/base_locale.dart' hide Utilisateur, Eleve;
 import '../data/depot_local_drift.dart';
 import '../fichiers/stockage_chiffre.dart';
 import '../photo/service_photo.dart';
@@ -183,7 +183,7 @@ class DepotInspection {
       'SELECT i.id, i.date_inspection, i.statut, i.sync_status, i.taux_conformite, i.niveau, u.nom, u.prenoms '
       'FROM inspection i LEFT JOIN utilisateur u ON u.id = i.inspecteur_id '
       'WHERE i.etablissement_id = ? AND i.deleted_at IS NULL ORDER BY i.date_inspection DESC, i.updated_at DESC',
-      variables: [variable(etablissementId)],
+      variables: [Variable(etablissementId)],
     ).get();
     return [
       for (final l in r)

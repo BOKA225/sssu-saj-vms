@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import 'data/base_locale.dart';
+import 'data/base_locale.dart' hide Utilisateur, Eleve;
 import 'data/depot_local_drift.dart';
 import 'data/depot_utilisateurs_drift.dart';
 import 'data/ouverture.dart';
@@ -158,10 +158,11 @@ class ServicesMobile {
     if (uri == null) throw const PosteInjoignable();
     final transport = TransportHttp(uri, empreinteCertificat: await coffre.empreinteCertificat());
     try {
+      final identite = await IdentiteAppareil.depuisGraine(appareilId, graine);
       return await _effacerSiBloque(() => ClientSynchronisation(
         depot: depot,
         transport: transport,
-        identite: await IdentiteAppareil.depuisGraine(appareilId, graine),
+        identite: identite,
         horloge: horloge,
         canal: estAdresseLocale(uri.host) ? 'wifi' : 'internet',
       ).synchroniser());
