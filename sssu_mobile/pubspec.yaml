@@ -21,7 +21,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.14.0
   image: ^4.2.0
   image_picker: ^1.1.2
-  pdfrx: ^1.1.0
+  pdfrx: ">=1.0.94 <1.0.102"
   flutter_riverpod: ^2.5.1
   flutter_secure_storage: ^9.2.2
   mobile_scanner: ^5.2.3
