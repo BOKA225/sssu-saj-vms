@@ -54,18 +54,24 @@ jobs:
           done
       - name: Paquet commun
         working-directory: sssu_core
-        run: dart pub get && dart analyze --no-fatal-warnings && dart test --concurrency=1
+        run: |
+          ../installation/ci/journal.sh dart pub get
+          ../installation/ci/journal.sh dart analyze --no-fatal-warnings
+          dart test --concurrency=1 --reporter github
       - name: Application mobile
         working-directory: sssu_mobile
         run: |
           sudo apt-get install -y libsqlite3-dev
-          flutter pub get
-          dart run build_runner build --delete-conflicting-outputs
-          flutter analyze --no-fatal-warnings --no-fatal-infos
-          flutter test
+          ../installation/ci/journal.sh flutter pub get
+          ../installation/ci/journal.sh dart run build_runner build --delete-conflicting-outputs
+          ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter test --reporter github
       - name: Poste central (tests PostgreSQL, un fichier à la fois)
         working-directory: sssu_windows
-        run: flutter pub get && flutter analyze --no-fatal-warnings --no-fatal-infos && flutter test --concurrency=1
+        run: |
+          ../installation/ci/journal.sh flutter pub get
+          ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter test --concurrency=1 --reporter github
 
   android:
     if: github.event_name != 'pull_request'
@@ -83,7 +89,7 @@ jobs:
         env:
           CLE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          flutter create --platforms=android --org ci.sssusaj --project-name sssu_mobile .
+          ../installation/ci/journal.sh flutter create --platforms=android --org ci.sssusaj --project-name sssu_mobile .
           if [ -z "$CLE" ]; then echo "::warning::Secrets de signature absents : APK signé avec la clé de débogage (essai uniquement)."; exit 0; fi
           echo "$CLE" | base64 -d > android/sssu-saj.jks
           cat > android/key.properties <<EOF
@@ -93,7 +99,7 @@ jobs:
           storeFile=../sssu-saj.jks
           EOF
       - name: APK
-        run: installation/android/construire_apk.sh "$(cat VERSION)" "${{ github.run_number }}"
+        run: installation/ci/journal.sh installation/android/construire_apk.sh "$(cat VERSION)" "${{ github.run_number }}"
       - uses: actions/upload-artifact@v4
         with:
           name: apk
@@ -113,7 +119,7 @@ jobs:
       - name: Installateur du poste central
         run: |
           $v = (Get-Content VERSION -Raw).Trim()
-          ./installation/windows/construire_poste.ps1 -Version $v
+          ./installation/ci/journal.ps1 -Script ./installation/windows/construire_poste.ps1 -Arguments @($v)
       - uses: actions/upload-artifact@v4
         with:
           name: installateur-windows
