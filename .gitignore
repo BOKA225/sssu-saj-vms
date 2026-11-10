@@ -1,0 +1,21 @@
+.dart_tool/
+build/
+*.g.dart
+pubspec.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+**/android/local.properties
+**/windows/flutter/ephemeral/
+# Dossiers natifs générés par `flutter create` (voir installation/)
+sssu_mobile/android/
+sssu_mobile/ios/
+sssu_windows/windows/
+# Secrets : ne jamais publier
+key.properties
+*.jks
+*.keystore
+sssu_config.json
+# Produits de construction
+installation/windows/dependances/
+installation/windows/sortie/
+installation/android/sortie/

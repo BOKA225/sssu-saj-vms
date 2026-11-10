@@ -1,0 +1,573 @@
+-- Schéma SQLite de l'application mobile SSSU-SAJ VMS (drift).
+-- Fichier généré à partir de la spécification unique du modèle de données (voir README).
+-- Les dates (sans heure) sont stockées en texte AAAA-MM-JJ ; les horodatages en texte ISO 8601 UTC.
+
+CREATE TABLE annee_scolaire (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  libelle TEXT NOT NULL,
+  date_debut TEXT NOT NULL,
+  date_fin TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (libelle),
+  CHECK (date_fin > date_debut)
+) AS AnneeScolaireRow;
+
+CREATE TABLE etablissement (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  nom TEXT NOT NULL,
+  code TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('prescolaire', 'primaire', 'secondaire', 'technique', 'superieur')),
+  statut TEXT NOT NULL CHECK (statut IN ('public', 'prive')),
+  region TEXT,
+  district_sanitaire TEXT,
+  localite TEXT,
+  responsable TEXT,
+  telephone TEXT,
+  UNIQUE (code)
+) AS EtablissementRow;
+
+CREATE TABLE classe (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  etablissement_id TEXT NOT NULL REFERENCES etablissement(id),
+  annee_scolaire_id TEXT NOT NULL REFERENCES annee_scolaire(id),
+  libelle TEXT NOT NULL,
+  niveau TEXT,
+  UNIQUE (etablissement_id, annee_scolaire_id, libelle)
+) AS ClasseRow;
+
+CREATE TABLE role (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  code TEXT NOT NULL CHECK (code IN ('admin', 'medecin_chef', 'medecin', 'infirmier', 'agent')),
+  libelle TEXT NOT NULL,
+  UNIQUE (code)
+) AS RoleRow;
+
+CREATE TABLE role_permission (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  role_id TEXT NOT NULL REFERENCES role(id),
+  permission TEXT NOT NULL,
+  UNIQUE (role_id, permission)
+) AS RolePermissionRow;
+
+CREATE TABLE utilisateur (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  identifiant TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  prenoms TEXT,
+  fonction TEXT,
+  structure TEXT,
+  role_id TEXT NOT NULL REFERENCES role(id),
+  hash_mot_de_passe TEXT,
+  hash_pin TEXT,
+  actif BOOLEAN NOT NULL DEFAULT TRUE,
+  doit_changer_mdp BOOLEAN NOT NULL DEFAULT TRUE,
+  echecs_connexion INTEGER NOT NULL DEFAULT 0,
+  bloque_jusqua DATETIME,
+  UNIQUE (identifiant)
+) AS UtilisateurRow;
+
+CREATE TABLE eleve (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  matricule TEXT,
+  nom TEXT NOT NULL,
+  prenoms TEXT NOT NULL,
+  date_naissance TEXT,
+  sexe TEXT NOT NULL CHECK (sexe IN ('M', 'F')),
+  telephone_contact TEXT
+) AS EleveRow;
+
+CREATE TABLE inscription (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  eleve_id TEXT NOT NULL REFERENCES eleve(id),
+  classe_id TEXT NOT NULL REFERENCES classe(id),
+  annee_scolaire_id TEXT NOT NULL REFERENCES annee_scolaire(id),
+  statut TEXT NOT NULL DEFAULT 'inscrit' CHECK (statut IN ('inscrit', 'transfere', 'sorti')),
+  UNIQUE (eleve_id, annee_scolaire_id)
+) AS InscriptionRow;
+
+CREATE TABLE import_lot (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  classe_id TEXT REFERENCES classe(id),
+  utilisateur_id TEXT REFERENCES utilisateur(id),
+  fichier_nom TEXT NOT NULL,
+  format TEXT NOT NULL CHECK (format IN ('xlsx', 'xls', 'csv', 'pdf', 'pdf_ocr', 'image_ocr')),
+  empreinte_sha256 TEXT NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'brouillon' CHECK (statut IN ('brouillon', 'valide', 'annule')),
+  nb_lignes INTEGER NOT NULL DEFAULT 0
+) AS ImportLotRow;
+
+CREATE TABLE import_ligne (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  import_lot_id TEXT NOT NULL REFERENCES import_lot(id),
+  numero INTEGER NOT NULL,
+  donnees_extraites TEXT NOT NULL,
+  confiance_ocr REAL,
+  anomalies TEXT,
+  decision TEXT NOT NULL DEFAULT 'a_verifier' CHECK (decision IN ('a_verifier', 'garder', 'corriger', 'rejeter')),
+  eleve_id TEXT REFERENCES eleve(id),
+  UNIQUE (import_lot_id, numero)
+) AS ImportLigneRow;
+
+CREATE TABLE visite (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  eleve_id TEXT NOT NULL REFERENCES eleve(id),
+  inscription_id TEXT REFERENCES inscription(id),
+  agent_id TEXT NOT NULL REFERENCES utilisateur(id),
+  appareil_id TEXT,
+  validateur_id TEXT REFERENCES utilisateur(id),
+  date_visite TEXT NOT NULL,
+  structure_origine TEXT,
+  statut TEXT NOT NULL DEFAULT 'ebauche' CHECK (statut IN ('ebauche', 'enregistre', 'en_attente', 'synchronise', 'valide')),
+  poids_kg REAL,
+  taille_cm REAL,
+  imc REAL,
+  imc_interpretation TEXT,
+  ta_sys INTEGER,
+  ta_dia INTEGER,
+  temperature_c REAL,
+  fc INTEGER,
+  fr INTEGER,
+  conclusion TEXT CHECK (conclusion IS NULL OR conclusion IN ('sans_anomalie', 'anomalie', 'suivi', 'reference')),
+  diagnostic TEXT,
+  conduite_a_tenir TEXT,
+  traitement_conseils TEXT,
+  structure_reference TEXT,
+  date_controle TEXT,
+  observations TEXT,
+  valide_le DATETIME,
+  CHECK (poids_kg IS NULL OR poids_kg > 0),
+  CHECK (taille_cm IS NULL OR taille_cm > 0)
+) AS VisiteRow;
+
+CREATE TABLE antecedent (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  visite_id TEXT NOT NULL REFERENCES visite(id),
+  eleve_id TEXT NOT NULL REFERENCES eleve(id),
+  type TEXT NOT NULL CHECK (type IN ('personnel', 'chirurgical', 'familial', 'allergique', 'gynecologique', 'traitement')),
+  coche BOOLEAN NOT NULL DEFAULT FALSE,
+  commentaire TEXT
+) AS AntecedentRow;
+
+CREATE TABLE examen_appareil (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  visite_id TEXT NOT NULL REFERENCES visite(id),
+  appareil TEXT NOT NULL CHECK (appareil IN ('general', 'dermatologique', 'orl', 'ophtalmologique', 'bucco_dentaire', 'cardiovasculaire', 'respiratoire', 'digestif', 'neurologique', 'osteo_articulaire', 'genito_urinaire')),
+  resultat TEXT NOT NULL CHECK (resultat IN ('normal', 'anormal', 'non_examine')),
+  observation TEXT,
+  UNIQUE (visite_id, appareil)
+) AS ExamenAppareilRow;
+
+CREATE TABLE pathologie (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  code TEXT NOT NULL,
+  libelle TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  ordre INTEGER NOT NULL DEFAULT 0,
+  precision_requise BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (code)
+) AS PathologieRow;
+
+CREATE TABLE visite_pathologie (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  visite_id TEXT NOT NULL REFERENCES visite(id),
+  pathologie_id TEXT NOT NULL REFERENCES pathologie(id),
+  precision TEXT,
+  UNIQUE (visite_id, pathologie_id)
+) AS VisitePathologieRow;
+
+CREATE TABLE consentement (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  eleve_id TEXT NOT NULL REFERENCES eleve(id),
+  visite_id TEXT REFERENCES visite(id),
+  type TEXT NOT NULL DEFAULT 'photo' CHECK (type IN ('photo')),
+  obtenu BOOLEAN NOT NULL,
+  forme TEXT CHECK (forme IS NULL OR forme IN ('ecrit', 'oral')),
+  nom_repondant TEXT,
+  lien_parente TEXT,
+  date_consentement TEXT NOT NULL,
+  CHECK (obtenu = FALSE OR (forme IS NOT NULL AND nom_repondant IS NOT NULL))
+) AS ConsentementRow;
+
+CREATE TABLE photo (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  visite_id TEXT NOT NULL REFERENCES visite(id),
+  eleve_id TEXT NOT NULL REFERENCES eleve(id),
+  visite_pathologie_id TEXT REFERENCES visite_pathologie(id),
+  auteur_id TEXT NOT NULL REFERENCES utilisateur(id),
+  consentement_id TEXT NOT NULL REFERENCES consentement(id),
+  chemin_chiffre TEXT NOT NULL,
+  empreinte_sha256 TEXT NOT NULL,
+  taille_octets INTEGER NOT NULL,
+  largeur INTEGER,
+  hauteur INTEGER,
+  commentaire TEXT,
+  pris_le DATETIME NOT NULL,
+  statut_transfert TEXT NOT NULL DEFAULT 'en_attente' CHECK (statut_transfert IN ('en_attente', 'transfere', 'confirme'))
+) AS PhotoRow;
+
+CREATE TABLE critere_inspection (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  rubrique TEXT NOT NULL CHECK (rubrique IN ('eau_potable', 'toilettes', 'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite')),
+  code TEXT NOT NULL,
+  libelle TEXT NOT NULL,
+  ordre INTEGER NOT NULL DEFAULT 0,
+  actif BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE (code)
+) AS CritereInspectionRow;
+
+CREATE TABLE inspection (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  etablissement_id TEXT NOT NULL REFERENCES etablissement(id),
+  annee_scolaire_id TEXT NOT NULL REFERENCES annee_scolaire(id),
+  inspecteur_id TEXT NOT NULL REFERENCES utilisateur(id),
+  date_inspection TEXT NOT NULL,
+  observations TEXT,
+  recommandations TEXT,
+  signature BLOB,
+  nb_conformes INTEGER NOT NULL DEFAULT 0,
+  nb_partiels INTEGER NOT NULL DEFAULT 0,
+  nb_non_conformes INTEGER NOT NULL DEFAULT 0,
+  nb_non_applicables INTEGER NOT NULL DEFAULT 0,
+  taux_conformite REAL,
+  niveau TEXT CHECK (niveau IS NULL OR niveau IN ('satisfaisant', 'moyen', 'insuffisant')),
+  statut TEXT NOT NULL DEFAULT 'ebauche' CHECK (statut IN ('ebauche', 'enregistre', 'valide'))
+) AS InspectionRow;
+
+CREATE TABLE inspection_reponse (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  inspection_id TEXT NOT NULL REFERENCES inspection(id),
+  critere_id TEXT NOT NULL REFERENCES critere_inspection(id),
+  resultat TEXT NOT NULL CHECK (resultat IN ('conforme', 'partiel', 'non_conforme', 'non_applicable')),
+  observation TEXT,
+  UNIQUE (inspection_id, critere_id)
+) AS InspectionReponseRow;
+
+CREATE TABLE inspection_photo (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  inspection_reponse_id TEXT NOT NULL REFERENCES inspection_reponse(id),
+  auteur_id TEXT NOT NULL REFERENCES utilisateur(id),
+  chemin_chiffre TEXT NOT NULL,
+  empreinte_sha256 TEXT NOT NULL,
+  taille_octets INTEGER NOT NULL,
+  largeur INTEGER,
+  hauteur INTEGER,
+  commentaire TEXT,
+  pris_le DATETIME NOT NULL,
+  statut_transfert TEXT NOT NULL DEFAULT 'en_attente' CHECK (statut_transfert IN ('en_attente', 'transfere', 'confirme'))
+) AS InspectionPhotoRow;
+
+CREATE TABLE journal_audit (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  utilisateur_id TEXT,
+  appareil_id TEXT,
+  action TEXT NOT NULL CHECK (action IN ('creation', 'modification', 'suppression', 'consultation', 'telechargement', 'export', 'connexion', 'echec_connexion', 'deconnexion', 'synchronisation', 'restauration')),
+  table_cible TEXT,
+  enregistrement_id TEXT,
+  avant TEXT,
+  apres TEXT,
+  survenu_le DATETIME NOT NULL
+) AS JournalAuditRow;
+
+CREATE TABLE parametre (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  cle TEXT NOT NULL,
+  valeur TEXT,
+  UNIQUE (cle)
+) AS ParametreRow;
+
+CREATE INDEX idx_classe_annee_scolaire_id ON classe (annee_scolaire_id);
+CREATE INDEX idx_classe_sync ON classe (sync_status);
+CREATE INDEX idx_utilisateur_role_id ON utilisateur (role_id);
+CREATE INDEX idx_eleve_nom_prenoms ON eleve (nom, prenoms);
+CREATE INDEX idx_eleve_matricule ON eleve (matricule);
+CREATE INDEX idx_eleve_sync ON eleve (sync_status);
+CREATE INDEX idx_inscription_classe_id ON inscription (classe_id);
+CREATE INDEX idx_inscription_annee_scolaire_id ON inscription (annee_scolaire_id);
+CREATE INDEX idx_inscription_sync ON inscription (sync_status);
+CREATE INDEX idx_import_lot_classe_id ON import_lot (classe_id);
+CREATE INDEX idx_import_lot_utilisateur_id ON import_lot (utilisateur_id);
+CREATE INDEX idx_import_ligne_eleve_id ON import_ligne (eleve_id);
+CREATE INDEX idx_visite_eleve_id ON visite (eleve_id);
+CREATE INDEX idx_visite_inscription_id ON visite (inscription_id);
+CREATE INDEX idx_visite_agent_id ON visite (agent_id);
+CREATE INDEX idx_visite_validateur_id ON visite (validateur_id);
+CREATE INDEX idx_visite_eleve_id_date_visite ON visite (eleve_id, date_visite);
+CREATE INDEX idx_visite_sync ON visite (sync_status);
+CREATE INDEX idx_antecedent_visite_id ON antecedent (visite_id);
+CREATE INDEX idx_antecedent_eleve_id ON antecedent (eleve_id);
+CREATE INDEX idx_antecedent_sync ON antecedent (sync_status);
+CREATE INDEX idx_examen_appareil_sync ON examen_appareil (sync_status);
+CREATE INDEX idx_visite_pathologie_pathologie_id ON visite_pathologie (pathologie_id);
+CREATE INDEX idx_visite_pathologie_sync ON visite_pathologie (sync_status);
+CREATE INDEX idx_consentement_eleve_id ON consentement (eleve_id);
+CREATE INDEX idx_consentement_visite_id ON consentement (visite_id);
+CREATE INDEX idx_consentement_sync ON consentement (sync_status);
+CREATE INDEX idx_photo_visite_id ON photo (visite_id);
+CREATE INDEX idx_photo_eleve_id ON photo (eleve_id);
+CREATE INDEX idx_photo_visite_pathologie_id ON photo (visite_pathologie_id);
+CREATE INDEX idx_photo_auteur_id ON photo (auteur_id);
+CREATE INDEX idx_photo_consentement_id ON photo (consentement_id);
+CREATE INDEX idx_photo_sync ON photo (sync_status);
+CREATE INDEX idx_inspection_etablissement_id ON inspection (etablissement_id);
+CREATE INDEX idx_inspection_annee_scolaire_id ON inspection (annee_scolaire_id);
+CREATE INDEX idx_inspection_inspecteur_id ON inspection (inspecteur_id);
+CREATE INDEX idx_inspection_etablissement_id_date_inspection ON inspection (etablissement_id, date_inspection);
+CREATE INDEX idx_inspection_sync ON inspection (sync_status);
+CREATE INDEX idx_inspection_reponse_critere_id ON inspection_reponse (critere_id);
+CREATE INDEX idx_inspection_reponse_sync ON inspection_reponse (sync_status);
+CREATE INDEX idx_inspection_photo_inspection_reponse_id ON inspection_photo (inspection_reponse_id);
+CREATE INDEX idx_inspection_photo_auteur_id ON inspection_photo (auteur_id);
+CREATE INDEX idx_inspection_photo_sync ON inspection_photo (sync_status);
+CREATE INDEX idx_journal_audit_utilisateur_id_survenu_le ON journal_audit (utilisateur_id, survenu_le);
+CREATE INDEX idx_journal_audit_table_cible_enregistrement_id ON journal_audit (table_cible, enregistrement_id);
+CREATE INDEX idx_journal_audit_sync ON journal_audit (sync_status);
+
+-- Sur un même téléphone, un matricule renseigné ne peut appartenir qu'à un seul élève actif.
+-- Sur le poste central, les doublons venant de deux téléphones sont signalés pour fusion (voir conception).
+CREATE UNIQUE INDEX uq_eleve_matricule ON eleve (matricule) WHERE matricule IS NOT NULL AND deleted_at IS NULL;
+
+-- État local de la synchronisation (curseur, adresse du poste central, identifiant de l'appareil).
+CREATE TABLE sync_etat (
+  cle TEXT NOT NULL PRIMARY KEY,
+  valeur TEXT
+) AS SyncEtatRow;
+
+-- Une photographie exige un consentement obtenu pour le même élève.
+CREATE TRIGGER trg_photo_consentement BEFORE INSERT ON photo
+WHEN NOT EXISTS (
+  SELECT 1 FROM consentement c
+  WHERE c.id = NEW.consentement_id AND c.obtenu = TRUE AND c.eleve_id = NEW.eleve_id AND c.deleted_at IS NULL
+)
+BEGIN
+  SELECT RAISE(ABORT, 'consentement_requis');
+END;

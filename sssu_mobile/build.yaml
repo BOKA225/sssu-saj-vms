@@ -1,0 +1,11 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # Horodatages stockés en texte ISO 8601, comme sur le poste central.
+          store_date_time_values_as_text: true
+          sql:
+            dialect: sqlite
+            options:
+              version: "3.38"

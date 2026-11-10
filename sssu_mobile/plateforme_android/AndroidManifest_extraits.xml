@@ -1,0 +1,14 @@
+<!-- Extraits à reporter dans android/app/src/main/AndroidManifest.xml -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Lecture du QR code d'appairage (et, en phase 2, photographies cliniques). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- allowBackup="false" : aucune copie des données vers la sauvegarde cloud Android.
+         usesCleartextTraffic="false" : seules les connexions HTTPS sont autorisées. -->
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:usesCleartextTraffic="false">
+    </application>
+</manifest>

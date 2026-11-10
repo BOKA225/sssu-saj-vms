@@ -1,0 +1,13 @@
+Tables OMS « IMC pour l'âge, 5-19 ans » (à fournir par le service).
+
+Déposer ici deux fichiers, recopiés des tables officielles de l'OMS (valeurs L, M, S par mois d'âge) :
+  imc_age_garcons.csv
+  imc_age_filles.csv
+
+Format :
+  mois,L,M,S
+  61,<L>,<M>,<S>
+  ...
+  228,<L>,<M>,<S>
+
+Sans ces fichiers, l'IMC est calculé mais son interprétation affiche « Non interprétable » entre 5 et 19 ans.

@@ -1,0 +1,140 @@
+# Intégration continue et production des fichiers installables.
+# - À chaque envoi : tests du paquet commun, du mobile et du poste (avec PostgreSQL 16).
+# - Sur une étiquette v* (par exemple v1.0.0) : APK Android signé et
+#   installateur Windows, joints à une « release » GitHub.
+#
+# Secrets à définir (Paramètres du dépôt > Secrets and variables > Actions) :
+#   ANDROID_KEYSTORE_BASE64  fichier .jks encodé en base64
+#   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+name: Tests et livraison
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.24.5'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sssu
+          POSTGRES_PASSWORD: sssu
+          POSTGRES_DB: sssu_saj_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sssu" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SSSU_PG_TEST_URL: postgres://sssu:sssu@localhost:5432/sssu_saj_test
+      PGPASSWORD: sssu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Outils PostgreSQL 16 (pg_dump, pg_restore)
+        run: |
+          sudo apt-get install -y wget ca-certificates
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /etc/apt/trusted.gpg.d/pgdg.asc
+          sudo apt-get update && sudo apt-get install -y postgresql-client-16
+          echo "SSSU_PG_BIN=/usr/lib/postgresql/16/bin" >> "$GITHUB_ENV"
+      - name: Base de test (schéma, jeu de test, journal)
+        run: |
+          for f in sql/postgres/001_schema.sql sql/seed/donnees_test.sql sql/postgres/010_initialiser_journal_sync.sql; do
+            psql -h localhost -U sssu -d sssu_saj_test -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - name: Paquet commun
+        working-directory: sssu_core
+        run: dart pub get && dart analyze --no-fatal-warnings && dart test --concurrency=1
+      - name: Application mobile
+        working-directory: sssu_mobile
+        run: |
+          sudo apt-get install -y libsqlite3-dev
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter test
+      - name: Poste central (tests PostgreSQL, un fichier à la fois)
+        working-directory: sssu_windows
+        run: flutter pub get && flutter analyze --no-fatal-warnings --no-fatal-infos && flutter test --concurrency=1
+
+  android:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Clé de signature (si les secrets sont définis ; sinon APK d'essai signé en débogage)
+        working-directory: sssu_mobile
+        env:
+          CLE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          flutter create --platforms=android --org ci.sssusaj --project-name sssu_mobile .
+          if [ -z "$CLE" ]; then echo "::warning::Secrets de signature absents : APK signé avec la clé de débogage (essai uniquement)."; exit 0; fi
+          echo "$CLE" | base64 -d > android/sssu-saj.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=../sssu-saj.jks
+          EOF
+      - name: APK
+        run: installation/android/construire_apk.sh "${GITHUB_REF_NAME#v}" "${{ github.run_number }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: installation/android/sortie/*.apk
+
+  windows:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Inno Setup
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Installateur du poste central
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          ./installation/windows/construire_poste.ps1 -Version $v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installateur-windows
+          path: installation/windows/sortie/*.exe
+
+  publication:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: livrables }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: livrables/**/*
+          name: SSSU-SAJ VMS ${{ github.ref_name }}
+          body: |
+            - SSSU-SAJ-VMS-Poste-*.exe : installateur du poste central (Windows 10/11, 64 bits).
+            - SSSU-SAJ-VMS-*.apk : application des téléphones (Android 8.0 ou plus récent).
+            Voir docs/guide_installation.md.

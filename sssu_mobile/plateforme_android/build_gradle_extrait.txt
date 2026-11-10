@@ -1,0 +1,5 @@
+Dans android/app/build.gradle (ou build.gradle.kts), fixer la version minimale d'Android :
+
+    defaultConfig {
+        minSdk = 26   // Android 8.0
+    }
