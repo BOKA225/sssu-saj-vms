@@ -53,25 +53,39 @@ jobs:
             psql -h localhost -U sssu -d sssu_saj_test -v ON_ERROR_STOP=1 -q -f "$f"
           done
       - name: Paquet commun
+        id: core
         working-directory: sssu_core
         run: |
           ../installation/ci/journal.sh dart pub get
           ../installation/ci/journal.sh dart analyze --no-fatal-warnings
-          dart test --concurrency=1 --reporter github
+      - name: Paquet commun (tests)
+        if: always() && steps.core.outcome == 'success'
+        working-directory: sssu_core
+        run: ../installation/ci/journal.sh dart test --concurrency=1 --reporter expanded
       - name: Application mobile
+        id: mobile
+        if: always()
         working-directory: sssu_mobile
         run: |
           sudo apt-get install -y libsqlite3-dev
           ../installation/ci/journal.sh flutter pub get
           ../installation/ci/journal.sh dart run build_runner build --delete-conflicting-outputs
           ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
-          flutter test --reporter github
-      - name: Poste central (tests PostgreSQL, un fichier à la fois)
+      - name: Application mobile (tests)
+        if: always() && steps.mobile.outcome == 'success'
+        working-directory: sssu_mobile
+        run: ../installation/ci/journal.sh flutter test --reporter expanded
+      - name: Poste central
+        id: poste
+        if: always()
         working-directory: sssu_windows
         run: |
           ../installation/ci/journal.sh flutter pub get
           ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
-          flutter test --concurrency=1 --reporter github
+      - name: Poste central (tests PostgreSQL, un fichier à la fois)
+        if: always() && steps.poste.outcome == 'success'
+        working-directory: sssu_windows
+        run: ../installation/ci/journal.sh flutter test --concurrency=1 --reporter expanded
 
   android:
     if: github.event_name != 'pull_request'

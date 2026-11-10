@@ -40,7 +40,7 @@ foreach ($outil in 'initdb.exe', 'pg_ctl.exe', 'psql.exe', 'pg_dump.exe', 'pg_re
 if (-not (Test-Path (Join-Path $pg 'share\extension\unaccent.control'))) { throw 'Extension unaccent absente des binaires PostgreSQL.' }
 
 # Tesseract (installateur NSIS, installé en silence dans le dossier de l'application).
-Telecharger "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-$VersionTesseract.exe" 'tesseract-setup.exe' | Out-Null
+Telecharger "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-$VersionTesseract.exe" 'tesseract-setup.exe' | Out-Null
 Telecharger 'https://github.com/tesseract-ocr/tessdata_fast/raw/main/fra.traineddata' 'fra.traineddata' | Out-Null
 
 # Visual C++ (requis par l'application Flutter et par PostgreSQL).
