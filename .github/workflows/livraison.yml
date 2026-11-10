@@ -1,7 +1,7 @@
 # Intégration continue et production des fichiers installables.
 # - À chaque envoi : tests du paquet commun, du mobile et du poste (avec PostgreSQL 16).
-# - Sur une étiquette v* (par exemple v1.0.0) : APK Android signé et
-#   installateur Windows, joints à une « release » GitHub.
+# - Sur la branche main (et sur demande) : APK Android et installateur
+#   Windows, joints à la « release » GitHub v<VERSION> (fichier VERSION).
 #
 # Secrets à définir (Paramètres du dépôt > Secrets and variables > Actions) :
 #   ANDROID_KEYSTORE_BASE64  fichier .jks encodé en base64
@@ -68,8 +68,7 @@ jobs:
         run: flutter pub get && flutter analyze --no-fatal-warnings --no-fatal-infos && flutter test --concurrency=1
 
   android:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: tests
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,15 +93,14 @@ jobs:
           storeFile=../sssu-saj.jks
           EOF
       - name: APK
-        run: installation/android/construire_apk.sh "${GITHUB_REF_NAME#v}" "${{ github.run_number }}"
+        run: installation/android/construire_apk.sh "$(cat VERSION)" "${{ github.run_number }}"
       - uses: actions/upload-artifact@v4
         with:
           name: apk
           path: installation/android/sortie/*.apk
 
   windows:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: tests
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,7 +112,7 @@ jobs:
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
       - name: Installateur du poste central
         run: |
-          $v = "${{ github.ref_name }}".TrimStart('v')
+          $v = (Get-Content VERSION -Raw).Trim()
           ./installation/windows/construire_poste.ps1 -Version $v
       - uses: actions/upload-artifact@v4
         with:
@@ -122,18 +120,23 @@ jobs:
           path: installation/windows/sortie/*.exe
 
   publication:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request'
     needs: [android, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        run: echo "VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with: { path: livrables }
       - uses: softprops/action-gh-release@v2
         with:
           files: livrables/**/*
-          name: SSSU-SAJ VMS ${{ github.ref_name }}
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: SSSU-SAJ VMS ${{ env.VERSION }}
           body: |
             - SSSU-SAJ-VMS-Poste-*.exe : installateur du poste central (Windows 10/11, 64 bits).
             - SSSU-SAJ-VMS-*.apk : application des téléphones (Android 8.0 ou plus récent).
