@@ -17,6 +17,7 @@ import 'package:sssu_core/sssu_core.dart';
 
 import '../services.dart';
 import 'commun.dart';
+import 'dialogue_etablissement.dart';
 
 /// Logo réduit à 400 px au plus et réencodé en PNG (fond transparent conservé).
 Uint8List preparerLogo(Uint8List octets) {
@@ -44,6 +45,7 @@ class _PageParametresState extends ConsumerState<PageParametres> {
   final _verrouWindows = TextEditingController();
   String? _logo;
   bool _logoModifie = false;
+  List<Map<String, dynamic>> _etablissements = const [];
   bool _charge = false;
 
   @override
@@ -62,8 +64,10 @@ class _PageParametresState extends ConsumerState<PageParametres> {
 
   Future<void> _charger() async {
     final p = await ref.read(servicesProvider).statistiques.parametres();
+    final etablissements = await ref.read(servicesProvider).requetes.listeEtablissements();
     if (!mounted) return;
     setState(() {
+      _etablissements = etablissements;
       for (var i = 0; i < 6; i++) {
         _lignes[i].text = p['entete_ligne_${i + 1}'] ?? '';
       }
@@ -218,6 +222,82 @@ class _PageParametresState extends ConsumerState<PageParametres> {
         alignment: Alignment.centerLeft,
         child: FilledButton.icon(onPressed: _enregistrer, icon: const Icon(Icons.save), label: const Text('Enregistrer')),
       ),
+      const SizedBox(height: 24),
+      _carteEtablissements(),
     ]);
+  }
+
+  Future<void> _rechargerEtablissements() async {
+    final l = await ref.read(servicesProvider).requetes.listeEtablissements();
+    if (mounted) setState(() => _etablissements = l);
+  }
+
+  /// Liste des établissements : code, nom, responsable, statut. Les
+  /// modifications sont enregistrées aussitôt (indépendamment du bouton
+  /// « Enregistrer » ci-dessus) et transmises aux téléphones concernés.
+  Widget _carteEtablissements() {
+    final peutGerer = ref.read(sessionProvider)!.droits.peut(Permission.etablissementGerer);
+    String statut(Object? c) {
+      try {
+        return StatutEtablissement.depuisCode(c! as String).libelle;
+      } catch (_) {
+        return '${c ?? ''}';
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text('Établissements (${_etablissements.length})', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            if (peutGerer)
+              OutlinedButton.icon(
+                onPressed: () async {
+                  if (await editerEtablissement(context, ref, null)) await _rechargerEtablissements();
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Nouvel établissement'),
+              ),
+          ]),
+          const Text('Modifications enregistrées immédiatement. Classes et archivage : page Établissements.',
+              style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          if (_etablissements.isEmpty)
+            const Padding(padding: EdgeInsets.all(8), child: Text('Aucun établissement enregistré.'))
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                showCheckboxColumn: false,
+                columns: const [
+                  DataColumn(label: Text('Code')),
+                  DataColumn(label: Text('Nom')),
+                  DataColumn(label: Text('Responsable')),
+                  DataColumn(label: Text('Statut')),
+                ],
+                rows: [
+                  for (final e in _etablissements)
+                    DataRow(
+                      onSelectChanged: !peutGerer
+                          ? null
+                          : (_) async {
+                              if (await editerEtablissement(context, ref, e)) await _rechargerEtablissements();
+                            },
+                      cells: [
+                        DataCell(Text('${e['code'] ?? ''}')),
+                        DataCell(Text('${e['nom'] ?? ''}')),
+                        DataCell(Text('${e['responsable'] ?? '—'}')),
+                        DataCell(Text(statut(e['statut']))),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+        ]),
+      ),
+    );
   }
 }

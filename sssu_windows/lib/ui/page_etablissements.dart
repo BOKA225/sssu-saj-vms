@@ -8,6 +8,7 @@ import 'package:sssu_core/sssu_core.dart';
 import '../donnees/requetes_poste.dart';
 import '../services.dart';
 import 'commun.dart';
+import 'dialogue_etablissement.dart';
 
 class PageEtablissements extends ConsumerStatefulWidget {
   const PageEtablissements({super.key});
@@ -105,74 +106,7 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
   // ------------------------------------------------------- établissements
 
   Future<void> _editerEtablissement(LigneEtablissement? e) async {
-    final d = e?.donnees ?? const <String, dynamic>{};
-    final champs = {
-      for (final k in ['nom', 'code', 'region', 'district_sanitaire', 'localite', 'responsable', 'telephone'])
-        k: TextEditingController(text: d[k]?.toString() ?? (k == 'district_sanitaire' ? 'Kouassi-Kouassikro' : k == 'region' ? "N'Zi" : '')),
-    };
-    var type = TypeEtablissement.depuisCode((d['type'] as String?) ?? 'primaire');
-    var statut = StatutEtablissement.depuisCode((d['statut'] as String?) ?? 'public');
-    const libelles = {
-      'nom': 'Nom de l\'établissement',
-      'code': 'Code',
-      'region': 'Région',
-      'district_sanitaire': 'District sanitaire',
-      'localite': 'Localité',
-      'responsable': 'Nom du responsable',
-      'telephone': 'Téléphone',
-    };
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, maj) => AlertDialog(
-          title: Text(e == null ? 'Nouvel établissement' : 'Modifier l\'établissement'),
-          content: SizedBox(
-            width: 480,
-            child: ListView(shrinkWrap: true, children: [
-              for (final k in champs.keys)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: TextField(controller: champs[k], decoration: InputDecoration(labelText: libelles[k])),
-                ),
-              DropdownButtonFormField<TypeEtablissement>(
-                value: type,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: [for (final t in TypeEtablissement.values) DropdownMenuItem(value: t, child: Text(t.libelle))],
-                onChanged: (v) => maj(() => type = v ?? type),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<StatutEtablissement>(
-                value: statut,
-                decoration: const InputDecoration(labelText: 'Statut'),
-                items: [for (final t in StatutEtablissement.values) DropdownMenuItem(value: t, child: Text(t.libelle))],
-                onChanged: (v) => maj(() => statut = v ?? statut),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Enregistrer')),
-          ],
-        ),
-      ),
-    );
-    final donnees = <String, Object?>{
-      for (final x in champs.entries) x.key: x.value.text.trim().isEmpty ? null : x.value.text.trim(),
-      'type': type.code,
-      'statut': statut.code,
-    };
-    for (final c in champs.values) {
-      c.dispose();
-    }
-    if (ok != true || !mounted) return;
-    await executer(context, () async {
-      if (e == null) {
-        await _s.gestion.creerEtablissement(_droits, donnees);
-      } else {
-        await _s.gestion.modifierEtablissement(_droits, e.id, donnees);
-      }
-    }, succes: 'Établissement enregistré. Pensez à l\'affecter aux téléphones concernés.');
-    await _charger();
+    if (await editerEtablissement(context, ref, e?.donnees)) await _charger();
   }
 
   Future<void> _archiver(LigneEtablissement e) async {

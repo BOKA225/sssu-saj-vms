@@ -112,6 +112,10 @@ class RequetesPoste {
   static const _examine = 'EXISTS (SELECT 1 FROM visite v WHERE v.eleve_id = i.eleve_id AND v.deleted_at IS NULL '
       "AND v.statut <> 'ebauche' AND v.date_visite BETWEEN a.date_debut AND a.date_fin)";
 
+  /// Tous les établissements non archivés (paramètres), par code.
+  Future<List<Map<String, dynamic>>> listeEtablissements() =>
+      depot.requete('SELECT * FROM etablissement WHERE deleted_at IS NULL ORDER BY code, nom');
+
   Future<List<LigneEtablissement>> etablissements(Annee annee) async {
     final r = await depot.requete(
       'SELECT e.*, '
