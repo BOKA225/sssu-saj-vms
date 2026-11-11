@@ -129,7 +129,8 @@ void main() {
     final auth = ServiceAuthentification(
         depot: DepotUtilisateursServeur(depot, horloge: horloge), hacheur: hacheur, horloge: horloge);
     final roleAgent = await auth.depot.roleIdParCode(RoleCode.agent);
-    final ident = 'pg-${nouvelId().substring(0, 8)}';
+    final aleatoire = nouvelId();
+    final ident = 'pg-enr-${aleatoire.substring(aleatoire.length - 12)}';
     final agent = Utilisateur(
         id: nouvelId(),
         identifiant: ident,
