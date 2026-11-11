@@ -65,6 +65,10 @@ Handler construireApi({
       final rep = await appairage.finaliser(DemandeAppairage.depuisJson(await _lireJson(r)));
       return _json(200, rep.versJson());
     })
+    ..post('/api/v1/enregistrement', (Request r) async {
+      final rep = await appairage.enregistrer(DemandeEnregistrement.depuisJson(await _lireJson(r)));
+      return _json(200, rep.versJson());
+    })
     ..post('/api/v1/auth/jeton', (Request r) async {
       final rep = await jetons.emettre(DemandeJeton.depuisJson(await _lireJson(r)));
       return _json(200, rep.versJson());

@@ -58,13 +58,15 @@ class ServicesPoste {
     final migrations = await MigrationsPoste(depot, MigrationsPoste.trouverDossier(configure: config.dossierSql)).appliquer();
     await initialiserRoles(depot);
     final depotUtilisateurs = DepotUtilisateursServeur(depot);
+    final auth = ServiceAuthentification(depot: depotUtilisateurs, politique: const PolitiqueConnexion());
     final s = ServicesPoste._(
       config,
       depot,
       depotUtilisateurs,
-      ServiceAuthentification(depot: depotUtilisateurs, politique: const PolitiqueConnexion()),
+      auth,
       ServiceSynchronisation(depot: depot),
-      ServiceAppairage(depot: depot),
+      // Enregistrement des téléphones sans QR code, avec le compte de l'agent.
+      ServiceAppairage(depot: depot, auth: auth),
       ServiceJetons(depot: depot),
       ServiceConflits(depot: depot),
       await CertificatPoste.chargerOuCreer(config.dossier),

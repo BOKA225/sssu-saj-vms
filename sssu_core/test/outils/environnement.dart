@@ -46,7 +46,7 @@ class Environnement {
       depot,
       auth,
       ServiceSynchronisation(depot: depot, horloge: horloge),
-      ServiceAppairage(depot: depot, horloge: horloge),
+      ServiceAppairage(depot: depot, horloge: horloge, auth: auth),
       ServiceJetons(depot: depot, horloge: horloge),
       ServiceConflits(depot: depot, horloge: horloge),
     );

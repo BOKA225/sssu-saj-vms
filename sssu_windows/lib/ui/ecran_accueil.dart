@@ -294,9 +294,41 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
     _charger();
   }
 
+  Map<String, String> _noms = const {};
+
   Future<void> _charger() async {
-    final l = await ref.read(servicesProvider).depot.transaction((tx) => tx.chercher('appareil', const {}));
-    if (mounted) setState(() => _appareils = l);
+    final (l, comptes) = await ref.read(servicesProvider).depot.transaction(
+        (tx) async => (await tx.chercher('appareil', const {}), await tx.chercher('utilisateur', const {})));
+    // Téléphones en attente de validation en premier.
+    l.sort((a, b) => (b.donnees['en_attente'] == true ? 1 : 0) - (a.donnees['en_attente'] == true ? 1 : 0));
+    if (mounted) {
+      setState(() {
+        _appareils = l;
+        _noms = {
+          for (final u in comptes) u.id: '${u.donnees['prenoms'] ?? ''} ${u.donnees['nom']} (${u.donnees['identifiant']})'.trim()
+        };
+      });
+    }
+  }
+
+  /// Téléphone enregistré par un agent : choix de ses établissements, puis
+  /// validation. Il reçoit alors les données à sa prochaine synchronisation.
+  Future<void> _accepter(Enregistrement a) async {
+    if (!await _affecter(a, validation: true) || !mounted) return;
+    final s = ref.read(servicesProvider);
+    await executer(context, () => s.appairage.accepter(a.id, ref.read(sessionProvider)!.droits),
+        succes: 'Téléphone accepté. Il recevra ses données à sa prochaine synchronisation.');
+    await _charger();
+  }
+
+  Future<void> _refuser(Enregistrement a) async {
+    final ok = await confirmer(context, 'Refuser « ${a.donnees['nom']} » ?',
+        'Ce téléphone ne pourra pas se synchroniser. L\'agent devra recommencer l\'enregistrement si c\'est une erreur.',
+        bouton: 'Refuser');
+    if (!ok || !mounted) return;
+    await executer(context, () => ref.read(servicesProvider).appairage.refuser(a.id, ref.read(sessionProvider)!.droits),
+        succes: 'Téléphone refusé.');
+    await _charger();
   }
 
   Future<void> _nouvelAppairage() async {
@@ -361,18 +393,20 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
 
   /// Établissements affectés au téléphone ; un établissement ajouté lui est
   /// envoyé en entier à la prochaine synchronisation.
-  Future<void> _affecter(Enregistrement a) async {
+  Future<bool> _affecter(Enregistrement a, {bool validation = false}) async {
     final s = ref.read(servicesProvider);
     final droits = ref.read(sessionProvider)!.droits;
     final (etabs, liens) = await s.depot.transaction((tx) async =>
         (await tx.chercher('etablissement', const {}), await tx.chercher('appareil_etablissement', {'appareil_id': a.id})));
     final choisis = {for (final l in liens) l.donnees['etablissement_id']! as String};
-    if (!mounted) return;
+    if (!mounted) return false;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, maj) => AlertDialog(
-          title: Text('Établissements de « ${a.donnees['nom']} »'),
+          title: Text(validation
+              ? 'Accepter « ${a.donnees['nom']} » : établissements'
+              : 'Établissements de « ${a.donnees['nom']} »'),
           content: SizedBox(
             width: 420,
             child: ListView(shrinkWrap: true, children: [
@@ -386,15 +420,33 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Enregistrer')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true), child: Text(validation ? 'Accepter' : 'Enregistrer')),
           ],
         ),
       ),
     );
-    if (ok != true || !mounted) return;
-    await executer(context, () => s.gestion.affecterEtablissements(droits, a.id, choisis),
-        succes: 'Affectation enregistrée. Le téléphone recevra les données à sa prochaine synchronisation.');
-    await _charger();
+    if (ok != true || !mounted) return false;
+    final fait = await executer(context, () => s.gestion.affecterEtablissements(droits, a.id, choisis),
+        succes: validation ? null : 'Affectation enregistrée. Le téléphone recevra les données à sa prochaine synchronisation.');
+    if (!validation) await _charger();
+    return fait;
+  }
+
+  /// Code de sécurité du poste, affiché aussi sur le téléphone lors d'un
+  /// enregistrement sans QR code : les deux doivent être identiques.
+  Widget _codeSecurite() {
+    final s = ref.read(servicesProvider);
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.verified_user),
+        title: Text('Code de sécurité du poste : ${codeSecuriteCertificat(s.certificat.empreinte)}',
+            style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 1)),
+        subtitle: Text('Sans QR code, l\'agent enregistre son téléphone avec son identifiant à l\'adresse '
+            '${s.config.adresseInternet ?? 'https://<adresse du poste>:${s.port}'}. Le téléphone affiche ce même code : '
+            's\'il est différent, ne validez pas le téléphone.'),
+      ),
+    );
   }
 
   @override
@@ -407,22 +459,42 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _codeSecurite(),
+            const SizedBox(height: 8),
             for (final a in _appareils)
-              Card(
-                child: ListTile(
-                  leading: Icon(a.donnees['bloque'] == true ? Icons.block : Icons.phone_android),
-                  title: Text('${a.donnees['nom']}'),
-                  subtitle: Text(a.donnees['cle_publique'] == null
-                      ? 'En attente d\'appairage'
-                      : 'Appairé le ${a.donnees['date_appairage']}${a.donnees['modele'] == null ? '' : ' · ${a.donnees['modele']}'}'),
-                  trailing: a.donnees['bloque'] == true
-                      ? const Text('Bloqué')
-                      : Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => _affecter(a), child: const Text('Établissements')),
-                          TextButton(onPressed: () => _bloquer(a), child: const Text('Bloquer')),
-                        ]),
+              if (a.donnees['en_attente'] == true)
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.hourglass_top),
+                    title: Text('${a.donnees['nom']} — en attente de validation'),
+                    subtitle: Text('Enregistré par ${_noms[a.donnees['titulaire_id']] ?? '?'}'
+                        ' le ${dateFr(a.createdAt.toLocal())}'
+                        '${a.donnees['modele'] == null ? '' : ' · ${a.donnees['modele']}'}'),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      FilledButton(onPressed: () => _accepter(a), child: const Text('Accepter')),
+                      const SizedBox(width: 8),
+                      TextButton(onPressed: () => _refuser(a), child: const Text('Refuser')),
+                    ]),
+                  ),
+                )
+              else
+                Card(
+                  child: ListTile(
+                    leading: Icon(a.donnees['bloque'] == true ? Icons.block : Icons.phone_android),
+                    title: Text('${a.donnees['nom']}'),
+                    subtitle: Text(a.donnees['cle_publique'] == null
+                        ? 'En attente d\'appairage'
+                        : 'Appairé le ${a.donnees['date_appairage']}${a.donnees['modele'] == null ? '' : ' · ${a.donnees['modele']}'}'
+                            '${a.donnees['titulaire_id'] == null ? '' : ' · ${_noms[a.donnees['titulaire_id']] ?? ''}'}'),
+                    trailing: a.donnees['bloque'] == true
+                        ? const Text('Bloqué')
+                        : Row(mainAxisSize: MainAxisSize.min, children: [
+                            TextButton(onPressed: () => _affecter(a), child: const Text('Établissements')),
+                            TextButton(onPressed: () => _bloquer(a), child: const Text('Bloquer')),
+                          ]),
+                  ),
                 ),
-              ),
           ],
         ),
       );

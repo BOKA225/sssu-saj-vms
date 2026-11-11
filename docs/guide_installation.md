@@ -56,9 +56,17 @@ Elle permet aux équipes de synchroniser sans revenir au bureau. Il faut :
 1. une **adresse fixe** sur Internet pour le bureau, ou un nom DynDNS (par exemple `sssu-saj.ddns.net`) ;
 2. dans le routeur, une **redirection** du port TCP 8443 vers le poste central. Donnez au poste une adresse IP fixe sur le réseau local ;
 3. dans `C:\ProgramData\SSSU-SAJ VMS\sssu_config.json`, la ligne `"adresse_internet": "https://sssu-saj.ddns.net:8443"`, puis un redémarrage de l'application ;
-4. un nouvel appairage des téléphones, pour qu'ils reçoivent cette adresse.
+4. pour les téléphones appairés par QR code avant ce réglage, un nouvel appairage, pour qu'ils reçoivent cette adresse.
 
-La connexion reste chiffrée. Les téléphones n'acceptent que le certificat du poste, reconnu par son empreinte.
+Avec cette adresse, les agents peuvent aussi **enregistrer un téléphone sans QR code**, depuis le terrain,
+avec leur identifiant et leur mot de passe ; l'administrateur l'accepte ensuite sur le poste (page
+Téléphones). Donnez l'adresse aux agents, pas par écrit public.
+
+La connexion reste chiffrée. Les téléphones n'acceptent que le certificat du poste, reconnu par son
+empreinte : lue dans le QR code, ou, sans QR code, retenue au premier contact après vérification du code de
+sécurité par l'agent. Le poste exposé sur Internet reçoit des tentatives de connexion : les comptes se
+bloquent 15 minutes après 5 mots de passe faux, et un téléphone enregistré ne reçoit rien tant qu'il n'est
+pas accepté. Imposez des mots de passe solides.
 
 ## 6. Mises à jour et désinstallation
 

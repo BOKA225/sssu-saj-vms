@@ -17,6 +17,36 @@ import 'protocole.dart';
 String empreinteSha256Hex(List<int> octets) =>
     const DartSha256().hashSync(octets).bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+/// Empreinte SHA-256 (hexadécimale) du certificat présenté par le poste
+/// central à l'adresse [base], lue sans le vérifier. Sert à l'enregistrement
+/// sans QR code : le certificat vu à ce premier contact est ensuite épinglé
+/// (confiance au premier usage). Le poste affiche son code de sécurité
+/// ([codeSecuriteCertificat]) pour qu'on puisse le comparer.
+Future<String> lireEmpreinteCertificat(Uri base, {Duration delai = const Duration(seconds: 10)}) async {
+  if (base.scheme != 'https') throw ArgumentError('Adresse HTTPS attendue (https://adresse:port).');
+  X509Certificate? vu;
+  final socket = await SecureSocket.connect(base.host, base.hasPort ? base.port : 443, timeout: delai,
+      onBadCertificate: (c) {
+    vu = c;
+    return true;
+  });
+  try {
+    final c = vu ?? socket.peerCertificate;
+    if (c == null) throw const HandshakeException('Aucun certificat présenté.');
+    return empreinteSha256Hex(c.der);
+  } finally {
+    socket.destroy();
+  }
+}
+
+/// Code court (16 caractères en 4 groupes) tiré de l'empreinte du
+/// certificat, affiché sur le poste et sur le téléphone pour vérification.
+String codeSecuriteCertificat(String empreinteHex) {
+  final h = empreinteHex.toUpperCase().replaceAll(RegExp(r'[^0-9A-F]'), '');
+  final c = h.length < 16 ? h : h.substring(0, 16);
+  return [for (var i = 0; i < c.length; i += 4) c.substring(i, i + 4 > c.length ? c.length : i + 4)].join('-');
+}
+
 class TransportHttp implements TransportSync {
   final Uri base;
   final http.Client _client;
@@ -62,6 +92,10 @@ class TransportHttp implements TransportSync {
         'content-type': 'application/json; charset=utf-8',
         if (jeton != null) 'authorization': 'Bearer $jeton',
       };
+
+  /// Enregistrement sans QR code (voir ServiceAppairage.enregistrer).
+  Future<ReponseEnregistrement> enregistrer(DemandeEnregistrement d) async => ReponseEnregistrement.depuisJson(
+      await _traiter(_client.post(_uri('/api/v1/enregistrement'), headers: _entetes(), body: jsonEncode(d.versJson()))));
 
   Future<bool> etat() async {
     final j = await _traiter(_client.get(_uri('/api/v1/etat')));

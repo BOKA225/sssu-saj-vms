@@ -4,11 +4,17 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sssu_core/sssu_core.dart';
 
 import '../services.dart';
+import 'ecran_enregistrement.dart';
 
-/// Premier lancement : lecture du QR code affiché sur le poste central.
+/// Premier lancement : lecture du QR code affiché sur le poste central, ou
+/// enregistrement sans QR code avec le compte de l'agent ([onEnregistre]).
 class EcranAppairage extends ConsumerStatefulWidget {
   final VoidCallback onAppaire;
-  const EcranAppairage({super.key, required this.onAppaire});
+
+  /// Téléphone enregistré sans QR code (en attente de validation). Absent :
+  /// seul le QR code est proposé.
+  final VoidCallback? onEnregistre;
+  const EcranAppairage({super.key, required this.onAppaire, this.onEnregistre});
 
   @override
   ConsumerState<EcranAppairage> createState() => _EcranAppairageState();
@@ -83,8 +89,8 @@ class _EcranAppairageState extends ConsumerState<EcranAppairage> {
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'Sur le poste central, l\'administrateur crée l\'appareil et affiche un QR code. '
-              'Le téléphone doit être connecté au même réseau Wi-Fi que le poste central.',
+              'Sur le poste central, l\'administrateur crée l\'appareil et affiche un QR code, à scanner sur le '
+              'même réseau Wi-Fi. Loin du poste, utilisez le bouton en bas de l\'écran.',
               style: TextStyle(fontSize: 16),
             ),
           ),
@@ -93,6 +99,35 @@ class _EcranAppairageState extends ConsumerState<EcranAppairage> {
                 ? const Center(child: CircularProgressIndicator())
                 : MobileScanner(controller: _scanner, onDetect: _surDetection),
           ),
+          if (widget.onEnregistre != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: OutlinedButton.icon(
+                onPressed: _enCours
+                    ? null
+                    : () async {
+                        await _scanner.stop();
+                        if (!mounted) return;
+                        var enregistre = false;
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (c) => EcranEnregistrement(onEnregistre: () {
+                              enregistre = true;
+                              Navigator.pop(c);
+                            }),
+                          ),
+                        );
+                        if (enregistre) {
+                          widget.onEnregistre!();
+                        } else {
+                          await _scanner.start();
+                        }
+                      },
+                icon: const Icon(Icons.person),
+                label: const Text('Pas de QR code : m\'enregistrer avec mon identifiant'),
+              ),
+            ),
           if (_erreur != null)
             Container(
               color: Theme.of(context).colorScheme.errorContainer,

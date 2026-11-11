@@ -21,6 +21,7 @@ class Coffre {
   static const _dernierUtilisateur = 'dernier_utilisateur';
   static const _cleFichiers = 'cle_fichiers';
   static const _urlInternet = 'url_internet';
+  static const _enAttente = 'en_attente_validation';
 
   /// Clé AES-256 de la base locale, créée au premier lancement.
   Future<String> cleBase() async {
@@ -57,6 +58,20 @@ class Coffre {
   }
 
   Future<String?> appareilId() => _stockage.read(key: _appareilId);
+
+  /// Téléphone enregistré sans QR code, pas encore validé sur le poste central.
+  Future<bool> enAttenteValidation() async => await _stockage.read(key: _enAttente) == '1';
+
+  Future<void> definirEnAttenteValidation(bool v) =>
+      v ? _stockage.write(key: _enAttente, value: '1') : _stockage.delete(key: _enAttente);
+
+  /// Abandon d'un enregistrement refusé : identité et adresses oubliées, les
+  /// clés de la base et des fichiers sont gardées.
+  Future<void> annulerAppairage() async {
+    for (final k in [_appareilId, _graine, _url, _urlInternet, _empreinte, _enAttente, _dernierUtilisateur]) {
+      await _stockage.delete(key: k);
+    }
+  }
 
   /// Effacement à distance : toutes les clés et l'identité du téléphone.
   Future<void> effacerTout() => _stockage.deleteAll();

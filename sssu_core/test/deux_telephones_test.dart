@@ -58,6 +58,43 @@ void main() {
         ClientSynchronisation(depot: base, transport: transport, identite: identite, horloge: env.horloge, tailleLot: 3));
   }
 
+  test('enregistrement sans QR code par HTTP : attente, validation, première synchronisation', () async {
+    final transport = TransportHttp(adresse);
+    addTearDown(transport.fermer);
+    final appareilId = nouvelId();
+    final identite = await IdentiteAppareil.generer(appareilId);
+    Future<void> enregistrer({String? nouveau}) => transport.enregistrer(DemandeEnregistrement(
+        identifiant: 'agent1',
+        motDePasse: Environnement.motDePasse,
+        nouveauMotDePasse: nouveau,
+        appareilId: appareilId,
+        clePublique: '',
+        nomAppareil: 'Terrain'));
+    await expectLater(enregistrer(nouveau: 'Terrain-2026'),
+        throwsA(isA<ErreurProtocole>().having((e) => e.code, 'code', 'cle_invalide')));
+    final rep = await transport.enregistrer(DemandeEnregistrement(
+        identifiant: 'agent1',
+        motDePasse: Environnement.motDePasse,
+        nouveauMotDePasse: 'Terrain-2026',
+        appareilId: appareilId,
+        clePublique: await identite.clePubliqueBase64(),
+        nomAppareil: 'Terrain'));
+    expect(rep.enAttente, isTrue);
+    final base = DepotLocalMemoire(horloge: env.horloge, appareilId: appareilId);
+    final client = ClientSynchronisation(depot: base, transport: transport, identite: identite, horloge: env.horloge);
+    await expectLater(client.synchroniser(),
+        throwsA(isA<ErreurProtocole>().having((e) => e.code, 'code', 'appareil_en_attente')));
+
+    final admin = await env.droits(env.admin);
+    await ServiceGestion(depot: env.depot, horloge: env.horloge, hacheur: HacheurMotDePasse(parametres: ParametresArgon2.tests))
+        .affecterEtablissements(admin, appareilId, {env.etabA});
+    await env.appairage.accepter(appareilId, admin);
+    final r = await client.synchroniser();
+    expect(r.recus, greaterThan(0));
+    expect(base.lire('eleve', env.eleveA), isNotNull);
+    expect(base.lire('eleve', env.eleveB), isNull);
+  });
+
   test('état du poste central', () async {
     expect(await TransportHttp(adresse).etat(), isTrue);
   });

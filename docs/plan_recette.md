@@ -31,6 +31,9 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | 2.1 | Créer un compte par profil | Le mot de passe temporaire doit être changé à la première connexion | |
 | 2.1 bis | Changer le mot de passe temporaire sur le poste, puis « Synchroniser » depuis l'écran de connexion du téléphone | Connexion sur le téléphone avec le nouveau mot de passe ; l'ancien est refusé | |
 | 2.1 ter | Supprimer un compte d'agent (avec motif), puis synchroniser son téléphone | Connexion refusée sur le poste et le téléphone ; ses visites gardent son nom ; l'identifiant peut être recréé ; suppression de son propre compte refusée | |
+| 2.2 bis | Enregistrer un téléphone sans QR code (adresse Internet, identifiant, mot de passe temporaire) | Code de sécurité identique sur le téléphone et le poste ; nouveau mot de passe demandé ; téléphone « en attente », rien reçu | |
+| 2.2 ter | Accepter ce téléphone sur le poste avec un établissement, puis « Vérifier maintenant » | Le téléphone reçoit les élèves de cet établissement seulement ; connexion avec le nouveau mot de passe | |
+| 2.2 quater | Refuser un autre téléphone en attente | Le téléphone affiche « Téléphone refusé » et propose de recommencer | |
 | 2.2 | Appairer T1 et T2 (établissement A) et T3 (établissement B) par QR code | Première synchronisation : T1 et T2 voient uniquement les élèves de A, T3 ceux de B | |
 | 2.3 | Réutiliser un QR code déjà servi, ou vieux de plus de 10 minutes | Refusé | |
 | 2.4 | 5 mots de passe faux de suite | Compte bloqué 15 minutes | |

@@ -98,6 +98,65 @@ class ReponseAppairage {
       );
 }
 
+/// Enregistrement d'un téléphone sans QR code : l'agent saisit l'adresse du
+/// poste, son identifiant et son mot de passe. Le téléphone reste en attente
+/// jusqu'à sa validation par l'administrateur (choix des établissements).
+class DemandeEnregistrement {
+  final String identifiant;
+  final String motDePasse;
+
+  /// Nouveau mot de passe, quand le compte a encore un mot de passe temporaire.
+  final String? nouveauMotDePasse;
+  final String appareilId;
+  final String clePublique;
+  final String nomAppareil;
+  final String? modele;
+
+  const DemandeEnregistrement({
+    required this.identifiant,
+    required this.motDePasse,
+    this.nouveauMotDePasse,
+    required this.appareilId,
+    required this.clePublique,
+    required this.nomAppareil,
+    this.modele,
+  });
+
+  Map<String, Object?> versJson() => {
+        'identifiant': identifiant,
+        'mot_de_passe': motDePasse,
+        'nouveau_mot_de_passe': nouveauMotDePasse,
+        'appareil_id': appareilId,
+        'cle_publique': clePublique,
+        'nom': nomAppareil,
+        'modele': modele,
+      };
+
+  factory DemandeEnregistrement.depuisJson(Map<String, Object?> j) => DemandeEnregistrement(
+        identifiant: j['identifiant']! as String,
+        motDePasse: j['mot_de_passe']! as String,
+        nouveauMotDePasse: j['nouveau_mot_de_passe'] as String?,
+        appareilId: j['appareil_id']! as String,
+        clePublique: j['cle_publique']! as String,
+        nomAppareil: j['nom']! as String,
+        modele: j['modele'] as String?,
+      );
+}
+
+class ReponseEnregistrement {
+  final String appareilId;
+
+  /// Toujours vrai à l'enregistrement : la validation se fait sur le poste.
+  final bool enAttente;
+
+  const ReponseEnregistrement({required this.appareilId, this.enAttente = true});
+
+  Map<String, Object?> versJson() => {'appareil_id': appareilId, 'en_attente': enAttente};
+
+  factory ReponseEnregistrement.depuisJson(Map<String, Object?> j) =>
+      ReponseEnregistrement(appareilId: j['appareil_id']! as String, enAttente: j['en_attente'] != false);
+}
+
 /// Demande de jeton : le téléphone prouve son identité en signant
 /// [messageASigner] avec sa clé privée.
 class DemandeJeton {

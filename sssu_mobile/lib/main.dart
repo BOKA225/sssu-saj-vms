@@ -7,6 +7,7 @@ import 'services.dart';
 import 'ui/ecran_accueil.dart';
 import 'ui/ecran_appairage.dart';
 import 'ui/ecran_connexion.dart';
+import 'ui/ecran_enregistrement.dart';
 import 'ui/theme.dart';
 import 'ui/verrou_inactivite.dart';
 
@@ -15,15 +16,17 @@ Future<void> main() async {
   // Chiffrement AES et hachages accélérés par le système Android quand c'est possible.
   final services = await ServicesMobile.demarrer();
   final appaire = await services.estAppaire();
+  final enAttente = appaire && await services.coffre.enAttenteValidation();
   runApp(ProviderScope(
     overrides: [servicesProvider.overrideWithValue(services)],
-    child: ApplicationMobile(appaireAuDemarrage: appaire),
+    child: ApplicationMobile(appaireAuDemarrage: appaire, enAttenteAuDemarrage: enAttente),
   ));
 }
 
 class ApplicationMobile extends ConsumerStatefulWidget {
   final bool appaireAuDemarrage;
-  const ApplicationMobile({super.key, required this.appaireAuDemarrage});
+  final bool enAttenteAuDemarrage;
+  const ApplicationMobile({super.key, required this.appaireAuDemarrage, this.enAttenteAuDemarrage = false});
 
   @override
   ConsumerState<ApplicationMobile> createState() => _ApplicationMobileState();
@@ -31,6 +34,7 @@ class ApplicationMobile extends ConsumerStatefulWidget {
 
 class _ApplicationMobileState extends ConsumerState<ApplicationMobile> {
   late bool _appaire = widget.appaireAuDemarrage;
+  late bool _enAttente = widget.enAttenteAuDemarrage;
   Duration _verrou = const Duration(minutes: 5);
 
   @override
@@ -63,7 +67,21 @@ class _ApplicationMobileState extends ConsumerState<ApplicationMobile> {
     if (bloque) {
       ecran = const _EcranTelephoneBloque();
     } else if (!_appaire) {
-      ecran = EcranAppairage(onAppaire: () => setState(() => _appaire = true));
+      ecran = EcranAppairage(
+        onAppaire: () => setState(() => _appaire = true),
+        onEnregistre: () => setState(() {
+          _appaire = true;
+          _enAttente = true;
+        }),
+      );
+    } else if (_enAttente) {
+      ecran = EcranAttenteValidation(
+        onValide: () => setState(() => _enAttente = false),
+        onRefuse: () => setState(() {
+          _appaire = false;
+          _enAttente = false;
+        }),
+      );
     } else if (session == null) {
       _lireDelaiVerrouillage();
       ecran = const EcranConnexion();

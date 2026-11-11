@@ -161,6 +161,9 @@ const List<TableSpec> registre = [
       Colonne('titulaire_id', TypeColonne.uuid),
       Colonne('date_appairage', TypeColonne.horodatage),
       Colonne('bloque', TypeColonne.booleen, obligatoire: true, aValeurParDefaut: true),
+      // Téléphone enregistré par l'agent (identifiant et mot de passe), en
+      // attente de validation par l'administrateur : il ne reçoit rien.
+      Colonne('en_attente', TypeColonne.booleen, obligatoire: true, aValeurParDefaut: true),
     ],
   ),
   TableSpec(

@@ -719,3 +719,15 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   son propre compte et pour le dernier administrateur actif. `ServiceGestion.supprimerCompte`.
 - Téléphone : une session ouverte est fermée si son compte a été supprimé ou désactivé sur le poste.
 - Tests : `sssu_core/test/gestion_test.dart`, `sssu_mobile/test/comptes_test.dart`.
+
+## Version 1.1.0
+
+- **Enregistrement d'un téléphone sans QR code**, par Internet ou le Wi-Fi : adresse du poste,
+  identifiant et mot de passe de l'agent (un mot de passe temporaire est remplacé à cette occasion).
+  Le certificat du poste est retenu au premier contact, après vérification d'un code de sécurité affiché
+  sur les deux appareils. Le téléphone reste **en attente** (aucun jeton, aucune donnée) jusqu'à ce que
+  l'administrateur l'accepte en choisissant ses établissements, ou le refuse. Au plus 3 téléphones en
+  attente par compte. API `POST /api/v1/enregistrement` ; `ServiceAppairage.enregistrer/accepter/refuser` ;
+  colonne `appareil.en_attente` (migration `030_enregistrement_telephone.sql`).
+- **Paramètres** du poste : liste des établissements (code, nom, responsable, statut), modifiables.
+- Tests : `appairage_test.dart`, `deux_telephones_test.dart` (HTTP), `depot_postgres_test.dart` (PostgreSQL).

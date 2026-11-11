@@ -6,6 +6,7 @@ import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 
+import '../auth/auth_service.dart';
 import '../auth/permissions.dart';
 import '../commun/commun.dart';
 import 'depot_serveur.dart';
@@ -25,10 +26,18 @@ class ServiceAppairage {
   final Duration validiteCode;
   final Random _aleatoire;
 
+  /// Comptes du poste central, pour l'enregistrement sans QR code ; absent,
+  /// cet enregistrement est refusé.
+  final ServiceAuthentification? auth;
+
+  /// Téléphones en attente de validation au plus, par compte.
+  static const attentesMaxParCompte = 3;
+
   ServiceAppairage({
     required this.depot,
     this.horloge = const HorlogeSysteme(),
     this.validiteCode = const Duration(minutes: 10),
+    this.auth,
     Random? aleatoire,
   }) : _aleatoire = aleatoire ?? Random.secure();
 
@@ -69,6 +78,7 @@ class ServiceAppairage {
         'nom': nomAppareil,
         'titulaire_id': titulaireId,
         'bloque': false,
+        'en_attente': false,
       }, id: appareilId));
       for (final etab in etablissementIds) {
         await tx.ecrire(nouveau('appareil_etablissement', {'appareil_id': appareilId, 'etablissement_id': etab}));
@@ -125,6 +135,119 @@ class ServiceAppairage {
     });
   }
 
+  /// Enregistrement sans QR code (appel du téléphone, par le Wi-Fi ou par
+  /// Internet) : le compte de l'agent est vérifié comme à une connexion
+  /// (blocage après 5 échecs) ; un mot de passe temporaire doit être remplacé
+  /// dans la même demande. Le téléphone est créé « en attente » : aucun jeton
+  /// ne lui est délivré avant sa validation par l'administrateur.
+  Future<ReponseEnregistrement> enregistrer(DemandeEnregistrement d) async {
+    final a = auth;
+    if (a == null) {
+      throw const ErreurProtocole(403, 'enregistrement_ferme', 'Enregistrement sans QR code non disponible.');
+    }
+    final cle = base64.decode(d.clePublique);
+    if (cle.length != 32) throw const ErreurProtocole(400, 'cle_invalide', 'Clé publique Ed25519 invalide.');
+    final nom = d.nomAppareil.trim();
+    if (nom.isEmpty || nom.length > 80) throw const ErreurProtocole(400, 'nom', 'Nom du téléphone invalide.');
+    if (!RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$').hasMatch(d.appareilId)) {
+      throw const ErreurProtocole(400, 'appareil_id', 'Identifiant d\'appareil invalide.');
+    }
+
+    final r = await a.connecter(d.identifiant, d.motDePasse);
+    if (!r.reussie) throw ErreurProtocole(401, 'identifiants', r.message);
+    var session = r.session!;
+    if (session.doitChangerMotDePasse) {
+      final nouveau = d.nouveauMotDePasse;
+      if (nouveau == null) {
+        throw const ErreurProtocole(409, 'mot_de_passe_temporaire',
+            'Mot de passe temporaire : choisissez votre mot de passe personnel.');
+      }
+      try {
+        session = await a.changerMotDePasse(session, ancien: d.motDePasse, nouveau: nouveau);
+      } on ErreurSaisie catch (e) {
+        throw ErreurProtocole(400, 'mot_de_passe', e.message);
+      }
+    }
+    final utilisateurId = session.utilisateur.id;
+
+    return depot.transaction((tx) async {
+      final existant = await tx.lire('appareil', d.appareilId);
+      if (existant != null) {
+        // Nouvel essai du même téléphone (réponse perdue) : même réponse.
+        if (existant.donnees['en_attente'] == true &&
+            existant.donnees['cle_publique'] == d.clePublique &&
+            !existant.supprime) {
+          return ReponseEnregistrement(appareilId: d.appareilId);
+        }
+        throw const ErreurProtocole(409, 'deja_appaire', 'Cet appareil est déjà enregistré.');
+      }
+      final attentes = await tx.chercher('appareil', {'titulaire_id': utilisateurId, 'en_attente': true});
+      if (attentes.length >= attentesMaxParCompte) {
+        throw const ErreurProtocole(429, 'trop_d_attentes',
+            'Trop de téléphones en attente pour ce compte. Demandez à l\'administrateur de les valider.');
+      }
+      final m = horloge.maintenant();
+      await tx.ecrire(Enregistrement(
+        table: 'appareil',
+        id: d.appareilId,
+        version: 1,
+        versionBase: 1,
+        createdAt: m,
+        updatedAt: m,
+        createdBy: utilisateurId,
+        updatedBy: utilisateurId,
+        donnees: {
+          'nom': nom,
+          'modele': d.modele,
+          'cle_publique': d.clePublique,
+          'titulaire_id': utilisateurId,
+          'bloque': false,
+          'en_attente': true,
+        },
+      ));
+      return ReponseEnregistrement(appareilId: d.appareilId);
+    });
+  }
+
+  /// Validation d'un téléphone enregistré par un agent. Ses établissements
+  /// doivent lui avoir été affectés (ServiceGestion.affecterEtablissements).
+  Future<void> accepter(String appareilId, Droits acteur) async {
+    if (!acteur.peut(Permission.comptesGerer)) throw StateError('Action réservée à l\'administrateur.');
+    await depot.transaction((tx) async {
+      final a = await tx.lire('appareil', appareilId);
+      if (a == null || a.supprime) throw ArgumentError('Appareil inconnu.');
+      if (a.donnees['en_attente'] != true) return;
+      final liens = await tx.chercher('appareil_etablissement', {'appareil_id': appareilId});
+      if (liens.isEmpty) throw StateError('Affectez au moins un établissement au téléphone avant de l\'accepter.');
+      final m = horloge.maintenant();
+      await tx.ecrire(a.copier(
+          version: a.version + 1,
+          versionBase: a.version + 1,
+          updatedAt: m,
+          updatedBy: acteur.utilisateurId,
+          donnees: {...a.donnees, 'en_attente': false, 'date_appairage': formaterHorodatage(m)}));
+    });
+  }
+
+  /// Refus d'un téléphone en attente : il est retiré de la liste et ne
+  /// pourra jamais se synchroniser (l'agent peut recommencer l'enregistrement).
+  Future<void> refuser(String appareilId, Droits acteur) async {
+    if (!acteur.peut(Permission.comptesGerer)) throw StateError('Action réservée à l\'administrateur.');
+    await depot.transaction((tx) async {
+      final a = await tx.lire('appareil', appareilId);
+      if (a == null || a.supprime) return;
+      if (a.donnees['en_attente'] != true) throw StateError('Ce téléphone est déjà validé : utilisez « Bloquer ».');
+      final m = horloge.maintenant();
+      await tx.ecrire(a.copier(
+          version: a.version + 1,
+          versionBase: a.version + 1,
+          updatedAt: m,
+          updatedBy: acteur.utilisateurId,
+          deletedAt: m,
+          donnees: {...a.donnees, 'bloque': true}));
+    });
+  }
+
   /// Blocage d'un téléphone perdu ou volé : toutes ses requêtes seront refusées.
   Future<void> bloquer(String appareilId, Droits acteur) async {
     if (!acteur.peut(Permission.comptesGerer)) throw StateError('Action réservée à l\'administrateur.');
@@ -178,8 +301,14 @@ class ServiceJetons {
     }
     final appareil = await depot.transaction((tx) => tx.lire('appareil', d.appareilId));
     final cle = appareil?.donnees['cle_publique'] as String?;
-    if (appareil == null || cle == null) throw const ErreurProtocole(401, 'appareil_inconnu', 'Appareil non appairé.');
+    if (appareil == null || cle == null || appareil.supprime) {
+      throw const ErreurProtocole(401, 'appareil_inconnu', 'Appareil non appairé.');
+    }
     if (appareil.donnees['bloque'] == true) throw const ErreurProtocole(403, 'appareil_bloque', 'Cet appareil est bloqué.');
+    if (appareil.donnees['en_attente'] == true) {
+      throw const ErreurProtocole(403, 'appareil_en_attente',
+          'Ce téléphone attend sa validation par l\'administrateur du poste central.');
+    }
     final valide = await Ed25519().verify(
       utf8.encode(DemandeJeton.messageASigner(d.appareilId, d.horodatage, d.nonce)),
       signature: Signature(base64.decode(d.signature),

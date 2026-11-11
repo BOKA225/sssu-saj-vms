@@ -14,7 +14,17 @@ Quelques règles valent partout :
 
 ### A1. Première connexion
 
-1. L'administrateur appaire le téléphone : vous lisez avec l'application le QR code affiché sur le poste central.
+1. Enregistrez le téléphone, de l'une de ces deux façons :
+   - **avec un QR code**, au bureau : l'administrateur l'affiche sur le poste central, vous le lisez avec
+     l'application (même Wi-Fi que le poste) ;
+   - **sans QR code**, de n'importe où : touchez **« Pas de QR code : m'enregistrer avec mon identifiant »**,
+     saisissez l'adresse du poste donnée par l'administrateur (par exemple `https://sssu-saj.ddns.net:8443`
+     par Internet, ou `https://192.168.1.10:8443` sur le Wi-Fi du poste), un nom pour le téléphone, votre
+     identifiant et votre mot de passe. L'application affiche le **code de sécurité du poste** : il doit
+     être identique à celui de la page Téléphones du poste central (en cas de doute, appelez
+     l'administrateur). Si votre mot de passe est temporaire, choisissez ici votre mot de passe personnel.
+     Le téléphone attend ensuite que l'administrateur l'**accepte** ; il vérifie tout seul chaque minute,
+     ou touchez « Vérifier maintenant ». Une fois accepté, il reçoit les élèves de ses établissements.
 2. Connectez-vous avec l'identifiant et le mot de passe que l'administrateur vous a remis. Choisissez un **code PIN** de 6 chiffres, ni identiques, ni à la suite.
 3. La connexion fonctionne **sans réseau**, dès que le téléphone a été synchronisé une fois.
 
@@ -119,6 +129,10 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
   - Désactiver un compte, réinitialiser un mot de passe, changer un rôle.
 - **Téléphones**
   - Appairer un téléphone (QR code).
+  - Téléphones **en attente** (enregistrés par un agent sans QR code) : en haut de la liste, avec le nom de
+    l'agent. **Accepter** demande de choisir ses établissements ; **Refuser** l'écarte définitivement. Le
+    code de sécurité du poste est affiché en haut de la page : l'agent voit le même sur son téléphone.
+    N'acceptez que les téléphones que vous attendiez.
   - Choisir les établissements dont il s'occupe : un établissement ajouté lui est envoyé en entier.
   - **Bloquer** un téléphone perdu ou volé.
 

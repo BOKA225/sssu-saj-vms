@@ -123,4 +123,45 @@ void main() {
     final reception = await sync.preparerReception(qr.appareilId, 0, limite: 100000);
     expect(reception.changements.any((c) => c.enregistrement.id == eleve.id && c.enregistrement.version == 2), isTrue);
   }, skip: ignorer);
+
+  test('enregistrement d\'un téléphone sans QR code sur PostgreSQL : attente, validation, jeton', () async {
+    final hacheur = HacheurMotDePasse(parametres: ParametresArgon2.tests);
+    final auth = ServiceAuthentification(
+        depot: DepotUtilisateursServeur(depot, horloge: horloge), hacheur: hacheur, horloge: horloge);
+    final roleAgent = await auth.depot.roleIdParCode(RoleCode.agent);
+    final ident = 'pg-${nouvelId().substring(0, 8)}';
+    final agent = Utilisateur(
+        id: nouvelId(),
+        identifiant: ident,
+        nom: 'AGENT',
+        roleId: roleAgent!,
+        hashMotDePasse: await hacheur.hacher('Temp-2026'),
+        doitChangerMotDePasse: true);
+    await auth.depot.enregistrer(agent);
+    final etab = nouvelId();
+    await depot.transaction((tx) =>
+        tx.ecrire(nouveau('etablissement', {'nom': 'E', 'code': 'R-$etab', 'type': 'primaire', 'statut': 'public'}, id: etab)));
+
+    final appairage = ServiceAppairage(depot: depot, horloge: horloge, auth: auth);
+    final jetons = ServiceJetons(depot: depot, horloge: horloge);
+    final appareilId = nouvelId();
+    final id = await IdentiteAppareil.generer(appareilId);
+    await appairage.enregistrer(DemandeEnregistrement(
+        identifiant: ident,
+        motDePasse: 'Temp-2026',
+        nouveauMotDePasse: 'Terrain-2026',
+        appareilId: appareilId,
+        clePublique: await id.clePubliqueBase64(),
+        nomAppareil: 'Téléphone PG'));
+    final attente = await depot.transaction((tx) => tx.chercher('appareil', {'titulaire_id': agent.id, 'en_attente': true}));
+    expect(attente.single.id, appareilId);
+    await expectLater(jetons.emettre(await id.demandeJeton(horloge)),
+        throwsA(isA<ErreurProtocole>().having((e) => e.code, 'code', 'appareil_en_attente')));
+
+    final admin = Droits(utilisateurId: agent.id, role: RoleCode.admin, permissions: matriceParDefaut[RoleCode.admin]!);
+    await ServiceGestion(depot: depot, horloge: horloge, hacheur: hacheur).affecterEtablissements(admin, appareilId, {etab});
+    await appairage.accepter(appareilId, admin);
+    final jeton = await jetons.emettre(await id.demandeJeton(horloge));
+    expect(await jetons.appareilDuJeton(jeton.jeton), appareilId);
+  }, skip: ignorer);
 }

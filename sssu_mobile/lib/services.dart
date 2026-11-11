@@ -45,6 +45,56 @@ class ServicesMobile {
 
   Future<bool> estAppaire() async => await coffre.appareilId() != null;
 
+  /// Enregistrement sans QR code, avec le compte de l'agent, par le Wi-Fi ou
+  /// par Internet. [empreinte] : certificat lu au premier contact
+  /// (lireEmpreinteCertificat) et accepté par l'agent ; il est ensuite épinglé.
+  /// Le téléphone reste en attente jusqu'à sa validation sur le poste central.
+  Future<void> enregistrer({
+    required Uri adresse,
+    required String empreinte,
+    required IdentiteAppareil identite,
+    required String identifiant,
+    required String motDePasse,
+    String? nouveauMotDePasse,
+    required String nomAppareil,
+    String? modele,
+  }) async {
+    final transport = TransportHttp(adresse, empreinteCertificat: empreinte);
+    try {
+      await transport.enregistrer(DemandeEnregistrement(
+        identifiant: identifiant,
+        motDePasse: motDePasse,
+        nouveauMotDePasse: nouveauMotDePasse,
+        appareilId: identite.appareilId,
+        clePublique: await identite.clePubliqueBase64(),
+        nomAppareil: nomAppareil,
+        modele: modele,
+      ));
+    } finally {
+      transport.fermer();
+    }
+    await coffre.enregistrerAppairage(
+      appareilId: identite.appareilId,
+      graine: await identite.graine(),
+      urlServeur: adresse.toString(),
+      empreinteCertificat: empreinte,
+      urlInternet: estAdresseLocale(adresse.host) ? null : adresse.toString(),
+    );
+    await coffre.definirEnAttenteValidation(true);
+    depot.appareilId = identite.appareilId;
+    await depot.definirCurseur(0);
+  }
+
+  /// Le poste central a-t-il validé ce téléphone ? Si oui, première
+  /// synchronisation (comptes, établissements, élèves) et fin de l'attente.
+  /// Lève ErreurProtocole (`appareil_en_attente`, `appareil_inconnu` si refusé)
+  /// ou PosteInjoignable.
+  Future<RapportSync> verifierValidation() async {
+    final r = await synchroniser();
+    await coffre.definirEnAttenteValidation(false);
+    return r;
+  }
+
   /// Appairage à partir du QR code lu sur le poste central, puis première
   /// synchronisation (comptes, référentiels, élèves de l'établissement).
   Future<RapportSync> appairer(ContenuQrAppairage qr, {String? modele}) async {
