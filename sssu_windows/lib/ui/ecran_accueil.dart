@@ -640,6 +640,22 @@ class _PageComptesState extends ConsumerState<_PageComptes> {
         );
         if (role == null || !mounted) return;
         await executer(context, () => s.gestion.changerRole(droits, u.id, role), succes: 'Rôle modifié.');
+      case 'supprimer':
+        final nom = '${u.donnees['prenoms'] ?? ''} ${u.donnees['nom']}'.trim();
+        final ok = await confirmer(
+          context,
+          'Supprimer le compte de $nom ?',
+          'Le compte « ${u.donnees['identifiant']} » ne pourra plus se connecter, ni sur le poste ni sur les '
+              'téléphones (à leur prochaine synchronisation), et disparaîtra de la liste. Les visites, '
+              'inspections et le journal d\'audit gardent son nom. Cette suppression est définitive : pour une '
+              'absence temporaire, préférez « Désactiver le compte ».',
+          bouton: 'Supprimer',
+        );
+        if (!ok || !mounted) return;
+        final motif = await saisir(context, 'Motif de la suppression', 'Par exemple : départ du service');
+        if (motif == null || !mounted) return;
+        await executer(context, () => s.gestion.supprimerCompte(droits, u.id, motif: motif),
+            succes: 'Compte supprimé. Son identifiant peut être attribué à un nouveau compte.');
     }
     await _charger();
   }
@@ -668,6 +684,11 @@ class _PageComptesState extends ConsumerState<_PageComptes> {
                       PopupMenuItem(value: 'actif', child: Text(u.donnees['actif'] == true ? 'Désactiver le compte' : 'Réactiver le compte')),
                       const PopupMenuItem(value: 'mdp', child: Text('Réinitialiser le mot de passe')),
                       const PopupMenuItem(value: 'role', child: Text('Changer le rôle')),
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'supprimer',
+                        child: Text('Supprimer le compte', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      ),
                     ],
                   ),
                 ),

@@ -50,6 +50,16 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
 
   Future<void> _actualiser() async {
     final s = ref.read(servicesProvider);
+    // Compte supprimé ou désactivé sur le poste central (reçu à la
+    // synchronisation) : la session en cours est fermée.
+    final session = ref.read(sessionProvider);
+    if (session != null) {
+      final u = await s.auth.depot.parId(session.utilisateur.id);
+      if (u == null || !u.actif) {
+        if (mounted) ref.read(sessionProvider.notifier).state = null;
+        return;
+      }
+    }
     final etats = await s.depot.compterEtats();
     final joignable = await s.posteCentralJoignable();
     if (!mounted) return;

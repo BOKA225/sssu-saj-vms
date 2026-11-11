@@ -488,6 +488,42 @@ class ServiceGestion {
     return depot.transaction((tx) async => _modifier(tx, await _lire(tx, 'utilisateur', utilisateurId), {'actif': actif}, a));
   }
 
+  /// Suppression d'un compte. La ligne n'est pas effacée physiquement : les
+  /// visites, inspections et le journal d'audit gardent leur auteur. Le compte
+  /// disparaît des listes, ne permet plus de se connecter (ni sur le poste ni
+  /// sur les téléphones, à leur prochaine synchronisation) et son identifiant
+  /// est libéré pour un nouveau compte. Irréversible depuis l'application.
+  Future<void> supprimerCompte(Droits a, String utilisateurId, {required String motif}) async {
+    _exiger(a, Permission.comptesGerer);
+    if (utilisateurId == a.utilisateurId) throw const ErreurGestion('Vous ne pouvez pas supprimer votre propre compte.');
+    final m = motif.trim();
+    if (m.isEmpty) throw const ErreurGestion('Indiquez le motif de la suppression.');
+    return depot.transaction((tx) async {
+      final u = await _lire(tx, 'utilisateur', utilisateurId);
+      final roleAdmin = await tx.chercher('role', {'code': RoleCode.admin.code});
+      if (roleAdmin.isNotEmpty && u.donnees['role_id'] == roleAdmin.first.id && u.donnees['actif'] == true) {
+        final admins = await tx.chercher('utilisateur', {'role_id': roleAdmin.first.id, 'actif': true});
+        if (admins.where((x) => x.id != u.id).isEmpty) {
+          throw const ErreurGestion('Impossible de supprimer le dernier administrateur actif.');
+        }
+      }
+      final identifiant = u.donnees['identifiant']! as String;
+      await _modifier(
+        tx,
+        u,
+        {
+          'identifiant': '$identifiant~supprime~${u.id.substring(u.id.length - 8)}',
+          'actif': false,
+          'hash_mot_de_passe': null,
+          'hash_pin': null,
+        },
+        a,
+        supprimer: true,
+        motif: m,
+      );
+    });
+  }
+
   /// Nouveau mot de passe temporaire (à changer à la prochaine connexion) et
   /// déblocage du compte.
   Future<void> reinitialiserMotDePasse(Droits a, String utilisateurId, String motDePasseTemporaire) async {

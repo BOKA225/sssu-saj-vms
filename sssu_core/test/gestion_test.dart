@@ -198,6 +198,28 @@ void main() {
       await expectLater(g.changerRole(admin, env.admin.id, RoleCode.agent), erreur('Vous ne pouvez pas'));
     });
 
+    test('suppression d\'un compte : connexion refusée, identifiant libéré, traces conservées', () async {
+      await expectLater(g.supprimerCompte(admin, env.admin.id, motif: 'x'), erreur('Vous ne pouvez pas'));
+      await expectLater(g.supprimerCompte(admin, env.agent2.id, motif: '  '), erreur('Indiquez le motif'));
+      await expectLater(g.supprimerCompte(agent, env.agent2.id, motif: 'départ'), erreur('Vous n\'êtes pas'));
+
+      await g.supprimerCompte(admin, env.agent2.id, motif: 'Départ du service');
+      expect((await env.auth.connecter('agent2', Environnement.motDePasse)).reussie, isFalse);
+      final ligne = env.depot.lireDirect('utilisateur', env.agent2.id)!;
+      expect(ligne.supprime, isTrue);
+      expect(ligne.donnees['nom'], env.agent2.nom);
+      expect(ligne.donnees['hash_mot_de_passe'], isNull);
+      final journal = env.depot.tousDirect('journal_audit').where((j) => j.donnees['enregistrement_id'] == env.agent2.id);
+      expect(journal.any((j) => j.donnees['action'] == 'suppression' && '${j.donnees['apres']}'.contains('Départ du service')),
+          isTrue);
+      expect('${journal.map((j) => j.donnees['avant'])}', isNot(contains(r'$argon2id')));
+
+      // L'identifiant peut servir à un nouveau compte.
+      final nouveau = await env.auth.creerUtilisateur(admin,
+          identifiant: 'agent2', nom: 'NOUVEL AGENT', role: RoleCode.agent, motDePasseTemporaire: 'Temp-2026');
+      expect((await env.auth.connecter('agent2', 'Temp-2026')).session!.utilisateur.id, nouveau.id);
+    });
+
     test('consultations tracées', () async {
       await g.noterAcces(chef, 'consultation', table: 'eleve', id: env.eleveA);
       final j = env.depot.tousDirect('journal_audit').last;

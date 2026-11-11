@@ -709,4 +709,13 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
 - Téléphone : bouton **« Synchroniser avec le poste central »** sur l'écran de connexion. La
   synchronisation n'exige plus qu'un utilisateur soit connecté : un agent dont le mot de passe
   temporaire a été changé sur le poste central (ou un compte créé après l'appairage) peut le
-  recevoir puis se connecter. Test : `sssu_mobile/test/mot_de_passe_temporaire_test.dart`.
+  recevoir puis se connecter. Test : `sssu_mobile/test/comptes_test.dart`.
+
+## Version 1.0.2
+
+- Poste central : **« Supprimer le compte »** dans le menu de chaque compte (motif obligatoire,
+  confirmation). Suppression logique : le compte ne se connecte plus nulle part, disparaît des listes,
+  son identifiant est libéré ; visites, inspections et journal d'audit gardent leur auteur. Refusée pour
+  son propre compte et pour le dernier administrateur actif. `ServiceGestion.supprimerCompte`.
+- Téléphone : une session ouverte est fermée si son compte a été supprimé ou désactivé sur le poste.
+- Tests : `sssu_core/test/gestion_test.dart`, `sssu_mobile/test/comptes_test.dart`.

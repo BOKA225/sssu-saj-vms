@@ -110,6 +110,12 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
     temporaire et choisit son mot de passe. Sur le téléphone, il touche ensuite **« Synchroniser avec le
     poste central »** sur l'écran de connexion (aucune connexion préalable n'est nécessaire), puis se
     connecte avec son nouveau mot de passe. Même démarche après une réinitialisation du mot de passe.
+  - Supprimer un compte (menu de la ligne, **« Supprimer le compte »**, motif obligatoire) : le compte
+    ne peut plus se connecter, ni sur le poste ni sur les téléphones après leur synchronisation (un agent
+    connecté sur un téléphone est déconnecté). Ses visites, inspections et le journal d'audit gardent son
+    nom, et son identifiant peut être réutilisé. La suppression est définitive ; pour une absence
+    temporaire, utilisez **« Désactiver le compte »**. On ne peut supprimer ni son propre compte, ni le
+    dernier administrateur actif.
   - Désactiver un compte, réinitialiser un mot de passe, changer un rôle.
 - **Téléphones**
   - Appairer un téléphone (QR code).
