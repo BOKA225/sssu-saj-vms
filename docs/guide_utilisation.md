@@ -106,6 +106,10 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
 
 - **Comptes**
   - Créer un compte : le mot de passe donné est temporaire et doit être changé à la première connexion.
+    Ce changement se fait **sur le poste central** : l'agent s'y connecte une fois avec le mot de passe
+    temporaire et choisit son mot de passe. Sur le téléphone, il touche ensuite **« Synchroniser avec le
+    poste central »** sur l'écran de connexion (aucune connexion préalable n'est nécessaire), puis se
+    connecte avec son nouveau mot de passe. Même démarche après une réinitialisation du mot de passe.
   - Désactiver un compte, réinitialiser un mot de passe, changer un rôle.
 - **Téléphones**
   - Appairer un téléphone (QR code).

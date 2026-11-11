@@ -703,3 +703,10 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
    est ouverte.
 7. **Plan de recette** : les essais sur de vrais téléphones et sur le poste installé restent à faire, avec
    `docs/plan_recette.md`. Je corrigerai les anomalies relevées.
+
+## Version 1.0.1
+
+- Téléphone : bouton **« Synchroniser avec le poste central »** sur l'écran de connexion. La
+  synchronisation n'exige plus qu'un utilisateur soit connecté : un agent dont le mot de passe
+  temporaire a été changé sur le poste central (ou un compte créé après l'appairage) peut le
+  recevoir puis se connecter. Test : `sssu_mobile/test/mot_de_passe_temporaire_test.dart`.

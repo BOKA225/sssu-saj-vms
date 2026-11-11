@@ -6,6 +6,11 @@ import '../services.dart';
 
 /// Connexion hors ligne : identifiant et mot de passe, ou code PIN du
 /// dernier utilisateur du téléphone.
+///
+/// La synchronisation est aussi possible sans être connecté (elle utilise
+/// l'identité du téléphone, pas celle d'un utilisateur) : un agent dont le
+/// mot de passe temporaire a été changé sur le poste central, ou un nouveau
+/// compte créé après l'appairage, est ainsi reçu sur le téléphone.
 class EcranConnexion extends ConsumerStatefulWidget {
   const EcranConnexion({super.key});
 
@@ -19,7 +24,9 @@ class _EcranConnexionState extends ConsumerState<EcranConnexion> {
   Utilisateur? _dernier;
   bool _parPin = false;
   bool _enCours = false;
+  bool _synchro = false;
   String? _message;
+  String? _info;
 
   @override
   void initState() {
@@ -68,13 +75,46 @@ class _EcranConnexionState extends ConsumerState<EcranConnexion> {
     if (r.session!.doitChangerMotDePasse) {
       setState(() {
         _enCours = false;
-        _message = 'Mot de passe temporaire : changez-le d\'abord sur le poste central, '
-            'puis synchronisez ce téléphone.';
+        _message = 'Mot de passe temporaire : connectez-vous d\'abord sur le poste central pour choisir '
+            'votre mot de passe, puis touchez « Synchroniser » ci-dessous.';
       });
       return;
     }
     await s.coffre.definirDernierUtilisateur(r.session!.utilisateur.id);
     ref.read(sessionProvider.notifier).state = r.session;
+  }
+
+  Future<void> _synchroniser() async {
+    setState(() {
+      _synchro = true;
+      _message = null;
+      _info = null;
+    });
+    String? info;
+    String? erreur;
+    try {
+      final r = await ref.read(servicesProvider).synchroniser();
+      info = 'Synchronisation terminée : $r';
+    } on TelephoneBloque {
+      return; // l'écran « Téléphone bloqué » remplace l'application
+    } on ErreurProtocole catch (e) {
+      erreur = e.code == 'appareil_inconnu'
+          ? 'Le poste central ne reconnaît plus ce téléphone. Connectez-vous puis appairez-le de nouveau '
+              '(QR code à demander à l\'administrateur).'
+          : 'Échec : ${e.message}';
+    } on PosteInjoignable {
+      erreur = 'Poste central introuvable sur le Wi-Fi et par Internet.';
+    } catch (e) {
+      erreur = 'Poste central injoignable.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _synchro = false;
+      _info = info;
+      _message = erreur;
+    });
+    // Mot de passe, PIN ou nom du dernier utilisateur ont pu changer.
+    await _chargerDernier();
   }
 
   @override
@@ -118,6 +158,23 @@ class _EcranConnexionState extends ConsumerState<EcranConnexion> {
               const SizedBox(height: 16),
               Text(_message!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
             ],
+            if (_info != null) ...[
+              const SizedBox(height: 16),
+              Text(_info!, style: const TextStyle(fontSize: 16)),
+            ],
+            const SizedBox(height: 32),
+            OutlinedButton.icon(
+              onPressed: _synchro || _enCours ? null : _synchroniser,
+              icon: _synchro
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.sync),
+              label: Text(_synchro ? 'Synchronisation…' : 'Synchroniser avec le poste central'),
+            ),
+            const Text(
+              'Nouveau compte ou mot de passe changé sur le poste central : synchronisez avant de vous connecter.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13),
+            ),
           ],
         ),
       ),
