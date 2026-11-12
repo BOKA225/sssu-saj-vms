@@ -135,6 +135,12 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
     N'acceptez que les téléphones que vous attendiez.
   - Choisir les établissements dont il s'occupe : un établissement ajouté lui est envoyé en entier.
   - **Bloquer** un téléphone perdu ou volé.
+  - **Supprimer** un téléphone (icône corbeille) : il disparaît de la liste et, à son prochain contact
+    avec le poste, ses données sont effacées (les visites non encore envoyées sont perdues : synchronisez-le
+    d'abord si possible). Il peut ensuite être appairé de nouveau. Utile pour un téléphone remplacé, ou
+    dont l'appairage n'a pas abouti.
+  - Si la première synchronisation d'un téléphone échoue juste après le QR code, il n'est plus nécessaire
+    de recommencer l'appairage : le téléphone réessaie tout seul (écran « Synchronisation à terminer »).
 
 ### B4. Établissements, élèves et dossiers
 

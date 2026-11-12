@@ -108,9 +108,29 @@ class ServicesPoste {
   bool get decouverteActive => _decouverte != null;
 
   /// Adresses IPv4 du poste sur le réseau local (pour le QR code d'appairage).
+  /// Les adresses de cartes virtuelles (Hyper-V, VirtualBox, VPN…) et les
+  /// adresses automatiques 169.254.x.x, injoignables par les téléphones, sont
+  /// placées en dernier ; 192.168.x.x d'abord, puis 10.x.x.x et 172.16-31.x.x.
   static Future<List<String>> adressesLocales() async {
     final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false);
-    return [for (final i in interfaces) for (final a in i.addresses) a.address];
+    final virtuelle = RegExp(r'vethernet|virtual|vmware|vbox|hyper-v|wsl|docker|vpn|tap|tun|loopback|bluetooth',
+        caseSensitive: false);
+    int rang(NetworkInterface i, InternetAddress a) {
+      var r = a.address.startsWith('192.168.')
+          ? 0
+          : a.address.startsWith('10.')
+              ? 1
+              : RegExp(r'^172\.(1[6-9]|2\d|3[01])\.').hasMatch(a.address)
+                  ? 2
+                  : 3;
+      if (virtuelle.hasMatch(i.name)) r += 10;
+      if (a.address.startsWith('169.254.')) r += 20;
+      return r;
+    }
+
+    final l = [for (final i in interfaces) for (final a in i.addresses) (rang(i, a), a.address)]
+      ..sort((x, y) => x.$1.compareTo(y.$1));
+    return [for (final e in l) e.$2];
   }
 
   Future<int> compter(String table, [Map<String, Object?> egalites = const {}]) =>

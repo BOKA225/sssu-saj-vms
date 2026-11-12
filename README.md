@@ -731,3 +731,14 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   colonne `appareil.en_attente` (migration `030_enregistrement_telephone.sql`).
 - **Paramètres** du poste : liste des établissements (code, nom, responsable, statut), modifiables.
 - Tests : `appairage_test.dart`, `deux_telephones_test.dart` (HTTP), `depot_postgres_test.dart` (PostgreSQL).
+
+## Version 1.1.1
+
+- Poste central : **supprimer un téléphone** (appairé, bloqué, en attente ou appairage inachevé),
+  `ServiceAppairage.supprimer`. Le téléphone est effacé à son prochain contact et peut être appairé de nouveau.
+- Téléphone : appairage plus robuste. Si l'adresse du QR code ne répond pas, le poste est cherché sur le Wi-Fi
+  (même certificat) puis par Internet ; si la première synchronisation échoue, l'appairage est gardé et
+  l'application réessaie (auparavant, le téléphone restait sur l'écran d'appairage et le QR code, déjà
+  utilisé, était refusé).
+- Poste central : les adresses des cartes réseau virtuelles (Hyper-V, VirtualBox, VPN) et 169.254.x.x sont
+  proposées en dernier pour le QR code.

@@ -176,8 +176,10 @@ class _EcranEnregistrementState extends ConsumerState<EcranEnregistrement> {
       );
 }
 
-/// Téléphone enregistré, en attente de validation sur le poste central.
-/// Vérification automatique toutes les minutes tant que l'écran est ouvert.
+/// Téléphone enregistré mais pas encore synchronisé : en attente de
+/// validation sur le poste central (enregistrement sans QR code), ou première
+/// synchronisation interrompue après un appairage par QR code. Nouvel essai
+/// aussitôt, puis toutes les minutes tant que l'écran est ouvert.
 class EcranAttenteValidation extends ConsumerStatefulWidget {
   final VoidCallback onValide;
   final VoidCallback onRefuse;
@@ -191,13 +193,14 @@ class _EcranAttenteValidationState extends ConsumerState<EcranAttenteValidation>
   Timer? _minuterie;
   bool _enCours = false;
   bool _refuse = false;
-  String _etat = 'Demande envoyée. L\'administrateur doit accepter ce téléphone sur le poste central et lui '
-      'attribuer ses établissements.';
+  String _etat = 'Téléphone enregistré. Il recevra ses données dès que le poste central l\'aura accepté et '
+      'sera joignable.';
 
   @override
   void initState() {
     super.initState();
-    _minuterie = Timer.periodic(const Duration(minutes: 1), (_) => _verifier(automatique: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _verifier());
+    _minuterie = Timer.periodic(const Duration(minutes: 1), (_) => _verifier());
   }
 
   @override
@@ -206,7 +209,7 @@ class _EcranAttenteValidationState extends ConsumerState<EcranAttenteValidation>
     super.dispose();
   }
 
-  Future<void> _verifier({bool automatique = false}) async {
+  Future<void> _verifier() async {
     if (_enCours || _refuse) return;
     setState(() => _enCours = true);
     final s = ref.read(servicesProvider);
@@ -220,17 +223,20 @@ class _EcranAttenteValidationState extends ConsumerState<EcranAttenteValidation>
       return;
     } on ErreurProtocole catch (e) {
       if (e.code == 'appareil_en_attente') {
-        etat = 'Toujours en attente de validation par l\'administrateur.';
+        etat = 'En attente de validation : l\'administrateur doit accepter ce téléphone sur le poste central '
+            '(page Téléphones) et lui attribuer ses établissements.';
       } else if (e.code == 'appareil_inconnu') {
         _refuse = true;
-        etat = 'L\'administrateur a refusé ce téléphone. Vous pouvez recommencer l\'enregistrement.';
+        etat = 'Le poste central ne reconnaît plus ce téléphone (refusé ou supprimé par l\'administrateur). '
+            'Vous pouvez recommencer l\'appairage.';
       } else {
         etat = e.message;
       }
     } on TelephoneBloque {
       return;
     } catch (_) {
-      etat = 'Poste central injoignable pour le moment. Nouvel essai automatique dans une minute.';
+      etat = 'Poste central injoignable pour le moment (Wi-Fi du poste ou Internet). Nouvel essai automatique '
+          'dans une minute.';
     }
     if (!mounted) return;
     setState(() {
@@ -253,13 +259,13 @@ class _EcranAttenteValidationState extends ConsumerState<EcranAttenteValidation>
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(_refuse ? Icons.block : Icons.hourglass_top, size: 72),
               const SizedBox(height: 24),
-              Text(_refuse ? 'Téléphone refusé' : 'En attente de validation',
+              Text(_refuse ? 'Téléphone refusé ou retiré' : 'Synchronisation à terminer',
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Text(_etat, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
               const SizedBox(height: 32),
               if (_refuse)
-                FilledButton(onPressed: _recommencer, child: const Text('Recommencer l\'enregistrement'))
+                FilledButton(onPressed: _recommencer, child: const Text('Recommencer l\'appairage'))
               else
                 FilledButton.icon(
                   onPressed: _enCours ? null : _verifier,

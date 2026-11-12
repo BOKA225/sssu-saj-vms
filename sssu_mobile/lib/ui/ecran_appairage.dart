@@ -70,10 +70,21 @@ class _EcranAppairageState extends ConsumerState<EcranAppairage> {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Téléphone appairé. ${rapport.recus} éléments reçus du poste central.')));
       widget.onAppaire();
+    } on PremiereSynchronisationAFaire {
+      // Appairage enregistré, réception des données à terminer : écran
+      // d'attente avec nouvel essai (le QR code est déjà utilisé).
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Téléphone appairé. La première synchronisation n\'a pas abouti : nouvel essai en cours.')));
+      (widget.onEnregistre ?? widget.onAppaire)();
     } catch (e) {
       setState(() {
         _enCours = false;
-        _erreur = e is ErreurProtocole ? e.message : 'Poste central injoignable ou certificat refusé ($e).';
+        _erreur = e is ErreurProtocole
+            ? e.message
+            : 'Poste central injoignable. Vérifiez que le téléphone est sur le même Wi-Fi que le poste (et non sur '
+                'un réseau « invité »), que l\'application du poste est ouverte, puis réessayez. Loin du poste, '
+                'utilisez « Pas de QR code ».';
       });
       await _scanner.start();
     }

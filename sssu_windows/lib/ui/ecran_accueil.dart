@@ -331,6 +331,26 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
     await _charger();
   }
 
+  /// Retrait d'un téléphone de la liste ; il sera effacé à son prochain
+  /// contact et pourra être appairé ou enregistré de nouveau.
+  Future<void> _supprimer(Enregistrement a) async {
+    final appaire = a.donnees['cle_publique'] != null && a.donnees['bloque'] != true;
+    final ok = await confirmer(
+      context,
+      'Supprimer « ${a.donnees['nom']} » ?',
+      appaire
+          ? 'Le téléphone ne pourra plus se synchroniser. À son prochain contact avec le poste, ses données seront '
+              'effacées : les visites qu\'il n\'a pas encore envoyées seront perdues. Synchronisez-le d\'abord si '
+              'possible. Il pourra ensuite être appairé de nouveau (QR code ou identifiant).'
+          : 'Le téléphone est retiré de la liste. Il pourra être appairé de nouveau (QR code ou identifiant).',
+      bouton: 'Supprimer',
+    );
+    if (!ok || !mounted) return;
+    await executer(context, () => ref.read(servicesProvider).appairage.supprimer(a.id, ref.read(sessionProvider)!.droits),
+        succes: 'Téléphone supprimé.');
+    await _charger();
+  }
+
   Future<void> _nouvelAppairage() async {
     final s = ref.read(servicesProvider);
     final session = ref.read(sessionProvider)!;
@@ -487,12 +507,19 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
                         ? 'En attente d\'appairage'
                         : 'Appairé le ${a.donnees['date_appairage']}${a.donnees['modele'] == null ? '' : ' · ${a.donnees['modele']}'}'
                             '${a.donnees['titulaire_id'] == null ? '' : ' · ${_noms[a.donnees['titulaire_id']] ?? ''}'}'),
-                    trailing: a.donnees['bloque'] == true
-                        ? const Text('Bloqué')
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                            TextButton(onPressed: () => _affecter(a), child: const Text('Établissements')),
-                            TextButton(onPressed: () => _bloquer(a), child: const Text('Bloquer')),
-                          ]),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (a.donnees['bloque'] == true)
+                        const Padding(padding: EdgeInsets.only(right: 8), child: Text('Bloqué'))
+                      else ...[
+                        TextButton(onPressed: () => _affecter(a), child: const Text('Établissements')),
+                        TextButton(onPressed: () => _bloquer(a), child: const Text('Bloquer')),
+                      ],
+                      IconButton(
+                        tooltip: 'Supprimer le téléphone',
+                        onPressed: () => _supprimer(a),
+                        icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                      ),
+                    ]),
                   ),
                 ),
           ],

@@ -244,7 +244,31 @@ class ServiceAppairage {
           updatedAt: m,
           updatedBy: acteur.utilisateurId,
           deletedAt: m,
-          donnees: {...a.donnees, 'bloque': true}));
+          donnees: {...a.donnees, 'en_attente': false}));
+    });
+  }
+
+  /// Suppression d'un téléphone de la liste (appairé, bloqué, en attente ou
+  /// dont l'appairage n'a pas abouti). À son prochain contact, le téléphone
+  /// est effacé comme un téléphone bloqué (ses données non synchronisées sont
+  /// perdues) et repart de l'appairage. Ses visites déjà reçues sont gardées.
+  Future<void> supprimer(String appareilId, Droits acteur) async {
+    if (!acteur.peut(Permission.comptesGerer)) throw StateError('Action réservée à l\'administrateur.');
+    await depot.transaction((tx) async {
+      final a = await tx.lire('appareil', appareilId);
+      if (a == null || a.supprime) return;
+      final m = horloge.maintenant();
+      await tx.ecrire(a.copier(
+          version: a.version + 1,
+          versionBase: a.version + 1,
+          updatedAt: m,
+          updatedBy: acteur.utilisateurId,
+          deletedAt: m,
+          donnees: {...a.donnees, 'bloque': true, 'en_attente': false}));
+      // Codes d'appairage encore valides : retirés.
+      for (final c in await tx.chercher('appairage_code', {'appareil_id': appareilId})) {
+        await tx.ecrire(c.copier(version: c.version + 1, versionBase: c.version + 1, updatedAt: m, deletedAt: m));
+      }
     });
   }
 
@@ -301,6 +325,10 @@ class ServiceJetons {
     }
     final appareil = await depot.transaction((tx) => tx.lire('appareil', d.appareilId));
     final cle = appareil?.donnees['cle_publique'] as String?;
+    if (appareil != null && appareil.supprime && appareil.donnees['bloque'] == true) {
+      // Supprimé sur le poste central : effacé comme un téléphone bloqué.
+      throw const ErreurProtocole(403, 'appareil_bloque', 'Ce téléphone a été retiré par le poste central.');
+    }
     if (appareil == null || cle == null || appareil.supprime) {
       throw const ErreurProtocole(401, 'appareil_inconnu', 'Appareil non appairé.');
     }
@@ -332,6 +360,10 @@ class ServiceJetons {
     if (appareil == null || appareil.donnees['bloque'] == true) {
       _jetons.remove(jeton);
       throw const ErreurProtocole(403, 'appareil_bloque', 'Cet appareil est bloqué.');
+    }
+    if (appareil.supprime) {
+      _jetons.remove(jeton);
+      throw const ErreurProtocole(401, 'appareil_inconnu', 'Appareil non appairé.');
     }
     return j.appareilId;
   }

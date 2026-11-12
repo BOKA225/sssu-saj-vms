@@ -97,19 +97,57 @@ class ServicesMobile {
 
   /// Appairage à partir du QR code lu sur le poste central, puis première
   /// synchronisation (comptes, référentiels, élèves de l'établissement).
+  ///
+  /// Adresses essayées : celle du QR code, puis le poste trouvé sur le Wi-Fi
+  /// (même certificat), puis l'adresse Internet. Si la première
+  /// synchronisation échoue, l'appairage est gardé : [PremiereSynchronisationAFaire]
+  /// est levée et l'application propose de réessayer (le QR code, déjà
+  /// utilisé, ne resservirait pas).
   Future<RapportSync> appairer(ContenuQrAppairage qr, {String? modele}) async {
-    final transport = TransportHttp(Uri.parse(qr.urlServeur), empreinteCertificat: qr.empreinteCertificat);
     final identite = await IdentiteAppareil.generer(qr.appareilId);
-    await transport.appairer(DemandeAppairage(
+    final demande = DemandeAppairage(
       appareilId: qr.appareilId,
       code: qr.code,
       clePublique: await identite.clePubliqueBase64(),
       modele: modele,
-    ));
+    );
+    final principale = Uri.parse(qr.urlServeur);
+    final candidates = <Uri>[principale];
+    Uri? retenue;
+    Object? derniereErreur;
+    for (var i = 0; i < candidates.length && retenue == null; i++) {
+      final u = candidates[i];
+      final transport = TransportHttp(u, empreinteCertificat: qr.empreinteCertificat);
+      try {
+        await transport.appairer(demande);
+        retenue = u;
+      } on ErreurProtocole {
+        rethrow; // code faux, expiré ou déjà utilisé : inutile d'essayer ailleurs
+      } catch (e) {
+        derniereErreur = e;
+        if (i == 0) {
+          // Adresse du QR code injoignable (autre carte réseau du poste,
+          // Wi-Fi isolé…) : recherche du poste sur le Wi-Fi, puis Internet.
+          final empreinte = qr.empreinteCertificat?.toLowerCase();
+          try {
+            for (final p in await decouvrirPostes()) {
+              if (empreinte != null && p.empreinteCertificat.toLowerCase() == empreinte && p.url != u) {
+                candidates.add(p.url);
+              }
+            }
+          } catch (_) {}
+          final internet = qr.urlInternet == null ? null : Uri.tryParse(qr.urlInternet!);
+          if (internet != null) candidates.add(internet);
+        }
+      } finally {
+        transport.fermer();
+      }
+    }
+    if (retenue == null) throw derniereErreur ?? const PosteInjoignable();
     await coffre.enregistrerAppairage(
       appareilId: qr.appareilId,
       graine: await identite.graine(),
-      urlServeur: qr.urlServeur,
+      urlServeur: retenue.toString(),
       empreinteCertificat: qr.empreinteCertificat,
       urlInternet: qr.urlInternet,
     );
@@ -117,7 +155,16 @@ class ServicesMobile {
     // Nouvel appairage d'un téléphone déjà utilisé (par exemple après une
     // restauration du poste) : ses données sont gardées et tout est rechargé.
     await depot.definirCurseur(0);
-    return synchroniser();
+    await coffre.definirEnAttenteValidation(true);
+    try {
+      final r = await synchroniser();
+      await coffre.definirEnAttenteValidation(false);
+      return r;
+    } on TelephoneBloque {
+      rethrow;
+    } catch (e) {
+      throw PremiereSynchronisationAFaire(e);
+    }
   }
 
   /// Adresses à essayer, dans l'ordre : la dernière adresse locale qui a
@@ -245,6 +292,14 @@ class TelephoneBloque implements Exception {
 }
 
 /// Aucune adresse du poste central n'a répondu.
+/// Téléphone appairé dont la première synchronisation n'a pas abouti.
+class PremiereSynchronisationAFaire implements Exception {
+  final Object cause;
+  const PremiereSynchronisationAFaire(this.cause);
+  @override
+  String toString() => 'Première synchronisation à faire : $cause';
+}
+
 class PosteInjoignable implements Exception {
   const PosteInjoignable();
   @override

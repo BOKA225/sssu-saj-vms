@@ -117,12 +117,12 @@ class _EcranTelephoneBloque extends StatelessWidget {
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Icon(Icons.phonelink_lock, size: 72, color: Colors.red),
               const SizedBox(height: 24),
-              const Text('Téléphone bloqué', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const Text('Téléphone bloqué ou retiré', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               const Text(
                 'Le poste central a bloqué ce téléphone (perte, vol ou retrait). Toutes les données SSSU-SAJ '
                 'qu\'il contenait ont été effacées : dossiers, photographies et clés.\n\n'
-                'Pour le réutiliser, demandez à l\'administrateur de l\'appairer de nouveau.',
+                'Pour le réutiliser, rouvrez l\'application et appairez-le de nouveau (QR code ou identifiant).',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),

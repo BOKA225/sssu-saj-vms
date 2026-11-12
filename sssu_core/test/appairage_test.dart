@@ -94,6 +94,29 @@ void main() {
     await expectLater(env.jetons.emettre(await id.demandeJeton(env.horloge)), _erreur('appareil_bloque'));
   });
 
+  test('téléphone supprimé : retiré de la liste, effacé à son prochain contact, QR code inutilisable', () async {
+    final id = await env.appairer('Ancien', [env.etabA]);
+    final j = await env.jetons.emettre(await id.demandeJeton(env.horloge));
+    final admin = await env.droits(env.admin);
+    await expectLater(env.appairage.supprimer(id.appareilId, await env.droits(env.chef)), throwsStateError);
+    await env.appairage.supprimer(id.appareilId, admin);
+    expect(await env.depot.transaction((tx) => tx.chercher('appareil', const {})),
+        isNot(contains(predicate<Enregistrement>((a) => a.id == id.appareilId))));
+    await expectLater(env.jetons.appareilDuJeton(j.jeton), _erreur('appareil_bloque'));
+    await expectLater(env.jetons.emettre(await id.demandeJeton(env.horloge)), _erreur('appareil_bloque'));
+    await env.appairage.supprimer(id.appareilId, admin); // sans effet la seconde fois
+
+    // Appairage préparé mais jamais terminé : le QR code ne sert plus.
+    final qr = await env.appairage.preparer(
+        acteur: admin, nomAppareil: 'Jamais', etablissementIds: [env.etabA], urlServeur: 'x', empreinteCertificat: null);
+    await env.appairage.supprimer(qr.appareilId, admin);
+    final autre = await IdentiteAppareil.generer(qr.appareilId);
+    await expectLater(
+        env.appairage.finaliser(DemandeAppairage(
+            appareilId: qr.appareilId, code: qr.code, clePublique: await autre.clePubliqueBase64())),
+        _erreur('code_invalide'));
+  });
+
   test('l\'identité du téléphone se restaure depuis sa graine', () async {
     final id = await IdentiteAppareil.generer('app-1');
     final restauree = await IdentiteAppareil.depuisGraine('app-1', await id.graine());
