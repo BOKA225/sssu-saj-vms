@@ -59,7 +59,13 @@ void main() {
       final a = (await r.anneeCourante())!;
       final etabs = await r.etablissements(a);
       expect(etabs.length, greaterThanOrEqualTo(2));
-      final classes = await r.classes(etabs.first.id, a);
+      // D'autres fichiers de test ajoutent des établissements sans classe à la
+      // même base : on prend un établissement du jeu de test, qui en a.
+      var classes = const <LigneClasse>[];
+      for (final e in etabs) {
+        classes = await r.classes(e.id, a);
+        if (classes.isNotEmpty) break;
+      }
       expect(classes.first.effectif, greaterThan(0));
       final eleves = await r.eleves(a, classeId: classes.first.id);
       expect(eleves.length, classes.first.effectif);
