@@ -382,6 +382,50 @@ BilanImport bilan(List<LigneImport> lignes) {
   return BilanImport(creer, rattacher, ignorees, bloquees, verifier);
 }
 
+/// Identité d'un élève saisie à la main (ajout ou modification du dossier,
+/// sur le poste central ou le téléphone) : mêmes règles que l'importation.
+/// Retourne les champs à enregistrer ; lève [FormatException] avec un
+/// message clair si une valeur est manquante ou invraisemblable.
+Map<String, Object?> identiteEleveSaisie({
+  String? matricule,
+  required String nom,
+  required String prenoms,
+  String? dateNaissance,
+  required String? sexe,
+  String? telephone,
+  required DateTime aujourdhui,
+  int ageMin = 2,
+  int ageMax = 40,
+}) {
+  if (nom.trim().isEmpty) throw const FormatException('Le nom est obligatoire.');
+  if (prenoms.trim().isEmpty) throw const FormatException('Les prénoms sont obligatoires.');
+  final s = lireSexe(sexe);
+  if (s == null) throw const FormatException('Indiquez le sexe.');
+  DateTime? naissance;
+  if (dateNaissance != null && dateNaissance.trim().isNotEmpty) {
+    naissance = lireDateListe(dateNaissance);
+    if (naissance == null) throw const FormatException('Date de naissance illisible : écrivez-la JJ/MM/AAAA.');
+    if (naissance.isAfter(aujourdhui)) throw const FormatException('Date de naissance dans le futur.');
+    final age = calculerAge(naissance, aujourdhui).annees;
+    if (age < ageMin || age > ageMax) {
+      throw FormatException('Âge invraisemblable ($age ans) : vérifiez la date de naissance.');
+    }
+  }
+  String? tel;
+  if (telephone != null && telephone.trim().isNotEmpty) {
+    tel = lireTelephone(telephone);
+    if (tel == null) throw const FormatException('Numéro de téléphone illisible.');
+  }
+  return {
+    'matricule': normaliserMatricule(matricule),
+    'nom': nom.trim().replaceAll(RegExp(r'\s+'), ' ').toUpperCase(),
+    'prenoms': prenoms.trim().replaceAll(RegExp(r'\s+'), ' '),
+    'date_naissance': naissance == null ? null : formaterDate(naissance),
+    'sexe': s.code,
+    'telephone_contact': tel,
+  };
+}
+
 /// Identité canonique d'une ligne validée, prête à être enregistrée.
 Map<String, Object?> donneesEleve(LigneImport l) => {
       'matricule': l.matricule,

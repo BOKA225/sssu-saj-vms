@@ -773,6 +773,21 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.4.0
+
+- **Enseignement général** : séries A1, A2, C et D (1ère, Tle), 2nde A et C proposées à la saisie
+  (`classesUsuelles`) et dans le modèle Excel ; reconnaissance déjà commune à tous les enseignements
+  (« Terminale A1 », « 1ère D 2 », « 3e B ») et vérifiée par des tests.
+- **Dossier de l'élève : ajout et modification**
+  - contrôle commun de l'identité saisie à la main (`identiteEleveSaisie` : nom, prénoms et sexe obligatoires,
+    date lisible et vraisemblable, téléphone) ; droit `Droits.peutGererEleves` (importation, gestion des
+    établissements ou modification de toutes les visites : pas l'agent de santé) ;
+  - poste central : « Nouvel élève » (`ServiceGestion.creerEleve` : dossier et inscription en une transaction),
+    modification de l'identité, inscription ou changement de classe de l'année (`inscrireEleve`), matricule
+    unique, élève semblable signalé avant création ou modification ;
+  - téléphone : « Ajouter un élève » dans une classe et modification du dossier (`ServiceEleves`), transmis à
+    la synchronisation.
+
 ## Version 1.3.0
 
 - **Classes de l'enseignement technique** : « 2nde G », « 2nd G1 », « 2nde G1 A », « Tle F2-2 », « Première G2 »,

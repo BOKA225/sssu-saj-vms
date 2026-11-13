@@ -22,6 +22,23 @@ void main() {
       expect(lireClasse('CM2 A 2026-2027')!.libelle, 'CM2 A');
     });
 
+    test('enseignement général : séries A1, A2, C, D et numéros de classe', () {
+      expect(lireClasse('Terminale A1')!.libelle, 'Tle A1');
+      expect(lireClasse('LISTE DE LA 1ère D 2 — LYCÉE MODERNE')!.libelle, '1ère D 2');
+      expect(lireClasse('Seconde C')!.libelle, '2nde C');
+      expect(lireClasse('3e B')!.libelle, '3ème B');
+      expect(lireClasse('6ème 4')!.libelle, '6ème 4');
+      expect(cleClasse('Tle A2'), cleClasse('TERMINALE A2'));
+      expect(cleClasse('1ère D-2'), cleClasse('1ERE D 2'));
+      const classes = [
+        ClasseConnue(id: 'd1', etablissementId: 'lm', libelle: 'Tle D1'),
+        ClasseConnue(id: 'd2', etablissementId: 'lm', libelle: 'Tle D2'),
+        ClasseConnue(id: 'a1', etablissementId: 'lm', libelle: 'Tle A1'),
+      ];
+      expect(rapprocherClasse(lireClasse('TERMINALE D 2')!, 'lm', classes)!.id, 'd2');
+      expect(rapprocherClasse(lireClasse('Terminale A1')!, 'lm', classes)!.id, 'a1');
+    });
+
     test('libellés comparables à l\'écriture près', () {
       expect(cleClasse('2nd G1'), cleClasse('2nde G1'));
       expect(cleClasse('Seconde G1'), cleClasse('2nde G1'));
@@ -52,6 +69,11 @@ void main() {
       expect(suggestionsClasses('tle f'), ['Tle F1', 'Tle F2', 'Tle F3', 'Tle F4', 'Tle F7']);
       expect(suggestionsClasses('g1'), ['2nde G1', '1ère G1', 'Tle G1']);
       expect(suggestionsClasses('BT'), ['BT 1', 'BT 2', 'BT 3']);
+      // Enseignement général.
+      expect(suggestionsClasses('tle a'), ['Tle A1', 'Tle A2']);
+      expect(suggestionsClasses('1ere'), ['1ère A1', '1ère A2', '1ère C', '1ère D', '1ère B', '1ère E', '1ère F1', '1ère F2',
+          '1ère F3', '1ère F4', '1ère F7', '1ère G1', '1ère G2']);
+      expect(suggestionsClasses('2nde c'), ['2nde C']);
       expect(suggestionsClasses(''), isEmpty);
     });
   });

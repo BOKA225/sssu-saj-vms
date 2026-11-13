@@ -361,10 +361,67 @@ class ServiceGestion {
 
   // ------------------------------------------------------------------- élèves
 
-  Future<Enregistrement> modifierEleve(Droits a, String id, Map<String, Object?> changements) async {
-    if (!a.peut(Permission.etablissementGerer) && !a.peut(Permission.visiteModifierToutes)) {
-      throw const ErreurGestion('Vous n\'êtes pas autorisé à modifier l\'identité d\'un élève.');
+  /// Nouvel élève ajouté à la main, inscrit dans une classe de l'année.
+  /// [identite] : champs préparés par `identiteEleveSaisie`.
+  Future<Enregistrement> creerEleve(Droits a, {required Map<String, Object?> identite, required String classeId}) async {
+    if (!a.peutGererEleves) throw const ErreurGestion('Vous n\'êtes pas autorisé à ajouter un élève.');
+    const champs = {'matricule', 'nom', 'prenoms', 'date_naissance', 'sexe', 'telephone_contact'};
+    final donnees = {for (final k in champs) k: identite[k]};
+    _requis(donnees, 'nom', 'Le nom');
+    _requis(donnees, 'prenoms', 'Les prénoms');
+    Sexe.depuisCode(_requis(donnees, 'sexe', 'Le sexe'));
+    return depot.transaction((tx) async {
+      final classe = await _lire(tx, 'classe', classeId);
+      final etab = classe.donnees['etablissement_id']! as String;
+      await _matriculeLibre(tx, donnees['matricule'] as String?);
+      final e = await _creer(tx, 'eleve', donnees, a, etablissementId: etab);
+      await _creer(
+          tx,
+          'inscription',
+          {
+            'eleve_id': e.id,
+            'classe_id': classeId,
+            'annee_scolaire_id': classe.donnees['annee_scolaire_id'],
+            'statut': 'inscrit',
+          },
+          a,
+          etablissementId: etab);
+      return e;
+    });
+  }
+
+  /// Inscrit un élève dans une classe pour l'année de cette classe : nouvelle
+  /// inscription, ou changement de classe s'il est déjà inscrit cette année-là.
+  Future<void> inscrireEleve(Droits a, String eleveId, String classeId) async {
+    if (!a.peutGererEleves) throw const ErreurGestion('Vous n\'êtes pas autorisé à inscrire un élève.');
+    return depot.transaction((tx) async {
+      await _lire(tx, 'eleve', eleveId);
+      final c = await _lire(tx, 'classe', classeId);
+      final etab = c.donnees['etablissement_id']! as String;
+      final annee = c.donnees['annee_scolaire_id']! as String;
+      await reaffecterEleve(tx, eleveId, etab);
+      final ins = await tx.chercher('inscription', {'eleve_id': eleveId, 'annee_scolaire_id': annee});
+      if (ins.isEmpty) {
+        await _creer(tx, 'inscription', {'eleve_id': eleveId, 'classe_id': classeId, 'annee_scolaire_id': annee, 'statut': 'inscrit'},
+            a, etablissementId: etab);
+      } else {
+        await _modifier(tx, ins.first, {'classe_id': classeId, 'statut': 'inscrit'}, a, etablissementId: etab);
+      }
+    });
+  }
+
+  /// Un matricule ne peut appartenir qu'à un seul élève.
+  Future<void> _matriculeLibre(TransactionServeur tx, String? matricule, {String? sauf}) async {
+    if (matricule == null || matricule.isEmpty) return;
+    final memes = [for (final e in await tx.chercher('eleve', {'matricule': matricule})) if (e.id != sauf) e];
+    if (memes.isNotEmpty) {
+      final d = memes.first.donnees;
+      throw ErreurGestion('Le matricule $matricule est déjà celui de ${d['nom']} ${d['prenoms']} : ouvrez son dossier.');
     }
+  }
+
+  Future<Enregistrement> modifierEleve(Droits a, String id, Map<String, Object?> changements) async {
+    if (!a.peutGererEleves) throw const ErreurGestion('Vous n\'êtes pas autorisé à modifier l\'identité d\'un élève.');
     const autorises = {'matricule', 'nom', 'prenoms', 'date_naissance', 'sexe', 'telephone_contact'};
     for (final k in changements.keys) {
       if (!autorises.contains(k)) throw ErreurGestion('Champ inconnu : $k');
@@ -388,6 +445,7 @@ class ServiceGestion {
         if (changements.containsKey('nom')) 'nom': (changements['nom']! as String).trim().toUpperCase(),
         if (changements.containsKey('matricule')) 'matricule': normaliserMatricule(changements['matricule'] as String?),
       };
+      if (normalises.containsKey('matricule')) await _matriculeLibre(tx, normalises['matricule'] as String?, sauf: id);
       return _modifier(tx, e, normalises, a);
     });
   }

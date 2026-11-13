@@ -15,6 +15,7 @@ import '../donnees/requetes_poste.dart';
 import '../services.dart';
 import 'commun.dart';
 import 'detail_visite.dart';
+import 'dialogue_eleve.dart';
 
 class FicheDossier extends ConsumerStatefulWidget {
   final String eleveId;
@@ -28,6 +29,7 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
   List<LigneInscription> _inscriptions = const [];
   List<LigneVisite> _visites = const [];
   List<LignePhoto> _photos = const [];
+  Annee? _annee;
 
   ServicesPoste get _s => ref.read(servicesProvider);
   Droits get _droits => ref.read(sessionProvider)!.droits;
@@ -42,93 +44,79 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
   Future<void> _charger() async {
     final e = await _s.depot.transaction((tx) => tx.lire('eleve', widget.eleveId));
     final ins = await _s.requetes.inscriptions(widget.eleveId);
+    final annee = await _s.requetes.anneeCourante();
     final medical = accesMedical(_droits);
     final v = medical ? await _s.requetes.visites(widget.eleveId) : <LigneVisite>[];
     final p = medical ? await _s.requetes.photos(widget.eleveId) : <LignePhoto>[];
     if (!mounted) return;
     setState(() {
       _eleve = e;
+      _annee = annee;
       _inscriptions = ins;
       _visites = v;
       _photos = p.where((ph) => _droits.peutVoirPhoto(auteurId: ph.auteurId)).toList();
     });
   }
 
-  bool get _peutModifierIdentite =>
-      _droits.peut(Permission.etablissementGerer) || _droits.peut(Permission.visiteModifierToutes);
+  bool get _peutModifier => _droits.peutGererEleves;
 
   Future<void> _modifierIdentite() async {
-    final d = _eleve!.donnees;
-    final c = {
-      for (final k in ['matricule', 'nom', 'prenoms', 'telephone_contact']) k: TextEditingController(text: d[k] as String? ?? ''),
-    };
-    final date = TextEditingController(text: d['date_naissance'] == null ? '' : dateFr(d['date_naissance']));
-    var sexe = d['sexe'] as String;
-    final ok = await showDialog<bool>(
+    final saisie = await showDialog<SaisieEleve>(
       context: context,
-      builder: (dlg) => StatefulBuilder(
-        builder: (dlg, maj) => AlertDialog(
-          title: const Text('Identité de l\'élève'),
-          content: SizedBox(
-            width: 420,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: c['matricule'], decoration: const InputDecoration(labelText: 'Matricule')),
-              TextField(controller: c['nom'], decoration: const InputDecoration(labelText: 'Nom')),
-              TextField(controller: c['prenoms'], decoration: const InputDecoration(labelText: 'Prénoms')),
-              TextField(controller: date, decoration: const InputDecoration(labelText: 'Date de naissance (JJ/MM/AAAA)')),
-              TextField(controller: c['telephone_contact'], decoration: const InputDecoration(labelText: 'Téléphone')),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                segments: const [ButtonSegment(value: 'M', label: Text('Masculin')), ButtonSegment(value: 'F', label: Text('Féminin'))],
-                selected: {sexe},
-                onSelectionChanged: (s) => maj(() => sexe = s.first),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dlg, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(dlg, true), child: const Text('Enregistrer')),
-          ],
-        ),
-      ),
+      builder: (_) => DialogueEleve(titre: 'Identité de l\'élève', actuel: _eleve!.donnees),
     );
-    final dn = lireDateListe(date.text);
-    final changements = <String, Object?>{
-      for (final e in c.entries) e.key: e.value.text.trim().isEmpty ? null : e.value.text.trim(),
-      'date_naissance': dn == null ? null : formaterDate(dn),
-      'sexe': sexe,
-    };
-    final dateSaisie = date.text.trim();
-    for (final t in [...c.values, date]) {
-      t.dispose();
+    if (saisie == null || !mounted) return;
+    // Même matricule ou mêmes nom, prénoms et date qu'un autre dossier : signalé.
+    final existants = await _s.depot.transaction((tx) => tx.chercher('eleve', const {}));
+    final semblable = eleveSemblable(saisie.identite, existants, sauf: widget.eleveId);
+    if (semblable != null && mounted) {
+      final continuer = await confirmer(
+          context,
+          'Un autre dossier ressemble à celui-ci',
+          '${semblable.nom} ${semblable.prenoms}'
+              '${semblable.matricule == null ? '' : ' · matricule ${semblable.matricule}'}'
+              '${semblable.dateNaissance == null ? '' : ' · né(e) le ${dateFr(semblable.dateNaissance)}'}\n\n'
+              'Vérifiez qu\'il ne s\'agit pas du même élève : un élève ne doit avoir qu\'un seul dossier. '
+              'Enregistrer quand même ?',
+          bouton: 'Enregistrer');
+      if (!continuer) return;
     }
-    if (ok != true || !mounted) return;
-    if (dateSaisie.isNotEmpty && dn == null) return message(context, 'Date de naissance illisible (JJ/MM/AAAA).');
-    await executer(context, () => _s.gestion.modifierEleve(_droits, widget.eleveId, changements), succes: 'Identité mise à jour.');
+    if (!mounted) return;
+    await executer(context, () => _s.gestion.modifierEleve(_droits, widget.eleveId, saisie.identite),
+        succes: 'Dossier mis à jour.');
     _charger();
   }
 
-  Future<void> _changerClasse(LigneInscription i) async {
-    final annee = await _s.requetes.anneeCourante();
-    if (annee == null || !mounted) return;
+  /// Classe de l'année en cours, choisie parmi tous les établissements.
+  Future<String?> _choisirClasse({String? exclue}) async {
+    final annee = _annee;
+    if (annee == null) return null;
     final etabs = await _s.requetes.etablissements(annee);
     final choix = <(String, String)>[];
     for (final e in etabs) {
       for (final c in await _s.requetes.classes(e.id, annee)) {
-        if (c.id != i.classeId) choix.add((c.id, '${e.nom} · ${c.libelle}'));
+        if (c.id != exclue) choix.add((c.id, '${e.nom} · ${c.libelle}'));
       }
     }
-    if (!mounted) return;
-    final classe = await showDialog<String>(
+    if (!mounted) return null;
+    return showDialog<String>(
       context: context,
       builder: (d) => SimpleDialog(
-        title: const Text('Nouvelle classe'),
+        title: Text('Classe (${annee.libelle})'),
         children: [for (final (id, lib) in choix) SimpleDialogOption(onPressed: () => Navigator.pop(d, id), child: Text(lib))],
       ),
     );
+  }
+
+  /// Inscription dans une classe de l'année, ou changement de classe (et
+  /// d'établissement : le dossier suit l'élève).
+  Future<void> _inscrire({String? classeActuelle}) async {
+    final classe = await _choisirClasse(exclue: classeActuelle);
     if (classe == null || !mounted) return;
-    await executer(context, () => _s.gestion.changerClasse(_droits, i.id, classe),
-        succes: 'Classe modifiée. Le dossier de l\'élève est transmis aux téléphones du nouvel établissement.');
+    await executer(context, () => _s.gestion.inscrireEleve(_droits, widget.eleveId, classe),
+        succes: classeActuelle == null
+            ? 'Élève inscrit.'
+            : 'Classe modifiée. Le dossier de l\'élève est transmis aux téléphones de son établissement.');
     _charger();
   }
 
@@ -157,7 +145,9 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
           ListView(padding: const EdgeInsets.all(16), children: [
             Bloc(
               titre: 'Identité',
-              action: _peutModifierIdentite ? TextButton.icon(onPressed: _modifierIdentite, icon: const Icon(Icons.edit), label: const Text('Modifier')) : null,
+              action: _peutModifier
+                  ? TextButton.icon(onPressed: _modifierIdentite, icon: const Icon(Icons.edit), label: const Text('Modifier'))
+                  : null,
               enfants: [
                 Text('Matricule : ${d['matricule'] ?? 'non renseigné'}'),
                 Text('Sexe : ${Sexe.depuisCode(d['sexe'] as String).libelle}'),
@@ -167,18 +157,28 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
                 if (d['telephone_contact'] != null) Text('Téléphone : ${d['telephone_contact']}'),
               ],
             ),
-            Bloc(titre: 'Scolarité', enfants: [
-              if (_inscriptions.isEmpty) const Text('Aucune inscription.'),
-              for (final i in _inscriptions)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('${i.annee} · ${i.classe}'),
-                  subtitle: Text('${i.etablissement} · ${i.statut}'),
-                  trailing: _droits.peut(Permission.etablissementGerer)
-                      ? TextButton(onPressed: () => _changerClasse(i), child: const Text('Changer de classe'))
-                      : null,
-                ),
-            ]),
+            Bloc(
+              titre: 'Scolarité',
+              action: _peutModifier && _annee != null && !_inscriptions.any((i) => i.annee == _annee!.libelle)
+                  ? TextButton.icon(
+                      onPressed: _inscrire,
+                      icon: const Icon(Icons.how_to_reg),
+                      label: Text('Inscrire en ${_annee!.libelle}'),
+                    )
+                  : null,
+              enfants: [
+                if (_inscriptions.isEmpty) const Text('Aucune inscription.'),
+                for (final i in _inscriptions)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${i.annee} · ${i.classe}'),
+                    subtitle: Text('${i.etablissement} · ${i.statut}'),
+                    trailing: _peutModifier && i.annee == _annee?.libelle
+                        ? TextButton(onPressed: () => _inscrire(classeActuelle: i.classeId), child: const Text('Changer de classe'))
+                        : null,
+                  ),
+              ],
+            ),
           ]),
           if (medical)
             ListView(padding: const EdgeInsets.all(16), children: [

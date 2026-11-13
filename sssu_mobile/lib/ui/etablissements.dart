@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sssu_core/sssu_core.dart';
 
 import '../data/requetes.dart';
+import '../eleves/dialogue_eleve.dart';
+import '../eleves/service_eleves.dart';
 import '../import/ecran_import.dart';
 import '../services.dart';
 import '../visite/ecran_visite.dart';
@@ -243,6 +245,23 @@ Widget _tuileEleve(BuildContext context, LigneEleve l, VoidCallback apres) => Li
       },
     );
 
+/// Élève déjà présent sur le téléphone qui ressemble à celui saisi (même
+/// matricule, ou mêmes nom, prénoms et date de naissance), sinon null.
+IdentiteEleve? _semblable(Map<String, Object?> identite, List<IdentiteEleve> existants, {String? sauf}) {
+  final candidat = IdentiteEleve(
+    matricule: identite['matricule'] as String?,
+    nom: identite['nom']! as String,
+    prenoms: identite['prenoms']! as String,
+    dateNaissance: identite['date_naissance'] == null ? null : lireDate(identite['date_naissance']! as String),
+  );
+  final d = detecterDoublons([candidat], [for (final e in existants) if (e.id != sauf) e]);
+  return d.isEmpty ? null : d.first.existant;
+}
+
+String _decrire(IdentiteEleve e) => '${e.nom} ${e.prenoms}'
+    '${e.matricule == null ? '' : ' · matricule ${e.matricule}'}'
+    '${e.dateNaissance == null ? '' : ' · né(e) le ${formaterDateFr(e.dateNaissance!)}'}';
+
 String formaterDateFr(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
@@ -270,6 +289,51 @@ class _EcranElevesClasseState extends ConsumerState<EcranElevesClasse> {
     if (mounted) setState(() => _eleves = l);
   }
 
+  /// Ajoute un élève absent de la liste importée ; un élève semblable déjà
+  /// présent sur le téléphone est signalé.
+  Future<void> _ajouter() async {
+    final identite = await saisirEleve(context, titre: 'Nouvel élève · ${widget.classe.libelle}');
+    if (identite == null || !mounted) return;
+    final s = ref.read(servicesProvider);
+    final semblable = _semblable(identite, await s.requetes.identitesEleves());
+    if (semblable != null && mounted) {
+      final choix = await showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('Cet élève semble déjà enregistré'),
+          content: Text('${_decrire(semblable)}\n\nOuvrez son dossier plutôt que de créer un second dossier.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d), child: const Text('Annuler')),
+            TextButton(onPressed: () => Navigator.pop(d, 'ajouter'), child: const Text('Ajouter quand même')),
+            FilledButton(onPressed: () => Navigator.pop(d, 'ouvrir'), child: const Text('Ouvrir son dossier')),
+          ],
+        ),
+      );
+      if (choix == null || !mounted) return;
+      if (choix == 'ouvrir') {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => EcranFicheEleve(eleveId: semblable.id!)));
+        return _charger();
+      }
+    }
+    try {
+      await ServiceEleves(s.base, s.depot).ajouter(
+        identite: identite,
+        classeId: widget.classe.id,
+        etablissementId: widget.classe.etablissementId,
+        anneeScolaireId: widget.classe.anneeScolaireId,
+        utilisateurId: ref.read(sessionProvider)!.utilisateur.id,
+      );
+    } on ErreurDossier catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
+    await _charger();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${identite['nom']} ${identite['prenoms']} ajouté(e) à la classe ${widget.classe.libelle}.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final f = normaliserTexte(_filtre);
@@ -280,6 +344,10 @@ class _EcranElevesClasseState extends ConsumerState<EcranElevesClasse> {
     }).toList();
     return Scaffold(
       appBar: AppBar(title: Text(widget.classe.libelle)),
+      floatingActionButton: ref.watch(sessionProvider)!.droits.peutGererEleves
+          ? FloatingActionButton.extended(
+              onPressed: _ajouter, icon: const Icon(Icons.person_add), label: const Text('Ajouter un élève'))
+          : null,
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
@@ -388,13 +456,59 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
     _charger();
   }
 
+  /// Modification de l'identité (nom, prénoms, sexe, date de naissance,
+  /// matricule, téléphone du parent).
+  Future<void> _modifier() async {
+    final e = _eleve!.eleve;
+    final identite = await saisirEleve(context, titre: 'Modifier le dossier', actuel: {
+      'matricule': e.matricule,
+      'nom': e.nom,
+      'prenoms': e.prenoms,
+      'date_naissance': e.dateNaissance == null ? null : formaterDate(e.dateNaissance!),
+      'sexe': e.sexe.code,
+      'telephone_contact': e.telephoneContact,
+    });
+    if (identite == null || !mounted) return;
+    final s = ref.read(servicesProvider);
+    final semblable = _semblable(identite, await s.requetes.identitesEleves(), sauf: e.id);
+    if (semblable != null && mounted) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('Un autre dossier ressemble à celui-ci'),
+          content: Text('${_decrire(semblable)}\n\nVérifiez qu\'il ne s\'agit pas du même élève : un élève ne doit '
+              'avoir qu\'un seul dossier.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Annuler')),
+            FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Enregistrer quand même')),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    try {
+      await ServiceEleves(s.base, s.depot).modifier(e.id, identite, utilisateurId: ref.read(sessionProvider)!.utilisateur.id);
+    } on ErreurDossier catch (x) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(x.message)));
+      return;
+    }
+    await _charger();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dossier mis à jour. Il sera transmis au poste central à la prochaine synchronisation.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = _eleve;
     final session = ref.watch(sessionProvider)!;
     final enCours = _visites.where((v) => v.statut == StatutVisite.ebauche || v.statut == StatutVisite.enregistre);
     return Scaffold(
-      appBar: AppBar(title: const Text('Dossier de l\'élève')),
+      appBar: AppBar(title: const Text('Dossier de l\'élève'), actions: [
+        if (e != null && session.droits.peutGererEleves)
+          IconButton(onPressed: _modifier, icon: const Icon(Icons.edit), tooltip: 'Modifier le dossier'),
+      ]),
       floatingActionButton: e != null && session.droits.peut(Permission.visiteSaisir) && e.inscriptionId != null
           ? FloatingActionButton.extended(
               onPressed: () => enCours.isEmpty ? _ouvrir() : _ouvrir(visiteId: enCours.first.id),

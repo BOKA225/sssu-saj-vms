@@ -8,6 +8,7 @@ import 'package:sssu_core/sssu_core.dart';
 import 'package:sssu_mobile/data/base_locale.dart' hide Utilisateur, Eleve;
 import 'package:sssu_mobile/data/depot_local_drift.dart';
 import 'package:sssu_mobile/data/requetes.dart';
+import 'package:sssu_mobile/eleves/service_eleves.dart';
 import 'package:sssu_mobile/fichiers/stockage_chiffre.dart';
 import 'package:sssu_mobile/import/lecteurs.dart';
 import 'package:sssu_mobile/import/service_import.dart';
@@ -115,6 +116,43 @@ void main() {
     final l = analyserTableau(t).single;
     expect((l.nom, l.prenoms, l.sexe, l.dateNaissance), ('YAO', 'Koffi', Sexe.masculin, DateTime.utc(2014, 1, 2)));
     await expectLater(lireListe('${dossier.path}/ancien.xls'), throwsA(isA<ErreurImport>()));
+  });
+
+  test('dossier de l\'élève : ajout dans une classe, matricule unique, modification transmise', () async {
+    final service = ServiceEleves(db, depot);
+    final identite = identiteEleveSaisie(
+        matricule: '55555555M', nom: 'Gnamien', prenoms: 'Paul', dateNaissance: '04/05/2015', sexe: 'M',
+        aujourdhui: horloge.maintenant());
+    final id = await service.ajouter(
+        identite: identite,
+        classeId: classe.id,
+        etablissementId: classe.etablissementId,
+        anneeScolaireId: classe.anneeScolaireId,
+        utilisateurId: agent.id);
+    final eleves = await requetes.elevesDeClasse(classe.id, annee);
+    expect(eleves.length, 31);
+    expect(eleves.singleWhere((l) => l.eleve.id == id).eleve.nom, 'GNAMIEN');
+    final attente = await depot.enAttente(limite: 100);
+    expect(attente.where((e) => e.table == 'eleve' || e.table == 'inscription').length, 2);
+
+    await expectLater(
+        service.ajouter(
+            identite: {...identite, 'nom': 'AUTRE'},
+            classeId: classe.id,
+            etablissementId: classe.etablissementId,
+            anneeScolaireId: classe.anneeScolaireId,
+            utilisateurId: agent.id),
+        throwsA(isA<ErreurDossier>().having((e) => e.message, 'message', contains('GNAMIEN Paul'))));
+
+    await service.modifier(id, {...identite, 'prenoms': 'Paul Arnaud', 'telephone_contact': '0505050505'},
+        utilisateurId: agent.id);
+    final e = await depot.lire('eleve', id);
+    expect((e!.donnees['prenoms'], e.donnees['telephone_contact'], e.donnees['matricule']),
+        ('Paul Arnaud', '0505050505', '55555555M'));
+    // Matricule d'un autre élève : refusé.
+    final autre = eleves.firstWhere((l) => l.eleve.id != id && l.eleve.matricule != null).eleve;
+    await expectLater(service.modifier(id, {...identite, 'matricule': autre.matricule}, utilisateurId: agent.id),
+        throwsA(isA<ErreurDossier>()));
   });
 
   test('classeur de plusieurs classes : une feuille par classe', () async {
