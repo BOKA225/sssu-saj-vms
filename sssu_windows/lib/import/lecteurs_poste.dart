@@ -13,6 +13,8 @@ import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:sssu_core/sssu_core.dart';
 
+import 'moteur_ocr.dart';
+
 class ErreurLecture implements Exception {
   final String message;
   const ErreurLecture(this.message);
@@ -24,26 +26,18 @@ typedef Progression = void Function(String etape);
 
 const extensionsListes = ['xlsx', 'xls', 'csv', 'txt', 'pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'];
 
-/// Emplacements usuels de Tesseract sous Windows.
-const _cheminsTesseract = [
-  r'C:\Program Files\Tesseract-OCR\tesseract.exe',
-  r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
-];
-
 class LecteurListes {
   /// Chemin de tesseract.exe (configuration), sinon recherche automatique.
   final String? cheminTesseract;
   LecteurListes({this.cheminTesseract});
 
-  Future<String?> tesseract() async {
-    for (final c in [if (cheminTesseract != null) cheminTesseract!, ..._cheminsTesseract]) {
-      if (await File(c).exists()) return c;
-    }
+  /// Tesseract et son modèle de langue française (voir moteur_ocr.dart).
+  Future<MoteurOcr> moteurOcr() async {
     try {
-      final r = await Process.run('tesseract', ['--version']);
-      if (r.exitCode == 0) return 'tesseract';
-    } catch (_) {}
-    return null;
+      return await trouverMoteurOcr(cheminConfig: cheminTesseract);
+    } on ErreurOcr catch (e) {
+      throw ErreurLecture(e.message);
+    }
   }
 
   Future<TableauBrut> lire(String chemin, {Progression? progression}) async {
@@ -185,18 +179,14 @@ class LecteurListes {
   Uint8List _pretraiter(img.Image image) => img.encodePng(img.adjustColor(img.grayscale(image), contrast: 1.3));
 
   Future<List<MotPositionne>> _ocr(Uint8List png, int page) async {
-    final exe = await tesseract();
-    if (exe == null) {
-      throw const ErreurLecture('Tesseract OCR n\'est pas installé sur ce poste : impossible de lire un document '
-          'scanné. Installez Tesseract (avec la langue française) ou importez la liste depuis un téléphone.');
-    }
+    final moteur = await moteurOcr();
     final dossier = await Directory.systemTemp.createTemp('sssu_ocr');
     try {
       final f = File(p.join(dossier.path, 'page.png'));
       await f.writeAsBytes(png, flush: true);
-      final r = await Process.run(exe, [f.path, 'stdout', '-l', 'fra', '--psm', '6', 'tsv'], stdoutEncoding: utf8);
+      final r = await Process.run(moteur.executable, moteur.arguments(f.path), stdoutEncoding: utf8);
       if (r.exitCode != 0) {
-        throw ErreurLecture('Échec de Tesseract : ${r.stderr}'.trim());
+        throw ErreurLecture(messageEchecTesseract('${r.stderr}'));
       }
       return [for (final m in motsDepuisTsvTesseract(r.stdout as String, page: page)) m.mot];
     } finally {

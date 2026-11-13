@@ -18,7 +18,7 @@ Ce guide s'adresse à la personne qui installe le système au service SSSU-SAJ. 
 2. Lancez `SSSU-SAJ-VMS-Poste-<version>.exe`, puis suivez l'assistant (Suivant, Installer). L'installation dure quelques minutes. Elle installe et configure **automatiquement** :
    - l'application ;
    - la base de données PostgreSQL 16. C'est un service Windows qui démarre avec l'ordinateur, et seul le poste peut y accéder ;
-   - Tesseract avec la langue française, pour lire les listes scannées ;
+   - Tesseract avec la langue française, pour lire les listes scannées et les photos. Il est copié dans le dossier de l'application (`C:\Program Files\SSSU-SAJ VMS\tesseract`) : aucun autre installateur ne s'ouvre ;
    - le runtime Visual C++ ;
    - le pare-feu : port 8443 (synchronisation) et port 8444 (recherche du poste sur le Wi-Fi), sur les réseaux privés seulement ;
    - le dossier de données `C:\ProgramData\SSSU-SAJ VMS`. Il contient la base, les photos, les clés, la configuration et les sauvegardes.
@@ -97,7 +97,7 @@ powershell -ExecutionPolicy Bypass -File installation\windows\construire_poste.p
 powershell -ExecutionPolicy Bypass -File installation\android\construire_apk.ps1 -Version 1.0.0
 ```
 
-`preparer_dependances.ps1` télécharge PostgreSQL 16 (binaires EDB), Tesseract et le runtime Visual C++. Leurs versions sont des paramètres du script : vérifiez les dernières versions publiées avant une livraison.
+`preparer_dependances.ps1` télécharge PostgreSQL 16 (binaires EDB), Tesseract et le runtime Visual C++. Leurs versions sont des paramètres du script : vérifiez les dernières versions publiées avant une livraison. Tesseract est extrait de son installateur officiel avec **7-Zip** (nécessaire sur le PC de construction), puis livré avec le modèle français ; le script vérifie qu'il démarre et connaît le français.
 
 ## 8. Informations techniques utiles
 

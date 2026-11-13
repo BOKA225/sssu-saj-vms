@@ -1,5 +1,5 @@
 /// Lecture du résultat de Tesseract OCR (poste central Windows) au format TSV :
-/// `tesseract page.png - -l fra tsv`.
+/// `tesseract page.png stdout -l fra --psm 6 -c tessedit_create_tsv=1`.
 library;
 
 import 'mots.dart';

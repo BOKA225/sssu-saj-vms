@@ -313,8 +313,8 @@ inscription. Le téléphone applique en outre chaque page reçue dans une transa
    de la phase 4. D'ici là, les photos s'affichent « en attente de transfert depuis le téléphone ».
 2. **Clé de chiffrement des photos** du poste conservée dans le dossier de l'application ; protection par
    Windows DPAPI en phase 6, avec celle de la clé du certificat.
-3. **OCR sur le poste** : Tesseract (langue française) doit être installé ; chemin facultatif `"tesseract"`
-   dans `sssu_config.json`. Son installation automatique est prévue en phase 6.
+3. **OCR sur le poste** : Tesseract et son modèle français sont livrés dans `<application>\tesseract`
+   (depuis la 1.2.3) ; chemin facultatif `"tesseract"` dans `sssu_config.json`.
 4. **Réouverture d'une visite validée** : elle repasse « enregistrée » ; l'agent la corrige sur son
    téléphone puis la valide de nouveau. Le motif est obligatoire et tracé.
 5. **Recherche d'élèves** : insensible à la casse mais pas aux accents (« KONE » ne trouve pas « KONÉ »).
@@ -772,6 +772,24 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   réseau, certificat du poste changé, données incompatibles, autre erreur affichée telle quelle ; auparavant
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
+
+## Version 1.2.3
+
+- **Correction de la lecture des PDF scannés et des photos sur le poste** (« Échec de Tesseract : Error
+  opening data file …\Tesseract-OCR/tessdata/fra.traineddata »). L'installateur officiel de Tesseract,
+  lancé par celui du poste, ignorait le dossier demandé : il s'installait dans `C:\Program Files\Tesseract-OCR`
+  sans le modèle français, resté seul dans `<application>\tesseract\tessdata`. Il proposait aussi de
+  désinstaller la version précédente à chaque mise à jour.
+  - L'installateur du poste ne lance plus celui de Tesseract : le moteur et ses bibliothèques sont extraits
+    à la construction (7-Zip) et copiés avec `fra.traineddata` dans `<application>\tesseract`. La construction
+    vérifie que Tesseract démarre et connaît le français.
+  - L'application cherche séparément l'exécutable et le dossier du modèle français, puis passe ce dossier à
+    Tesseract (`--tessdata-dir`) ; le TSV est demandé par `-c tessedit_create_tsv=1`. Un poste déjà installé
+    retrouve donc le modèle même avec l'ancien Tesseract (`moteur_ocr.dart`, tests `ocr_test.dart`, dont un
+    essai avec un vrai Tesseract dans l'intégration continue).
+  - Message clair si le modèle français manque.
+- Le « Tesseract-OCR » installé à part par les versions précédentes n'est plus utilisé ; il peut rester ou
+  être désinstallé depuis les paramètres de Windows.
 
 ## Version 1.2.2
 

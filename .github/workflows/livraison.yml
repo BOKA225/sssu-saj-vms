@@ -48,6 +48,8 @@ jobs:
           wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /etc/apt/trusted.gpg.d/pgdg.asc
           sudo apt-get update && sudo apt-get install -y postgresql-client-16
           echo "SSSU_PG_BIN=/usr/lib/postgresql/16/bin" >> "$GITHUB_ENV"
+      - name: Tesseract (vérification des arguments de l'OCR du poste)
+        run: sudo apt-get install -y tesseract-ocr tesseract-ocr-fra
       - name: Base de test (schéma, jeu de test, journal)
         run: |
           for f in sql/postgres/001_schema.sql sql/seed/donnees_test.sql sql/postgres/010_initialiser_journal_sync.sql; do

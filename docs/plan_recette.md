@@ -110,6 +110,14 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.2.3
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 13.1 | Mettre à jour un poste déjà installé avec l'installateur 1.2.3 | Aucune fenêtre de Tesseract (ni installation, ni désinstallation) ; `C:\Program Files\SSSU-SAJ VMS\tesseract\tesseract.exe` présent | |
+| 13.2 | Importer une liste d'élèves en PDF scanné | Lignes lues par OCR, sans « Échec de Tesseract » | |
+| 13.3 | Importer une photo d'une liste d'élèves, puis une photo de la liste des établissements | Lignes proposées, à vérifier avant validation | |
+
 ## Version 1.2.0
 
 | N° | Action | Résultat attendu | OK |

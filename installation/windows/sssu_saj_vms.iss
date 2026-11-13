@@ -48,8 +48,8 @@ Source: "{#Racine}\sql\postgres\*.sql"; DestDir: "{app}\sql"; Flags: ignoreversi
 Source: "{#Dep}\pgsql\*"; DestDir: "{app}\pgsql"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Installateurs tiers, utilisés pendant l'installation puis supprimés.
 Source: "{#Dep}\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-Source: "{#Dep}\tesseract-setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-Source: "{#Dep}\fra.traineddata"; DestDir: "{app}\tesseract\tessdata"; Flags: ignoreversion
+; Tesseract OCR (moteur, bibliothèques et modèle français), sans son installateur.
+Source: "{#Dep}\tesseract\*"; DestDir: "{app}\tesseract"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Scripts de configuration.
 Source: "configurer_poste.ps1"; DestDir: "{app}\installation"; Flags: ignoreversion
 Source: "desinstaller_poste.ps1"; DestDir: "{app}\installation"; Flags: ignoreversion
@@ -62,12 +62,10 @@ Name: "{autodesktop}\SSSU-SAJ VMS"; Filename: "{app}\sssu_windows.exe"; Tasks: b
 
 [Run]
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installation du runtime Visual C++…"; Flags: waituntilterminated
-Filename: "{tmp}\tesseract-setup.exe"; Parameters: "/S /D={app}\tesseract"; StatusMsg: "Installation de Tesseract (reconnaissance de texte)…"; Flags: waituntilterminated
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installation\configurer_poste.ps1"" -DossierApplication ""{app}"""; StatusMsg: "Configuration de la base de données et du pare-feu…"; Flags: runhidden waituntilterminated
 Filename: "{app}\sssu_windows.exe"; Description: "Lancer SSSU-SAJ VMS"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
-Filename: "{app}\tesseract\tesseract-uninstall.exe"; Parameters: "/S"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "Tesseract"
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installation\desinstaller_poste.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "ArretPostgres"
 
 [Code]
