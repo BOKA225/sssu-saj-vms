@@ -110,6 +110,19 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.3.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 14.1 | Établissements : nouvelle classe, taper « 2nd g » | 2nde G, 2nde G1, 2nde G2 proposées ; niveau vide → « 2NDE » enregistré | |
+| 14.2 | Créer « 2nd G1 » alors que « 2nde G1 » existe | Refus : « Cette classe existe déjà… (« 2nde G1 ») » | |
+| 14.3 | Importer : « Modèle Excel (plusieurs classes) », remplir deux feuilles renommées « 2nde G1 » et « Tle F2 » | Deux classes listées ; feuilles « Explications » et vides ignorées | |
+| 14.4 | Classe de destination absente pour « Tle F2 » | Bouton « Créer la classe manquante » ; classe créée et choisie | |
+| 14.5 | Décocher une classe, valider | Seules les classes cochées sont importées ; une fois validé, tout est enregistré | |
+| 14.6 | Fichier d'une seule feuille avec une colonne « Classe » (2nd G1, 2nde G2, cellules fusionnées) | Élèves répartis en deux classes ; lignes d'origine affichées | |
+| 14.7 | Même élève dans deux feuilles | Doublon signalé avec la classe : « Doublon de la ligne 3 de « 2nde G1 » » | |
+| 14.8 | Téléphone : importer le même classeur | Choix de la classe du fichier ; après validation, « Classe suivante du fichier » | |
+
 ## Version 1.2.3
 
 | N° | Action | Résultat attendu | OK |

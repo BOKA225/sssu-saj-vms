@@ -176,6 +176,46 @@ void main() {
       expect(env.depot.lireDirect('eleve', env.eleveB)!.etablissementId, env.etabA);
       expect(env.depot.tousDirect('import_ligne').length, 2);
     });
+
+    test('fichier de plusieurs classes : un lot par classe, en une seule importation', () async {
+      final medecin = await env.droits(env.medecin);
+      final g1 = await g.creerClasse(chef,
+          etablissementId: env.etabA, anneeScolaireId: env.anneeId, libelle: '2nde G1', niveau: niveauDeClasse('2nde G1'));
+      expect(g1.donnees['niveau'], '2NDE');
+      final groupes = grouperParClasse([
+        tableauDepuisLignes([
+          ['N°', 'Classe', 'Nom', 'Prénoms', 'Sexe', 'Date de naissance'],
+          ['1', 'CM2 A', 'SORO', 'Ali', 'M', '03/05/2014'],
+          ['2', '2nd G1', 'KOFFI', 'Ange', 'F', '12/09/2009'],
+        ], format: 'xlsx', feuille: 'Liste'),
+      ]);
+      expect(groupes.map((x) => x.classeLue!.libelle), ['CM2 A', '2nde G1']);
+      final lignes = [
+        for (final gr in groupes)
+          for (final l in analyserTableau(gr.tableau)) l..groupe = gr.libelle
+      ];
+      controlerLignes(lignes, dateReference: env.horloge.maintenant());
+      final parties = [
+        PartieImport(env.classeA, [lignes[0]], origine: groupes[0].origine),
+        PartieImport(g1.id, [lignes[1]], origine: groupes[1].origine),
+      ];
+      await expectLater(
+          g.importerListes(medecin,
+              parties: [parties[0], PartieImport(env.classeA, [lignes[1]])],
+              format: 'xlsx',
+              nomFichier: 'eleves.xlsx',
+              empreinteSha256: 'x'),
+          erreur('Deux parties du fichier'));
+      final lots = env.depot.tousDirect('import_lot').length;
+      final r = await g.importerListes(medecin, parties: parties, format: 'xlsx', nomFichier: 'eleves.xlsx', empreinteSha256: 'x');
+      expect(r.map((x) => x.crees), [1, 1]);
+      expect(env.depot.tousDirect('import_lot').length, lots + 2);
+      final noms = env.depot.tousDirect('import_lot').map((l) => l.donnees['fichier_nom']).toList();
+      expect(noms, contains('eleves.xlsx — Classe « 2nd G1 »'));
+      final koffi = env.depot.tousDirect('eleve').singleWhere((e) => e.donnees['nom'] == 'KOFFI');
+      final ins = env.depot.tousDirect('inscription').singleWhere((i) => i.donnees['eleve_id'] == koffi.id);
+      expect(ins.donnees['classe_id'], g1.id);
+    });
   });
 
   group('Comptes', () {

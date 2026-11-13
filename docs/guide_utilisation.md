@@ -45,7 +45,7 @@ Le bouton **SYNCHRONISER MES DONNÉES** envoie vos saisies au poste central et r
 
 - **Établissements et élèves** : classes, effectifs, élèves examinés ou non.
 - **Rechercher** : par nom, prénoms ou matricule.
-- **Importer une liste** : choisissez un fichier Excel, CSV ou PDF, ou photographiez une liste papier. L'application lit le texte, même sans réseau. **Vérifiez chaque ligne** avant de valider : rien n'est enregistré avant votre validation, et les doublons probables vous sont signalés.
+- **Importer une liste** : choisissez un fichier Excel, CSV ou PDF, ou photographiez une liste papier. L'application lit le texte, même sans réseau. **Vérifiez chaque ligne** avant de valider : rien n'est enregistré avant votre validation, et les doublons probables vous sont signalés. Un classeur Excel de **plusieurs classes** (une feuille par classe, ou une colonne « Classe ») s'importe classe par classe : choisissez la classe du fichier, validez, puis touchez **« Classe suivante du fichier »**. Le poste central, lui, importe toutes les classes en une fois.
 
 ### A4. Visite médicale
 
@@ -166,7 +166,10 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
 
 - **Établissements**
   - Gérer les années scolaires, puis activer celle de l'année en cours.
-  - Créer et modifier les établissements et les classes, avec leur effectif et leur couverture.
+  - Créer et modifier les établissements et les classes, avec leur effectif et leur couverture. En tapant le
+    libellé d'une classe, les classes usuelles sont proposées, y compris celles de l'**enseignement technique**
+    (2nde G, 2nde G1, 1ère F3, Tle G2, BT 1, CAP 1…). Le niveau, s'il est laissé vide, est déduit du libellé.
+    « 2nd G1 » et « 2nde G1 » désignent la même classe : un doublon est refusé.
 - **Élèves et dossiers**
   - Rechercher un élève. La recherche ignore les accents : « kone » trouve « KONÉ ».
   - Consulter son dossier.
@@ -177,6 +180,18 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
   fichier : l'**établissement et la classe sont proposés** d'après le titre de la liste (« EPP KOUASSIKRO 1 –
   CLASSE DE CM2 A ») et le nom du fichier. Si la classe n'existe pas encore, un bouton propose de la créer.
   Vérifiez toujours la proposition avant de valider.
+- **Plusieurs classes dans un même fichier Excel**, de deux façons (le bouton **« Modèle Excel (plusieurs
+  classes) »** fournit un classeur prêt à remplir) :
+  - **une feuille par classe**, nommée comme la classe (« CM2 A », « 2nde G1 », « Tle F2 ») ; les feuilles
+    d'explications ou vides sont ignorées. Une feuille au nom par défaut (« Feuil1 ») est rattachée à la classe
+    écrite dans son titre ;
+  - **une colonne « Classe »** dans une seule feuille : les élèves sont répartis selon la classe indiquée sur
+    chaque ligne (une cellule vide reprend la classe de la ligne du dessus).
+
+  Après l'analyse, un tableau montre chaque classe du fichier, son nombre d'élèves et la **classe de
+  destination** proposée dans l'établissement choisi. Corrigez-la si besoin, décochez une classe à ne pas
+  importer, ou créez en un clic les classes qui manquent. La validation importe toutes les classes en une seule
+  fois : tout est enregistré, ou rien. Un élève présent dans deux classes du fichier est signalé comme doublon.
 - **Établissements** : **Importer une liste** (Excel, CSV, PDF texte ou scanné, ou photo d'une liste papier :
   code, nom, type, statut, région, district,
   localité, responsable, téléphone ; un **modèle Excel** est proposé). Chaque ligne est comparée aux

@@ -40,6 +40,15 @@ class LecteurListes {
     }
   }
 
+  /// Listes d'élèves d'un fichier : une par feuille utile d'un classeur Excel
+  /// (classeur de plusieurs classes), sinon une seule.
+  Future<List<TableauBrut>> lireTableaux(String chemin, {Progression? progression}) async {
+    if (p.extension(chemin).toLowerCase() != '.xlsx') return [await lire(chemin, progression: progression)];
+    final t = tableauxDuClasseur(_feuillesXlsx(await File(chemin).readAsBytes()));
+    if (t.isEmpty) throw const ErreurLecture('Le classeur ne contient aucune donnée.');
+    return t;
+  }
+
   Future<TableauBrut> lire(String chemin, {Progression? progression}) async {
     final ext = p.extension(chemin).toLowerCase();
     switch (ext) {
@@ -96,7 +105,16 @@ class LecteurListes {
     }
   }
 
+  /// Feuille la plus remplie du classeur.
   List<List<String>> _lireXlsx(Uint8List octets) {
+    final meilleure = _feuillesXlsx(octets).fold<List<List<String>>>(
+        const [], (m, f) => f.lignes.length > m.length ? f.lignes : m);
+    if (meilleure.isEmpty) throw const ErreurLecture('Le classeur ne contient aucune donnée.');
+    return meilleure;
+  }
+
+  /// Toutes les feuilles du classeur, dans l'ordre, sans les lignes vides.
+  List<FeuilleBrute> _feuillesXlsx(Uint8List octets) {
     final Excel classeur;
     try {
       classeur = Excel.decodeBytes(octets);
@@ -113,16 +131,13 @@ class LecteurListes {
       return v.toString().trim();
     }
 
-    List<List<String>> meilleure = const [];
-    for (final f in classeur.tables.values) {
-      final lignes = [
-        for (final r in f.rows)
-          if (r.any((c) => texte(c).isNotEmpty)) [for (final c in r) texte(c)]
-      ];
-      if (lignes.length > meilleure.length) meilleure = lignes;
-    }
-    if (meilleure.isEmpty) throw const ErreurLecture('Le classeur ne contient aucune donnée.');
-    return meilleure;
+    return [
+      for (final e in classeur.tables.entries)
+        FeuilleBrute(e.key, [
+          for (final r in e.value.rows)
+            if (r.any((c) => texte(c).isNotEmpty)) [for (final c in r) texte(c)]
+        ])
+    ];
   }
 
   Future<TableauBrut> _lirePdf(String chemin, Progression? progression) async {

@@ -101,6 +101,12 @@ const _niveaux = <String, List<String>>{
   '2NDE': ['2NDE', '2ND', 'SECONDE', '2DE'],
   '1ERE': ['1ERE', '1RE', 'PREMIERE'],
   'TLE': ['TLE', 'TERMINALE', 'TERM', 'TALE'],
+  // Enseignement technique et professionnel (les séries B, E, F1 à F7, G1,
+  // G2 sont des sections de 2nde, 1ère et Tle : « 2nde G1 », « Tle F2 »).
+  'BTS': ['BTS'],
+  'BT': ['BT'],
+  'BEP': ['BEP'],
+  'CAP': ['CAP'],
 };
 
 final _ecritures = [
@@ -115,25 +121,29 @@ String cleClasse(String libelle) {
   for (final (ecriture, niveau) in _ecritures) {
     if (c.startsWith(ecriture)) {
       final reste = c.substring(ecriture.length);
-      // « 6E » suivi d'un chiffre ou d'une lettre seule : section.
-      if (RegExp(r'^[A-Z0-9]{0,3}$').hasMatch(reste)) return '$niveau$reste';
+      // « 6E » suivi d'un chiffre ou d'une lettre : section (« 6E3 »,
+      // « 2NDG1A » pour la 2nde G1 A de l'enseignement technique).
+      if (RegExp(r'^[A-Z0-9]{0,4}$').hasMatch(reste)) return '$niveau$reste';
     }
   }
   return c;
 }
 
-/// Classe lue dans un texte (« Classe : CM2 A », « LISTE DES ÉLÈVES DE 6ème 3 »).
+/// Classe lue dans un texte (« Classe : CM2 A », « LISTE DES ÉLÈVES DE 6ème 3 »,
+/// « 2nd G1 », « Terminale F2-2 », « BT 1 »).
 ClasseLue? lireClasse(String texte) {
   final t = normaliserTexte(texte).replaceAll(RegExp(r'[^A-Z0-9 ]'), ' ').replaceAll(RegExp(r'\s+'), ' ');
   final motifs = _ecritures.map((e) => e.$1.replaceAll('SECTION', ' SECTION')).join('|');
-  // Niveau, puis éventuellement une section (lettre, chiffre ou les deux, sauf un mot).
-  final re = RegExp('(?:^| )($motifs)(?: ?([A-Z][0-9]?|[0-9]{1,2}[A-Z]?))?(?= |\$)');
+  // Niveau, puis éventuellement une section, jamais un mot :
+  // - série avec groupe : « G1 A », « G1A », « F2 2 » ;
+  // - lettre ou série : « A », « D », « G », « G1 », « F2 » ;
+  // - numéro : « 3 », « 12 », « 4B ».
+  const section = r'[A-Z][0-9] ?[A-Z]|[A-Z][0-9]? ?[0-9]{1,2}|[A-Z][0-9]?|[0-9]{1,2}[A-Z]?';
+  final re = RegExp('(?:^| )($motifs)(?: ?($section))?(?= |\$)');
   for (final m in re.allMatches(t)) {
     final ecriture = m[1]!.replaceAll(' ', '');
     final niveau = _ecritures.firstWhere((e) => e.$1 == ecriture).$2;
-    // « A » seul après « CLASSE » n'est pas une classe ; « 3E » (3ème) oui.
     final section = m[2];
-    if (section != null && ['DE', 'DU', 'LA', 'LE'].contains(section)) continue;
     final affiche = switch (niveau) {
       'PS' => 'Petite section',
       'MS' => 'Moyenne section',
@@ -147,6 +157,57 @@ ClasseLue? lireClasse(String texte) {
     return ClasseLue(section == null ? affiche : '$affiche $section', niveau);
   }
   return null;
+}
+
+/// Classe existante de l'établissement qui correspond à une classe lue :
+/// même libellé à l'écriture près (« 2nd G1 » = « 2nde G1 » = « Seconde G1 »),
+/// sinon la seule classe du niveau quand la classe lue n'a pas de section
+/// (« CM2 » pour une école qui n'a qu'un CM2).
+ClasseConnue? rapprocherClasse(ClasseLue lue, String etablissementId, List<ClasseConnue> classes) {
+  final cle = cleClasse(lue.libelle);
+  final memeLibelle = [for (final c in classes) if (c.etablissementId == etablissementId && cleClasse(c.libelle) == cle) c];
+  if (memeLibelle.length == 1) return memeLibelle.single;
+  if (memeLibelle.isEmpty && lue.niveau.isNotEmpty && cle == lue.niveau) {
+    final memeNiveau = [
+      for (final c in classes)
+        if (c.etablissementId == etablissementId && (lireClasse(c.libelle)?.niveau ?? c.niveau) == lue.niveau) c
+    ];
+    if (memeNiveau.length == 1) return memeNiveau.single;
+  }
+  return null;
+}
+
+/// Niveau normalisé d'un libellé de classe (« 2nde G1 » → « 2NDE »), pour
+/// remplir le niveau d'une classe créée sans niveau.
+String? niveauDeClasse(String libelle) => lireClasse(libelle)?.niveau;
+
+/// Classes usuelles proposées à la saisie, par ordre d'enseignement.
+final Map<String, List<String>> classesUsuelles = {
+  'Préscolaire': ['Petite section', 'Moyenne section', 'Grande section'],
+  'Primaire': ['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'],
+  'Secondaire général': [
+    '6ème', '5ème', '4ème', '3ème', '2nde A', '2nde C', '1ère A', '1ère C', '1ère D', 'Tle A', 'Tle C', 'Tle D'
+  ],
+  'Enseignement technique': [
+    '2nde G',
+    for (final n in ['2nde', '1ère', 'Tle'])
+      for (final s in ['B', 'E', 'F1', 'F2', 'F3', 'F4', 'F7', 'G1', 'G2']) '$n $s',
+    'BT 1', 'BT 2', 'BT 3', 'CAP 1', 'CAP 2', 'CAP 3', 'BEP 1', 'BEP 2',
+  ],
+};
+
+/// Classes usuelles qui commencent comme la saisie, à l'écriture près
+/// (« 2nd g » → 2nde G, 2nde G1, 2nde G2 ; « tle f » → Tle F1… ; « g1 » → les G1).
+List<String> suggestionsClasses(String saisie) {
+  final t = saisie.trim();
+  if (t.isEmpty) return const [];
+  final cle = cleClasse(t);
+  final compact = _compact(t);
+  return [
+    for (final groupe in classesUsuelles.values)
+      for (final c in groupe)
+        if (cleClasse(c).startsWith(cle) || (compact.length >= 2 && _compact(c).contains(compact))) c
+  ];
 }
 
 // ----------------------------------------------------------- établissement
@@ -180,12 +241,17 @@ double _scoreEtablissement(EtablissementConnu e, Set<String> mots, String compac
 
 /// Propose l'établissement et la classe d'une liste. [titres] : texte lu
 /// avant l'en-tête du tableau ; [nomFichier] : nom du fichier importé ;
-/// [classes] : classes de l'année en cours.
+/// [classes] : classes de l'année en cours. [classeLue] : classe déjà lue
+/// (colonne « Classe », nom de la feuille), prioritaire sur les titres.
+/// [lireLaClasse] faux : fichier de plusieurs classes, seul l'établissement
+/// est cherché (chaque classe est rapprochée à part, voir [rapprocherClasse]).
 ReconnaissanceListe reconnaitreListe({
   required List<String> titres,
   String? nomFichier,
   required List<EtablissementConnu> etablissements,
   required List<ClasseConnue> classes,
+  ClasseLue? classeLue,
+  bool lireLaClasse = true,
 }) {
   final fichier = nomFichier == null ? '' : nomFichier.replaceAll(RegExp(r'\.[A-Za-z0-9]{2,4}$'), '').replaceAll('_', ' ');
   final sources = [...titres, if (fichier.isNotEmpty) fichier];
@@ -218,23 +284,18 @@ ReconnaissanceListe reconnaitreListe({
     raisons.add('Établissement « ${etab.nom} » reconnu dans ${dansFichier ? 'le nom du fichier' : 'le titre de la liste'}.');
   }
 
-  // Classe : d'abord dans les titres, puis dans le nom du fichier.
-  ClasseLue? lue;
-  for (final s in sources) {
-    lue = lireClasse(s);
-    if (lue != null) break;
+  // Classe : celle déjà lue, sinon d'abord dans les titres, puis dans le nom du fichier.
+  ClasseLue? lue = lireLaClasse ? classeLue : null;
+  if (lireLaClasse && lue == null) {
+    for (final s in sources) {
+      lue = lireClasse(s);
+      if (lue != null) break;
+    }
   }
   ClasseConnue? classe;
   if (lue != null && etab != null) {
-    final cle = cleClasse(lue.libelle);
-    final candidates = [for (final c in classes) if (c.etablissementId == etab.id && cleClasse(c.libelle) == cle) c];
-    if (candidates.isEmpty && !RegExp(r'[A-Z0-9]$').hasMatch(cle.replaceFirst(lue.niveau, ''))) {
-      // Niveau sans section (« CM2 ») : la classe unique de ce niveau.
-      final memeNiveau = [for (final c in classes) if (c.etablissementId == etab.id && cleClasse(c.libelle).startsWith(lue.niveau)) c];
-      if (memeNiveau.length == 1) candidates.add(memeNiveau.single);
-    }
-    if (candidates.length == 1) {
-      classe = candidates.single;
+    classe = rapprocherClasse(lue, etab.id, classes);
+    if (classe != null) {
       raisons.add('Classe « ${classe.libelle} » reconnue.');
     } else {
       raisons.add('Classe « ${lue.libelle} » lue : elle n\'existe pas encore dans cet établissement pour cette année.');
@@ -242,7 +303,11 @@ ReconnaissanceListe reconnaitreListe({
   } else if (lue != null) {
     raisons.add('Classe « ${lue.libelle} » lue.');
   }
-  if (etab == null && lue == null) raisons.add('Ni l\'établissement ni la classe n\'ont été reconnus : choisissez-les.');
+  if (!lireLaClasse && etab == null) {
+    raisons.add('Établissement non reconnu : choisissez-le.');
+  } else if (etab == null && lue == null) {
+    raisons.add('Ni l\'établissement ni la classe n\'ont été reconnus : choisissez-les.');
+  }
   return ReconnaissanceListe(
     etablissement: etab,
     confianceEtablissement: meilleur,

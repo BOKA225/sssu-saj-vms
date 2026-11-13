@@ -54,6 +54,10 @@ class LigneImport {
   /// Remarques de lecture (correction automatique, séparation nom / prénoms).
   final List<String> notes;
 
+  /// Classe de la ligne dans un fichier de plusieurs classes (« CM2 A »,
+  /// « Feuille « 2nde G1 » »), pour situer les doublons.
+  String? groupe;
+
   List<AnomalieImport> anomalies = const [];
   ActionImport action = ActionImport.creer;
   String? eleveExistantId;
@@ -72,6 +76,7 @@ class LigneImport {
     this.telephone,
     this.ageDeclare,
     List<String>? notes,
+    this.groupe,
   }) : notes = notes ?? [];
 
   bool get bloquee => anomalies.any((a) => a.gravite == GraviteAnomalie.bloquante);
@@ -213,11 +218,11 @@ List<LigneImport> analyserTableau(TableauBrut t, {RegExp? formatMatricule}) {
         prec.brut[champ] = '${prec.brut[champ] ?? ''} $v'.trim();
       });
       _remplirIdentite(prec, formatMatricule);
-      prec.notes.add('Texte de la ligne ${i + 1} rattaché à cette ligne.');
+      prec.notes.add('Texte de la ligne ${t.numeroLigne(i)} rattaché à cette ligne.');
       continue;
     }
 
-    final l = LigneImport(numeroSource: i + 1, brut: brut, nom: '', prenoms: '');
+    final l = LigneImport(numeroSource: t.numeroLigne(i), brut: brut, nom: '', prenoms: '');
     _remplirIdentite(l, formatMatricule);
     lignes.add(l);
   }
@@ -322,12 +327,14 @@ void controlerLignes(
     final d = parCandidat[i];
     if (d != null) {
       final dansFichier = d.existant.id == null;
-      final numero = dansFichier ? lignes[candidats.indexWhere((c) => identical(c, d.existant))].numeroSource : null;
+      final autre = dansFichier ? lignes[candidats.indexWhere((c) => identical(c, d.existant))] : null;
+      // Doublon dans une autre classe du même fichier : la classe est précisée.
+      final ou = autre?.groupe != null && autre!.groupe != l.groupe ? ' de « ${autre.groupe} »' : '';
       final motif = d.motif == MotifDoublon.memeMatricule ? 'même matricule' : 'mêmes nom, prénoms et date de naissance';
       a.add(AnomalieImport(
         d.motif == MotifDoublon.memeMatricule ? ChampListe.matricule : ChampListe.nom,
         GraviteAnomalie.avertissement,
-        dansFichier ? 'Doublon de la ligne $numero ($motif).' : 'Élève déjà enregistré ($motif).',
+        dansFichier ? 'Doublon de la ligne ${autre!.numeroSource}$ou ($motif).' : 'Élève déjà enregistré ($motif).',
       ));
       if (!l.actionImposee) {
         if (dansFichier) {

@@ -94,6 +94,40 @@ List<int> rendreExcel(DocumentRapport d, {String nomFeuille = 'Rapport'}) {
   return excel.encode()!;
 }
 
+/// Modèle Excel d'une liste d'élèves de plusieurs classes : une feuille par
+/// classe, nommée comme la classe, avec les intitulés reconnus ; une feuille
+/// d'explications (écartée à l'importation).
+List<int> modeleListeEleves({List<String> classes = const ['CM2 A', '6ème 1', '2nde G1', 'Tle F2']}) {
+  final excel = Excel.createExcel();
+  final defaut = excel.getDefaultSheet() ?? 'Sheet1';
+  excel.rename(defaut, 'Explications');
+  final explications = excel['Explications'];
+  const lignes = [
+    'Liste des élèves : une feuille par classe.',
+    'Renommez chaque feuille avec le libellé de la classe (ex. CM2 A, 6ème 1, 2nde G1, Tle F2, BT 1).',
+    'Ajoutez ou supprimez des feuilles selon les classes de l\'établissement.',
+    'Une ligne par élève sous les intitulés ; la date de naissance au format JJ/MM/AAAA, le sexe M ou F.',
+    'Autre possibilité : toutes les classes dans une seule feuille, avec une colonne « Classe ».',
+    'À l\'importation, chaque classe est rapprochée des classes de l\'établissement ; les classes manquantes peuvent être créées.',
+  ];
+  for (var i = 0; i < lignes.length; i++) {
+    explications.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i)).value = TextCellValue(lignes[i]);
+  }
+  explications.setColumnWidth(0, 110);
+  const entetes = ['N°', 'Matricule', 'Nom', 'Prénoms', 'Date de naissance', 'Sexe', 'Téléphone du parent'];
+  final gras = CellStyle(bold: true);
+  for (final classe in classes) {
+    final f = excel[classe];
+    for (var c = 0; c < entetes.length; c++) {
+      f.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+        ..value = TextCellValue(entetes[c])
+        ..cellStyle = gras;
+      f.setColumnWidth(c, c == 2 || c == 3 ? 26 : 16);
+    }
+  }
+  return excel.encode()!;
+}
+
 /// Modèle Excel de la liste des établissements à importer (intitulés
 /// reconnus et une ligne d'exemple).
 List<int> modeleListeEtablissements() {

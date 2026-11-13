@@ -23,12 +23,24 @@ class TableauBrut {
   /// la classe de la liste.
   final List<String> texteAvant;
 
+  /// Nom de la feuille Excel d'origine (classeur de plusieurs classes).
+  final String? feuille;
+
+  /// Numéro d'origine de chaque ligne (tableau extrait d'un plus grand, par
+  /// exemple les élèves d'une classe dans une liste de plusieurs classes).
+  final List<int>? numeros;
+
   const TableauBrut(
       {required this.lignes,
       required this.ligneEntete,
       required this.correspondance,
       required this.format,
-      this.texteAvant = const []});
+      this.texteAvant = const [],
+      this.feuille,
+      this.numeros});
+
+  /// Numéro de la ligne [index] dans le fichier (à partir de 1).
+  int numeroLigne(int index) => numeros != null && index < numeros!.length ? numeros![index] : index + 1;
 
   /// Titres de la liste : texte avant l'en-tête, ou premières lignes du
   /// tableau sans en-tête reconnu.
@@ -48,7 +60,9 @@ class TableauBrut {
       ligneEntete: ligneEntete ?? this.ligneEntete,
       correspondance: c,
       format: format,
-      texteAvant: texteAvant);
+      texteAvant: texteAvant,
+      feuille: feuille,
+      numeros: numeros);
 }
 
 class EnteteDetectee {
@@ -58,9 +72,12 @@ class EnteteDetectee {
 }
 
 /// Note d'une ligne candidate : nombre de champs distincts reconnus (hors
-/// numéro d'ordre), à condition qu'un champ de nom soit présent.
+/// numéro d'ordre et classe), à condition qu'un champ de nom soit présent.
+/// La classe ne compte pas : une ligne de titre « Classe | Nom de
+/// l'enseignant » ne doit pas passer pour l'en-tête.
 int _score(Map<int, ChampListe> c) {
-  final champs = c.values.where((f) => f != ChampListe.numero && f != ChampListe.ignorer).toSet();
+  final champs =
+      c.values.where((f) => f != ChampListe.numero && f != ChampListe.ignorer && f != ChampListe.classe).toSet();
   if (!champs.any((f) => f.estNom)) return 0;
   return champs.length;
 }
@@ -98,7 +115,8 @@ bool estEnteteRepete(List<String> cellules) => _score(correspondanceDeLigne(cell
 
 /// Construit un tableau à partir de lignes de cellules (Excel, CSV) en
 /// détectant l'en-tête.
-TableauBrut tableauDepuisLignes(List<List<String>> lignes, {required String format}) {
+TableauBrut tableauDepuisLignes(List<List<String>> lignes, {required String format, String? feuille}) {
   final e = detecterEntete(lignes);
-  return TableauBrut(lignes: lignes, ligneEntete: e?.index, correspondance: e?.correspondance ?? {}, format: format);
+  return TableauBrut(
+      lignes: lignes, ligneEntete: e?.index, correspondance: e?.correspondance ?? {}, format: format, feuille: feuille);
 }
