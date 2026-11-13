@@ -218,6 +218,62 @@ void main() {
     });
   });
 
+  group('Dossier de l\'élève : ajout et modification', () {
+    test('identité saisie à la main : contrôles et mise en forme', () {
+      final aujourdhui = DateTime.utc(2026, 11, 13);
+      final d = identiteEleveSaisie(
+          matricule: ' 12345678a ', nom: ' kouassi ', prenoms: ' Aya   Marie ', dateNaissance: '02/03/2014', sexe: 'f',
+          telephone: '07 07 07 07 07', aujourdhui: aujourdhui);
+      expect(d, {
+        'matricule': '12345678A',
+        'nom': 'KOUASSI',
+        'prenoms': 'Aya Marie',
+        'date_naissance': '2014-03-02',
+        'sexe': 'F',
+        'telephone_contact': '0707070707',
+      });
+      Matcher refus(String debut) =>
+          throwsA(isA<FormatException>().having((e) => e.message, 'message', startsWith(debut)));
+      expect(() => identiteEleveSaisie(nom: '', prenoms: 'Aya', sexe: 'F', aujourdhui: aujourdhui), refus('Le nom'));
+      expect(() => identiteEleveSaisie(nom: 'K', prenoms: 'Aya', sexe: null, aujourdhui: aujourdhui), refus('Indiquez le sexe'));
+      expect(() => identiteEleveSaisie(nom: 'K', prenoms: 'A', sexe: 'M', dateNaissance: '31/02/2014', aujourdhui: aujourdhui),
+          refus('Date de naissance illisible'));
+      expect(() => identiteEleveSaisie(nom: 'K', prenoms: 'A', sexe: 'M', dateNaissance: '01/01/2027', aujourdhui: aujourdhui),
+          refus('Date de naissance dans le futur'));
+      expect(() => identiteEleveSaisie(nom: 'K', prenoms: 'A', sexe: 'M', dateNaissance: '01/01/1950', aujourdhui: aujourdhui),
+          refus('Âge invraisemblable'));
+      expect(identiteEleveSaisie(nom: 'K', prenoms: 'A', sexe: 'M', aujourdhui: aujourdhui)['date_naissance'], isNull);
+    });
+
+    test('ajout, inscription dans une autre classe, matricule unique, droits', () async {
+      final medecin = await env.droits(env.medecin);
+      final identite = identiteEleveSaisie(
+          matricule: '99999999Z', nom: 'Bamba', prenoms: 'Ali', dateNaissance: '05/06/2012', sexe: 'M',
+          aujourdhui: env.horloge.maintenant());
+      expect(agent.peutGererEleves, isFalse);
+      expect(admin.peutGererEleves, isTrue);
+      await expectLater(g.creerEleve(agent, identite: identite, classeId: env.classeA), erreur('Vous n\'êtes pas autorisé'));
+      final e = await g.creerEleve(medecin, identite: identite, classeId: env.classeA);
+      expect((e.donnees['nom'], e.etablissementId), ('BAMBA', env.etabA));
+      final ins = env.depot.tousDirect('inscription').where((i) => i.donnees['eleve_id'] == e.id).toList();
+      expect(ins.single.donnees['classe_id'], env.classeA);
+      await expectLater(g.creerEleve(medecin, identite: {...identite, 'nom': 'AUTRE'}, classeId: env.classeA),
+          erreur('Le matricule 99999999Z est déjà celui de BAMBA Ali'));
+
+      // Changement de classe et d'établissement : le dossier suit l'élève.
+      await g.inscrireEleve(medecin, e.id, env.classeB);
+      final apres = env.depot.tousDirect('inscription').where((i) => i.donnees['eleve_id'] == e.id).toList();
+      expect(apres.single.donnees['classe_id'], env.classeB);
+      expect(env.depot.lireDirect('eleve', e.id)!.etablissementId, env.etabB);
+
+      // Modification : un matricule déjà pris est refusé, le reste est enregistré.
+      final autre = env.depot.lireDirect('eleve', env.eleveA)!;
+      await expectLater(g.modifierEleve(medecin, e.id, {'matricule': autre.donnees['matricule']}), erreur('Le matricule'));
+      final m = await g.modifierEleve(medecin, e.id, {'prenoms': 'Ali Junior', 'telephone_contact': '0102030405'});
+      expect((m.donnees['prenoms'], m.donnees['telephone_contact'], m.donnees['matricule']), ('Ali Junior', '0102030405', '99999999Z'));
+    });
+  });
+
   group('Comptes', () {
     test('désactivation, réinitialisation du mot de passe, rôle ; jamais d\'empreinte dans le journal', () async {
       await expectLater(g.definirActif(admin, env.admin.id, actif: false), erreur('Vous ne pouvez pas'));

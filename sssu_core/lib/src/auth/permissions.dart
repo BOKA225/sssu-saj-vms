@@ -128,6 +128,12 @@ class Droits {
     return peut(Permission.visiteModifierSiennes) && agentId == utilisateurId;
   }
 
+  /// Ajouter un élève ou modifier son identité et sa classe : ceux qui
+  /// importent les listes, gèrent les établissements ou modifient toutes les
+  /// visites (médecin-chef, médecin, infirmier, administrateur ; pas l'agent).
+  bool get peutGererEleves =>
+      peut(Permission.importExecuter) || peut(Permission.etablissementGerer) || peut(Permission.visiteModifierToutes);
+
   /// Voir une photo : ses propres photos, ou toutes selon le rôle.
   bool peutVoirPhoto({required String auteurId}) =>
       peut(Permission.photoVoirToutes) || (peut(Permission.photoPrendre) && auteurId == utilisateurId);

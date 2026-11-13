@@ -185,8 +185,11 @@ String? niveauDeClasse(String libelle) => lireClasse(libelle)?.niveau;
 final Map<String, List<String>> classesUsuelles = {
   'Préscolaire': ['Petite section', 'Moyenne section', 'Grande section'],
   'Primaire': ['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'],
+  // Séries générales : A (A1, A2) et C en 2nde ; A1, A2, C et D en 1ère et Tle.
   'Secondaire général': [
-    '6ème', '5ème', '4ème', '3ème', '2nde A', '2nde C', '1ère A', '1ère C', '1ère D', 'Tle A', 'Tle C', 'Tle D'
+    '6ème', '5ème', '4ème', '3ème', '2nde A', '2nde C',
+    for (final n in ['1ère', 'Tle'])
+      for (final s in ['A1', 'A2', 'C', 'D']) '$n $s',
   ],
   'Enseignement technique': [
     '2nde G',

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:sssu_core/sssu_core.dart';
 
 /// Libellé de classe avec les classes usuelles proposées pendant la saisie
-/// (primaire, secondaire général, enseignement technique : 2nde G1, Tle F2,
-/// BT 1…). La saisie reste libre.
+/// (primaire, secondaire général : 2nde C, 1ère A1, Tle D ; enseignement
+/// technique : 2nde G1, Tle F2, BT 1…). La saisie reste libre.
 class ChampLibelleClasse extends StatefulWidget {
   final TextEditingController controleur;
   final bool autofocus;
@@ -35,7 +35,7 @@ class _ChampLibelleClasseState extends State<ChampLibelleClasse> {
           focusNode: focus,
           autofocus: widget.autofocus,
           decoration: const InputDecoration(
-              labelText: 'Libellé', helperText: 'ex. CM2 A, 6ème 3, 2nde G1, 1ère F3, Tle G2, BT 1'),
+              labelText: 'Libellé', helperText: 'ex. CM2 A, 6ème 3, Tle D, 1ère A1, 2nde G1, BT 1'),
           onSubmitted: (_) => valider(),
         ),
         optionsViewBuilder: (context, choisir, options) => Align(
