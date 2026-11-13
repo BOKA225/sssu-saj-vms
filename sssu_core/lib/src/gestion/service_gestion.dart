@@ -12,6 +12,7 @@ import '../auth/permissions.dart';
 import '../commun/commun.dart';
 import '../import/analyse.dart';
 import '../import/etablissements.dart';
+import '../import/reconnaissance.dart';
 import '../modeles/enums.dart';
 import '../regles/identite.dart';
 import '../sync/depot_serveur.dart';
@@ -39,6 +40,17 @@ class ResultatImportServeur {
   final int ignores;
   final int changementsDeClasse;
   const ResultatImportServeur(this.lotId, this.crees, this.rattaches, this.ignores, this.changementsDeClasse);
+}
+
+/// Élèves d'un fichier destinés à une classe (fichier de plusieurs classes :
+/// une partie par feuille ou par valeur de la colonne « Classe »).
+class PartieImport {
+  final String classeId;
+  final List<LigneImport> lignes;
+
+  /// Origine dans le fichier (« Feuille « CM2 A » »), notée dans le journal.
+  final String? origine;
+  const PartieImport(this.classeId, this.lignes, {this.origine});
 }
 
 class ServiceGestion {
@@ -296,9 +308,9 @@ class ServiceGestion {
     return depot.transaction((tx) async {
       await _lire(tx, 'etablissement', etablissementId);
       await _lire(tx, 'annee_scolaire', anneeScolaireId);
-      final memes = await tx.chercher(
-          'classe', {'etablissement_id': etablissementId, 'annee_scolaire_id': anneeScolaireId, 'libelle': libelle.trim()});
-      if (memes.isNotEmpty) throw const ErreurGestion('Cette classe existe déjà pour cette année.');
+      // Même classe à l'écriture près (« 2nd G1 » et « 2nde G1 », « CM2-A » et « CM2 A »).
+      final memes = await _classesDeMemeLibelle(tx, etablissementId, anneeScolaireId, libelle);
+      if (memes.isNotEmpty) throw ErreurGestion('Cette classe existe déjà pour cette année (« ${memes.first.donnees['libelle']} »).');
       return _creer(
           tx,
           'classe',
@@ -306,7 +318,7 @@ class ServiceGestion {
             'etablissement_id': etablissementId,
             'annee_scolaire_id': anneeScolaireId,
             'libelle': libelle.trim(),
-            'niveau': niveau?.trim().isEmpty ?? true ? null : niveau!.trim(),
+            'niveau': _niveau(libelle, niveau),
           },
           a,
           etablissementId: etablissementId);
@@ -317,15 +329,25 @@ class ServiceGestion {
     _exiger(a, Permission.etablissementGerer);
     return depot.transaction((tx) async {
       final c = await _lire(tx, 'classe', id);
-      final memes = await tx.chercher('classe', {
-        'etablissement_id': c.donnees['etablissement_id'],
-        'annee_scolaire_id': c.donnees['annee_scolaire_id'],
-        'libelle': libelle.trim(),
-      });
+      final memes = await _classesDeMemeLibelle(
+          tx, c.donnees['etablissement_id']! as String, c.donnees['annee_scolaire_id']! as String, libelle);
       if (memes.any((x) => x.id != id)) throw const ErreurGestion('Cette classe existe déjà pour cette année.');
-      return _modifier(tx, c, {'libelle': libelle.trim(), 'niveau': niveau?.trim().isEmpty ?? true ? null : niveau!.trim()}, a);
+      return _modifier(tx, c, {'libelle': libelle.trim(), 'niveau': _niveau(libelle, niveau)}, a);
     });
   }
+
+  Future<List<Enregistrement>> _classesDeMemeLibelle(
+      TransactionServeur tx, String etablissementId, String anneeScolaireId, String libelle) async {
+    final cle = cleClasse(libelle);
+    return [
+      for (final c in await tx.chercher('classe', {'etablissement_id': etablissementId, 'annee_scolaire_id': anneeScolaireId}))
+        if (cleClasse('${c.donnees['libelle'] ?? ''}') == cle) c
+    ];
+  }
+
+  /// Niveau saisi, sinon déduit du libellé (« 2nde G1 » → « 2NDE »).
+  static String? _niveau(String libelle, String? niveau) =>
+      niveau != null && niveau.trim().isNotEmpty ? niveau.trim() : niveauDeClasse(libelle);
 
   Future<void> archiverClasse(Droits a, String id) async {
     _exiger(a, Permission.etablissementGerer);
@@ -394,83 +416,122 @@ class ServiceGestion {
     required String format,
     required String nomFichier,
     required String empreinteSha256,
+  }) async =>
+      (await importerListes(a,
+              parties: [PartieImport(classeId, lignes)],
+              format: format,
+              nomFichier: nomFichier,
+              empreinteSha256: empreinteSha256))
+          .single;
+
+  /// Importation d'un fichier de plusieurs classes, en une seule transaction :
+  /// tout est importé, ou rien. Un lot d'importation par classe.
+  Future<List<ResultatImportServeur>> importerListes(
+    Droits a, {
+    required List<PartieImport> parties,
+    required String format,
+    required String nomFichier,
+    required String empreinteSha256,
   }) async {
     _exiger(a, Permission.importExecuter);
-    final b = bilan(lignes);
+    if (parties.isEmpty) throw const ErreurGestion('Aucune classe à importer.');
+    final b = bilan([for (final p in parties) ...p.lignes]);
     if (!b.validable) throw const ErreurGestion('Corrigez les lignes en erreur avant de valider l\'importation.');
-    return depot.transaction((tx) async {
-      final classe = await _lire(tx, 'classe', classeId);
-      final etab = classe.donnees['etablissement_id']! as String;
-      final annee = classe.donnees['annee_scolaire_id']! as String;
-      final lot = await _creer(
-          tx,
-          'import_lot',
-          {
-            'classe_id': classeId,
-            'utilisateur_id': a.utilisateurId,
-            'fichier_nom': nomFichier,
-            'format': format,
-            'empreinte_sha256': empreinteSha256,
-            'statut': 'valide',
-            'nb_lignes': lignes.length,
-          },
-          a);
-      var crees = 0, rattaches = 0, ignores = 0, changements = 0;
-      for (final l in lignes) {
-        String? eleveId;
-        switch (l.action) {
-          case ActionImport.ignorer:
-            ignores++;
-          case ActionImport.creer:
-            eleveId = (await _creer(tx, 'eleve', donneesEleve(l), a, etablissementId: etab)).id;
-            crees++;
-          case ActionImport.rattacher:
-            final e = await _lire(tx, 'eleve', l.eleveExistantId!);
-            final nouvelles = donneesEleve(l);
-            await _modifier(
-                tx,
-                e,
-                {
-                  for (final k in ['matricule', 'date_naissance', 'telephone_contact'])
-                    if (e.donnees[k] == null && nouvelles[k] != null) k: nouvelles[k],
-                },
-                a);
-            eleveId = e.id;
-            rattaches++;
-        }
-        if (eleveId != null) {
-          await reaffecterEleve(tx, eleveId, etab);
-          final ins = await tx.chercher('inscription', {'eleve_id': eleveId, 'annee_scolaire_id': annee});
-          if (ins.isEmpty) {
-            await _creer(tx, 'inscription',
-                {'eleve_id': eleveId, 'classe_id': classeId, 'annee_scolaire_id': annee, 'statut': 'inscrit'}, a,
-                etablissementId: etab);
-          } else if (ins.first.donnees['classe_id'] != classeId || ins.first.donnees['statut'] != 'inscrit') {
-            if (ins.first.donnees['classe_id'] != classeId) changements++;
-            await _modifier(tx, ins.first, {'classe_id': classeId, 'statut': 'inscrit'}, a, etablissementId: etab);
-          }
-        }
-        await tx.ecrire(Enregistrement(
-          table: 'import_ligne',
-          id: nouvelId(),
-          version: 1,
-          versionBase: 1,
-          createdAt: horloge.maintenant(),
-          updatedAt: horloge.maintenant(),
-          createdBy: a.utilisateurId,
-          updatedBy: a.utilisateurId,
-          donnees: {
-            'import_lot_id': lot.id,
-            'numero': l.numeroSource,
-            'donnees_extraites': {for (final e in l.brut.entries) e.key.name: e.value},
-            'anomalies': [for (final x in l.anomalies) x.message, ...l.notes],
-            'decision': l.action == ActionImport.ignorer ? 'rejeter' : 'garder',
-            'eleve_id': eleveId,
-          },
-        ));
+    final classes = {for (final p in parties) p.classeId};
+    if (classes.length != parties.length) {
+      throw const ErreurGestion('Deux parties du fichier sont dirigées vers la même classe : regroupez-les ou changez de classe.');
+    }
+    return depot.transaction((tx) async => [
+          for (final p in parties)
+            await _importerDansClasse(tx, a,
+                lignes: p.lignes,
+                classeId: p.classeId,
+                format: format,
+                nomFichier: p.origine == null ? nomFichier : '$nomFichier — ${p.origine}',
+                empreinteSha256: empreinteSha256),
+        ]);
+  }
+
+  Future<ResultatImportServeur> _importerDansClasse(
+    TransactionServeur tx,
+    Droits a, {
+    required List<LigneImport> lignes,
+    required String classeId,
+    required String format,
+    required String nomFichier,
+    required String empreinteSha256,
+  }) async {
+    final classe = await _lire(tx, 'classe', classeId);
+    final etab = classe.donnees['etablissement_id']! as String;
+    final annee = classe.donnees['annee_scolaire_id']! as String;
+    final lot = await _creer(
+        tx,
+        'import_lot',
+        {
+          'classe_id': classeId,
+          'utilisateur_id': a.utilisateurId,
+          'fichier_nom': nomFichier,
+          'format': format,
+          'empreinte_sha256': empreinteSha256,
+          'statut': 'valide',
+          'nb_lignes': lignes.length,
+        },
+        a);
+    var crees = 0, rattaches = 0, ignores = 0, changements = 0;
+    for (final l in lignes) {
+      String? eleveId;
+      switch (l.action) {
+        case ActionImport.ignorer:
+          ignores++;
+        case ActionImport.creer:
+          eleveId = (await _creer(tx, 'eleve', donneesEleve(l), a, etablissementId: etab)).id;
+          crees++;
+        case ActionImport.rattacher:
+          final e = await _lire(tx, 'eleve', l.eleveExistantId!);
+          final nouvelles = donneesEleve(l);
+          await _modifier(
+              tx,
+              e,
+              {
+                for (final k in ['matricule', 'date_naissance', 'telephone_contact'])
+                  if (e.donnees[k] == null && nouvelles[k] != null) k: nouvelles[k],
+              },
+              a);
+          eleveId = e.id;
+          rattaches++;
       }
-      return ResultatImportServeur(lot.id, crees, rattaches, ignores, changements);
-    });
+      if (eleveId != null) {
+        await reaffecterEleve(tx, eleveId, etab);
+        final ins = await tx.chercher('inscription', {'eleve_id': eleveId, 'annee_scolaire_id': annee});
+        if (ins.isEmpty) {
+          await _creer(tx, 'inscription',
+              {'eleve_id': eleveId, 'classe_id': classeId, 'annee_scolaire_id': annee, 'statut': 'inscrit'}, a,
+              etablissementId: etab);
+        } else if (ins.first.donnees['classe_id'] != classeId || ins.first.donnees['statut'] != 'inscrit') {
+          if (ins.first.donnees['classe_id'] != classeId) changements++;
+          await _modifier(tx, ins.first, {'classe_id': classeId, 'statut': 'inscrit'}, a, etablissementId: etab);
+        }
+      }
+      await tx.ecrire(Enregistrement(
+        table: 'import_ligne',
+        id: nouvelId(),
+        version: 1,
+        versionBase: 1,
+        createdAt: horloge.maintenant(),
+        updatedAt: horloge.maintenant(),
+        createdBy: a.utilisateurId,
+        updatedBy: a.utilisateurId,
+        donnees: {
+          'import_lot_id': lot.id,
+          'numero': l.numeroSource,
+          'donnees_extraites': {for (final e in l.brut.entries) e.key.name: e.value},
+          'anomalies': [for (final x in l.anomalies) x.message, ...l.notes],
+          'decision': l.action == ActionImport.ignorer ? 'rejeter' : 'garder',
+          'eleve_id': eleveId,
+        },
+      ));
+    }
+    return ResultatImportServeur(lot.id, crees, rattaches, ignores, changements);
   }
 
   // ------------------------------------------------------------------ visites

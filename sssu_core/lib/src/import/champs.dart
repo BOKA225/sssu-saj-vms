@@ -15,6 +15,9 @@ enum ChampListe {
   age('Âge'),
   sexe('Sexe'),
   telephone('Téléphone'),
+
+  /// Classe de l'élève : un fichier peut contenir plusieurs classes.
+  classe('Classe'),
   ignorer('(ignorer)');
 
   final String libelle;
@@ -46,6 +49,12 @@ const Map<ChampListe, List<String>> synonymesEntete = {
   ChampListe.telephone: [
     'TELEPHONE', 'TEL', 'N TEL', 'NO TEL', 'NUMERO DE TELEPHONE', 'CONTACT', 'CONTACTS', 'CONTACT PARENT',
     'CONTACT DU PARENT', 'TEL PARENT', 'TELEPHONE PARENT', 'CELLULAIRE', 'CEL', 'PORTABLE',
+  ],
+  // Intitulés exacts seulement : « Classe : CM2 A » dans une cellule de titre
+  // n'est pas un en-tête de colonne.
+  ChampListe.classe: [
+    'CLASSE', 'CLASSES', 'CL', 'CLASSE ELEVE', 'CLASSE DE L ELEVE', 'CLASSE FREQUENTEE', 'CLASSE ACTUELLE',
+    'DIVISION', 'NIVEAU CLASSE',
   ],
 };
 
