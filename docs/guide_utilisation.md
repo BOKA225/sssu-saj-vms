@@ -70,13 +70,33 @@ Le poste central peut refuser une saisie, ou en mettre une en conflit avec une a
 
 ### A7. Inspection sanitaire
 
-1. **Inspection sanitaire** : choisissez l'établissement, puis « Nouvelle inspection ».
-2. Pour chaque critère, choisissez **Conforme**, **Partiellement conforme**, **Non conforme** ou **Non applicable**.
-   - Ajoutez une observation.
-   - Pour une insuffisance, ajoutez une photo, sans aucune personne reconnaissable.
-3. Le taux de conformité et le niveau (satisfaisant, moyen, insuffisant) s'affichent en direct.
-4. Saisissez les observations et les recommandations, puis signez avec le doigt (« Signer »).
-5. **ENREGISTRER ET TRANSMETTRE** n'est possible que si tous les critères ont une réponse et que l'inspection est signée. Une fois transmise, l'inspection n'est plus modifiable.
+L'inspection suit la **grille d'inspection sanitaire des établissements scolaires** du SSSU-SAJ (normes MENA 2022
+et OMS) : 118 critères en neuf sections (B à J), dont 7 critères critiques ★.
+
+1. **Inspection sanitaire** : choisissez l'établissement, puis « Nouvelle inspection ». La grille est
+   préremplie avec ce que l'application connaît : localité, chef d'établissement, ordre d'enseignement,
+   élèves inscrits (garçons et filles), nombre de classes, date de la dernière inspection.
+2. **Identification de la visite** : DRENA/IEPP, aire sanitaire, accompagnateur, heures, type de visite
+   (programmée, inopinée, contre-visite), équipe.
+3. **A. Structure et effectifs** (non coté) : ordre d'enseignement, statut, fréquentation, régime, milieu,
+   électricité, cantine ; effectifs ; inventaire des équipements (existant et fonctionnel). Les **ratios** se
+   calculent seuls ; une valeur hors norme s'affiche en rouge. Les critères qui ne s'appliquent pas sont cotés
+   NA automatiquement, avec le motif : section E pour le préscolaire ou sans filles, H1 à H10 sans cantine,
+   G8 sans électricité.
+4. **Sections B à J** : pour chaque critère, **C** (conforme), **NC** (non conforme) ou **NA** (non
+   applicable, à justifier en observation). Notez les chiffres utiles en observation et photographiez les
+   insuffisances, sans personne reconnaissable. Le score de chaque section s'affiche dans son titre.
+5. En haut de l'écran : **score global**, **classement** (Satisfaisant ≥ 80 %, Acceptable 60–79 %, Insuffisant
+   40–59 %, Critique < 40 %) et conduite à tenir. Un seul critère ★ non conforme plafonne le classement à
+   « Insuffisant ».
+6. **Niveau de service** eau, assainissement et hygiène : proposé d'après les cotations, modifiable.
+7. **Constats** : points forts ; **problèmes prioritaires** (le bouton « Depuis les NC » les propose à
+   partir des critères non conformes, critiques d'abord), avec mesure, responsable et délai ; date de la
+   contre-visite ; chef de l'équipe.
+8. Signez avec le doigt, puis **ENREGISTRER ET TRANSMETTRE**. Tous les critères doivent être cotés. Une fois
+   transmise, l'inspection n'est plus modifiable.
+
+Le rapport à imprimer (grille remplie, signature et cachet du chef d'établissement) s'édite sur le poste central.
 
 ### A8. Statistiques
 
@@ -153,7 +173,15 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
   - **Valider** une visite, ou la **rouvrir** avec un motif.
   - Voir la galerie photographique.
   - **Fiche individuelle** : éditer la fiche PDF. Les photos n'y sont intégrées que si vous le demandez.
-- **Importer une liste** : mêmes formats et mêmes contrôles que sur le téléphone.
+- **Importer une liste** : mêmes formats et mêmes contrôles que sur le téléphone. Choisissez directement le
+  fichier : l'**établissement et la classe sont proposés** d'après le titre de la liste (« EPP KOUASSIKRO 1 –
+  CLASSE DE CM2 A ») et le nom du fichier. Si la classe n'existe pas encore, un bouton propose de la créer.
+  Vérifiez toujours la proposition avant de valider.
+- **Établissements** : **Importer une liste** (Excel ou CSV : code, nom, type, statut, région, district,
+  localité, responsable, téléphone ; un **modèle Excel** est proposé). Chaque ligne est comparée aux
+  établissements connus (même code ou même nom) : création ou mise à jour, à vérifier avant de valider. La
+  même importation est possible depuis **Paramètres**, où la liste des établissements (code, nom,
+  responsable, statut) se consulte et se modifie.
 
 ### B5. Conflits
 
@@ -175,10 +203,11 @@ La décision est transmise aux téléphones à leur synchronisation suivante.
   - Évolution mensuelle.
 
   Les filtres portent sur l'année, l'établissement, la classe, le sexe et la période.
-- **Rapports**, en **PDF ou Excel** :
+- **Rapports**, en **PDF, Word ou Excel** :
   - rapport annuel, par établissement, par classe ;
   - pathologies ;
-  - synthèse des inspections ;
+  - synthèse des inspections (avec, pour la grille nationale, les scores par section, le classement et les
+    critères ★ non conformes de chaque établissement) ;
   - listes des élèves examinés et non examinés ;
   - élèves référés et à suivre.
 
@@ -187,8 +216,15 @@ La décision est transmise aux téléphones à leur synchronisation suivante.
 
 ### B7. Inspections
 
-- **Historique** : les inspections reçues des téléphones. Le détail montre la grille, les photos et la signature. Vous pouvez éditer le rapport en PDF ou en Excel.
-- **Grille d'inspection** : ajouter, renommer ou retirer des critères. Les inspections passées gardent leurs réponses.
+- **Historique** : les inspections reçues des téléphones, avec score et classement. Le détail montre les scores
+  par section, les critères ★ non conformes, la grille, les photos et la signature.
+- **Rapport Word ou PDF** : la grille remplie au format du document officiel (identification, structure et
+  effectifs, ratios, sections B à J cochées, récapitulatif des scores, niveaux de service, classement, plan
+  d'action, signatures, ampliation). Le **Word** se modifie avant impression ; imprimez-le pour la signature
+  et le cachet du chef d'établissement (« lu et approuvé »).
+- **Grille d'inspection** : la grille nationale (B à J) ; ajouter, renommer ou retirer des critères. Les
+  critères de l'ancienne grille sont désactivés depuis la version 1.2.0 (réactivables) ; les inspections
+  passées gardent leurs réponses.
 
 ### B8. Sauvegardes et restauration (administrateur)
 

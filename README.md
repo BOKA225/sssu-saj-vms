@@ -742,3 +742,21 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   utilisé, était refusé).
 - Poste central : les adresses des cartes réseau virtuelles (Hyper-V, VirtualBox, VPN) et 169.254.x.x sont
   proposées en dernier pour le QR code.
+
+## Version 1.2.0
+
+- **Grille d'inspection sanitaire des établissements scolaires** (SSSU-SAJ, normes MENA 2022 / OMS) :
+  118 critères C/NC/NA en sections B à J, dont 7 critiques ★ (`sssu_core/lib/src/inspection/grille.dart`,
+  critères générés depuis le document : `grille_criteres.dart`) ; identification, section A (structure,
+  effectifs, équipements, ratios), précisions par section, scores par domaine et global, classement en
+  4 niveaux plafonné par un ★ NC, niveaux de service OMS/UNICEF, plan d'action, contre-visite. Données en
+  JSON dans `inspection.grille`. Migration PostgreSQL `040_grille_inspection.sql` (ancienne grille
+  désactivée) ; schéma 2 du téléphone (`alterTable` des critères, colonne `grille`).
+- **Rapport d'inspection** au format de la grille ; **rendu Word (.docx)** de tous les rapports
+  (`rendu_word.dart`), en plus du PDF et d'Excel ; synthèse des inspections par section.
+- **Import des listes** : établissement et classe reconnus dans les titres et le nom du fichier
+  (`import/reconnaissance.dart`), création de la classe proposée.
+- **Import de la liste des établissements** (Excel/CSV, modèle fourni) : `import/etablissements.dart`,
+  `ServiceGestion.importerEtablissements`.
+- Tests : `grille_test.dart`, `reconnaissance_test.dart`, `import_etablissements_test.dart`,
+  `sssu_mobile/test/migration_test.dart`, `depot_postgres_test.dart` (migration 040).

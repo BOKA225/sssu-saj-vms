@@ -109,3 +109,17 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Anomalies mineures | |
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
+
+## Version 1.2.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 12.1 | Nouvelle inspection sur le téléphone | Grille B à J (118 critères, ★ en rouge), identification et section A préremplies (effectifs, classes) | |
+| 12.2 | Section A : « Pas de cantine », préscolaire, sans électricité | H1–H10, E1–E9 et G8 cotés NA avec le motif | |
+| 12.3 | Coter tout C sauf un critère ★ en NC | Score > 99 %, classement « Insuffisant » (plafonné), conduite à tenir affichée | |
+| 12.4 | « Depuis les NC », date de contre-visite, signature, transmettre | Problèmes prioritaires proposés ; inspection transmise | |
+| 12.5 | Poste : détail de l'inspection, Rapport Word et PDF | Grille remplie au format du document ; cases ☒ ; récapitulatif 118 critères ; deux signatures | |
+| 12.6 | Rapports : synthèse des inspections | Tableau par établissement : scores B à J, global, classement, ★ NC | |
+| 12.7 | Importer une liste d'élèves sans choisir la classe (titre « EPP … – CLASSE DE CM2 A ») | Établissement et classe proposés ; classe absente : bouton « Créer la classe » | |
+| 12.8 | Établissements : Importer une liste (modèle Excel rempli) | Créations et mises à jour proposées, doublons ignorés, codes proposés si absents | |
+| 12.9 | Mettre à jour un téléphone en 1.1.x puis synchroniser | Ancienne grille désactivée, nouvelle grille reçue, inspections anciennes lisibles | |

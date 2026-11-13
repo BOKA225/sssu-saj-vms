@@ -176,8 +176,12 @@ void main() {
       expect([x!['code'], x['libelle'], x['rubrique'], x['ordre'], x['actif']], [c.code, c.libelle, c.rubrique.code, c.ordre, true],
           reason: c.code);
     }
-    // Ancienne grille désactivée ; diffusée aux téléphones.
-    expect(l.where((x) => RubriqueInspection.depuisCode(x['rubrique'] as String).ancienne && x['actif'] == true), isEmpty);
+    // Ancienne grille livrée (002_referentiels) désactivée ; diffusée aux téléphones.
+    final anciens = await depot.requete('SELECT actif FROM critere_inspection '
+        "WHERE created_at = CAST('2026-11-10T08:00:00Z' AS timestamptz) AND rubrique IN ('eau_potable', 'toilettes', "
+        "'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite')");
+    expect(anciens, isNotEmpty);
+    expect(anciens.where((x) => x['actif'] == true), isEmpty);
     final diffuses = await depot.requete(
         "SELECT COUNT(DISTINCT record_id) AS n FROM sync_changement WHERE table_name = 'critere_inspection' "
         'AND record_id IN (SELECT id FROM critere_inspection WHERE code = ANY(CAST(@codes AS text[])))',
