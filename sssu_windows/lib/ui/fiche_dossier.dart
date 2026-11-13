@@ -79,8 +79,9 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
               'Vérifiez qu\'il ne s\'agit pas du même élève : un élève ne doit avoir qu\'un seul dossier. '
               'Enregistrer quand même ?',
           bouton: 'Enregistrer');
-      if (!continuer || !mounted) return;
+      if (!continuer) return;
     }
+    if (!mounted) return;
     await executer(context, () => _s.gestion.modifierEleve(_droits, widget.eleveId, saisie.identite),
         succes: 'Dossier mis à jour.');
     _charger();

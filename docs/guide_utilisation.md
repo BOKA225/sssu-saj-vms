@@ -45,6 +45,9 @@ Le bouton **SYNCHRONISER MES DONNÉES** envoie vos saisies au poste central et r
 
 - **Établissements et élèves** : classes, effectifs, élèves examinés ou non.
 - **Rechercher** : par nom, prénoms ou matricule.
+- **Ajouter un élève** absent de la liste : ouvrez sa classe, puis **« Ajouter un élève »** (nom, prénoms, sexe, date de naissance, matricule, téléphone du parent). Si un élève semblable existe déjà (même matricule, ou mêmes nom, prénoms et date de naissance), l'application le signale et propose d'ouvrir son dossier.
+- **Modifier le dossier** d'un élève : dans son dossier, touchez le crayon en haut de l'écran. Les changements partent au poste central à la prochaine synchronisation.
+- Ces deux actions sont réservées au médecin-chef, au médecin et à l'infirmier (pas à l'agent de santé).
 - **Importer une liste** : choisissez un fichier Excel, CSV ou PDF, ou photographiez une liste papier. L'application lit le texte, même sans réseau. **Vérifiez chaque ligne** avant de valider : rien n'est enregistré avant votre validation, et les doublons probables vous sont signalés. Un classeur Excel de **plusieurs classes** (une feuille par classe, ou une colonne « Classe ») s'importe classe par classe : choisissez la classe du fichier, validez, puis touchez **« Classe suivante du fichier »**. Le poste central, lui, importe toutes les classes en une fois.
 
 ### A4. Visite médicale
@@ -167,12 +170,18 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
 - **Établissements**
   - Gérer les années scolaires, puis activer celle de l'année en cours.
   - Créer et modifier les établissements et les classes, avec leur effectif et leur couverture. En tapant le
-    libellé d'une classe, les classes usuelles sont proposées, y compris celles de l'**enseignement technique**
-    (2nde G, 2nde G1, 1ère F3, Tle G2, BT 1, CAP 1…). Le niveau, s'il est laissé vide, est déduit du libellé.
+    libellé d'une classe, les classes usuelles sont proposées : **enseignement général** (6ème…3ème, 2nde A,
+    2nde C, 1ère et Tle A1, A2, C, D) et **enseignement technique** (2nde G, 2nde G1, 1ère F3, Tle G2, BT 1,
+    CAP 1…). Le niveau, s'il est laissé vide, est déduit du libellé.
     « 2nd G1 » et « 2nde G1 » désignent la même classe : un doublon est refusé.
 - **Élèves et dossiers**
   - Rechercher un élève. La recherche ignore les accents : « kone » trouve « KONÉ ».
-  - Consulter son dossier.
+  - **Nouvel élève** : identité, établissement et classe de l'année. Un élève semblable déjà enregistré est
+    signalé, avec la possibilité d'ouvrir son dossier plutôt que d'en créer un second.
+  - Consulter son dossier. **Modifier** son identité (nom, prénoms, sexe, date de naissance, matricule,
+    téléphone du parent) ; **Changer de classe** pour l'année en cours (le dossier suit l'élève dans son nouvel
+    établissement) ; **Inscrire** un élève qui n'a pas encore de classe cette année. Un matricule ne peut
+    appartenir qu'à un seul élève.
   - **Valider** une visite, ou la **rouvrir** avec un motif.
   - Voir la galerie photographique.
   - **Fiche individuelle** : éditer la fiche PDF. Les photos n'y sont intégrées que si vous le demandez.

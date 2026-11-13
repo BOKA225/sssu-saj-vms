@@ -3,8 +3,6 @@
 /// synchronisation, comme ceux d'une importation.
 library;
 
-import 'package:sssu_core/sssu_core.dart';
-
 import '../data/base_locale.dart' hide Utilisateur, Eleve;
 import '../data/depot_local_drift.dart';
 

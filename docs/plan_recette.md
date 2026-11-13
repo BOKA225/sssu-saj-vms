@@ -110,6 +110,20 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.4.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 15.1 | Établissements : nouvelle classe, taper « tle » | Tle A1, A2, C, D puis séries techniques proposées | |
+| 15.2 | Importer un classeur avec des feuilles « 2nde C », « Tle D », « 1ère A1 » | Trois classes reconnues et rapprochées | |
+| 15.3 | Poste : Élèves et dossiers → Nouvel élève (sans sexe, puis date 31/02/2014) | Messages « Indiquez le sexe », « Date de naissance illisible » | |
+| 15.4 | Nouvel élève identique à un élève existant | « Cet élève semble déjà enregistré » ; « Ouvrir son dossier » ouvre le dossier existant | |
+| 15.5 | Dossier : Modifier (prénoms, téléphone), puis matricule d'un autre élève | Enregistré ; puis refus « Le matricule … est déjà celui de … » | |
+| 15.6 | Dossier : Changer de classe vers un autre établissement | Classe changée ; dossier reçu par les téléphones du nouvel établissement | |
+| 15.7 | Téléphone (infirmier) : classe → Ajouter un élève, synchroniser | Élève visible sur le poste dans la bonne classe | |
+| 15.8 | Téléphone : dossier → crayon → corriger le nom, synchroniser | Nom corrigé sur le poste | |
+| 15.9 | Téléphone (agent de santé) | Ni « Ajouter un élève » ni crayon | |
+
 ## Version 1.3.0
 
 | N° | Action | Résultat attendu | OK |
