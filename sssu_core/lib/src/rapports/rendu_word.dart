@@ -120,15 +120,16 @@ class _Redacteur {
         '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
   }
 
+  // Ordre imposé par le schéma : tcW, tcBorders, shd, tcMar.
   String _cellule(String contenu, int largeur, {String? fond, bool bordures = true}) =>
       '<w:tc><w:tcPr><w:tcW w:w="$largeur" w:type="dxa"/>'
-      '${fond == null ? '' : '<w:shd w:val="clear" w:color="auto" w:fill="$fond"/>'}'
       '${bordures ? '' : '<w:tcBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/></w:tcBorders>'}'
+      '${fond == null ? '' : '<w:shd w:val="clear" w:color="auto" w:fill="$fond"/>'}'
       '<w:tcMar><w:top w:w="30" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/></w:tcMar></w:tcPr>$contenu</w:tc>';
 
   String _tableau(List<int> largeurs, List<String> lignes, {bool bordures = true}) {
-    final b = StringBuffer('<w:tbl><w:tblPr><w:tblW w:w="${largeurs.fold(0, (a, x) => a + x)}" w:type="dxa"/>'
-        '<w:tblLayout w:type="fixed"/>');
+    // Ordre imposé par le schéma : tblW, tblBorders, tblLayout, tblCellMar.
+    final b = StringBuffer('<w:tbl><w:tblPr><w:tblW w:w="${largeurs.fold(0, (a, x) => a + x)}" w:type="dxa"/>');
     if (bordures) {
       b.write('<w:tblBorders>');
       for (final c in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) {
@@ -136,7 +137,7 @@ class _Redacteur {
       }
       b.write('</w:tblBorders>');
     }
-    b.write('<w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar>'
+    b.write('<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar>'
         '</w:tblPr><w:tblGrid>');
     for (final l in largeurs) {
       b.write('<w:gridCol w:w="$l"/>');

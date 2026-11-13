@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:sssu_core/sssu_core.dart';
 import 'package:test/test.dart';
+import 'package:xml/xml.dart';
 
 /// Grille nationale : critères repris du document, scores, critères ★,
 /// classement, non-applicables automatiques, données de la grille.
@@ -290,6 +291,18 @@ void main() {
     expect('<w:tr>'.allMatches(xml).length, '</w:tr>'.allMatches(xml).length);
     expect('<w:p>'.allMatches(xml).length + '<w:p '.allMatches(xml).length, '</w:p>'.allMatches(xml).length);
     expect(partie('[Content_Types].xml'), contains('wordprocessingml.document.main+xml'));
+    // Toutes les parties XML sont bien formées.
+    for (final f in zip.files.where((f) => f.name.endsWith('.xml') || f.name.endsWith('.rels'))) {
+      expect(() => XmlDocument.parse(partie(f.name)), returnsNormally, reason: f.name);
+    }
+    final arbre = XmlDocument.parse(xml);
+    // Ordre des propriétés de cellule exigé par Word.
+    for (final tcPr in arbre.findAllElements('w:tcPr')) {
+      final noms = tcPr.childElements.map((e) => e.name.qualified).toList();
+      final ordre = ['w:tcW', 'w:tcBorders', 'w:shd', 'w:tcMar'];
+      final positions = [for (final n in noms) ordre.indexOf(n)];
+      expect(positions, orderedEquals([...positions]..sort()), reason: noms.join(','));
+    }
     expect(partie('word/footer1.xml'), contains('NUMPAGES'));
   });
 

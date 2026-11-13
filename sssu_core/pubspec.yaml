@@ -20,5 +20,7 @@ dependencies:
   uuid: ^4.5.1
 
 dev_dependencies:
+  # Tests : XML bien formé des documents Word générés.
+  xml: ">=6.3.0 <7.0.0"
   lints: ^5.0.0
   test: ^1.25.8
