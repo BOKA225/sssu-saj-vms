@@ -259,14 +259,18 @@ List<LigneEtablissementImport> analyserEtablissements(
     if (brut[ChampEtablissement.type] != null && lireTypeEtablissement(brut[ChampEtablissement.type]) == null) {
       l.avertissements.add('Type « ${brut[ChampEtablissement.type]} » non reconnu.');
     }
-    final cle = l.code.isNotEmpty ? 'C:${l.code}' : 'N:${normaliserTexte(nom)}';
-    final premiere = vus[cle];
+    // Doublon dans la liste : même code fourni par le fichier, ou même nom.
+    final codeFichier = (brut[ChampEtablissement.code] ?? '').toUpperCase();
+    final cles = [if (codeFichier.isNotEmpty) 'C:$codeFichier', if (nom.isNotEmpty) 'N:${normaliserTexte(nom)}'];
+    final premiere = cles.map((c) => vus[c]).whereType<int>().firstOrNull;
     if (premiere != null) {
       l
         ..action = ActionEtablissement.ignorer
         ..avertissements.add('Doublon de la ligne $premiere dans la liste : ignorée.');
     } else {
-      vus[cle] = l.numeroSource;
+      for (final c in cles) {
+        vus[c] = l.numeroSource;
+      }
     }
     r.add(l);
   }
