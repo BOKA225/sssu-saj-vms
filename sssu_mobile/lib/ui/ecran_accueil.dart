@@ -37,6 +37,9 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
     _auto = SynchroAutomatique(ref.read(servicesProvider), apres: (r, e) {
       if (!mounted || ref.read(servicesProvider).bloque.value) return;
       if (r != null) _dernierRapport = 'Synchronisation automatique : $r';
+      // Refus du poste (mise à jour de l'application requise…) : affiché ;
+      // une simple absence de réseau reste silencieuse.
+      if (e is ErreurProtocole) _dernierRapport = 'Synchronisation automatique impossible : ${e.message}';
       _actualiser();
     })
       ..demarrer();
@@ -99,11 +102,8 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
       }
     } on TelephoneBloque {
       return; // l'écran « Téléphone bloqué » remplace l'application
-    } on PosteInjoignable {
-      _dernierRapport = 'Poste central introuvable sur le Wi-Fi et par Internet. '
-          'Les données restent enregistrées sur le téléphone.';
     } catch (e) {
-      _dernierRapport = 'Poste central injoignable. Les données restent enregistrées sur le téléphone.';
+      _dernierRapport = 'Échec : ${messageErreurSynchronisation(e)}';
     }
     if (!mounted) return;
     setState(() => _synchro = false);

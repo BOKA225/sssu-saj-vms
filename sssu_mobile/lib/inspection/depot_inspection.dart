@@ -6,7 +6,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/foundation.dart';

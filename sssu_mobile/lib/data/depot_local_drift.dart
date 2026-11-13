@@ -3,7 +3,6 @@
 /// même façon.
 library;
 
-import 'package:drift/drift.dart';
 import 'package:sssu_core/sssu_core.dart';
 
 import '../fichiers/stockage_chiffre.dart';

@@ -234,9 +234,8 @@ class _EcranAttenteValidationState extends ConsumerState<EcranAttenteValidation>
       }
     } on TelephoneBloque {
       return;
-    } catch (_) {
-      etat = 'Poste central injoignable pour le moment (Wi-Fi du poste ou Internet). Nouvel essai automatique '
-          'dans une minute.';
+    } catch (e) {
+      etat = '${messageErreurSynchronisation(e)}\nNouvel essai automatique dans une minute.';
     }
     if (!mounted) return;
     setState(() {

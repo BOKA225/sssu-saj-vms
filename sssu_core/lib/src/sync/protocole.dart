@@ -300,6 +300,13 @@ class ChangementRecu {
       ChangementRecu(Enregistrement.depuisJson(j), resolutionConflit: j['resolution_conflit'] == true);
 }
 
+/// Version du protocole de synchronisation, annoncée par le téléphone dans
+/// l'en-tête [enteteProtocole] de chaque requête. Les téléphones antérieurs à
+/// la version 1.2.0 n'envoient rien (protocole 1).
+/// - 2 : grille d'inspection nationale (rubriques B à J des critères).
+const protocoleSync = 2;
+const enteteProtocole = 'x-sssu-protocole';
+
 class ReponseReception {
   final List<ChangementRecu> changements;
 

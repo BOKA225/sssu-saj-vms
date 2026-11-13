@@ -82,7 +82,8 @@ Handler construireApi({
       final appareilId = await jetons.appareilDuJeton(_jetonDe(r));
       final curseur = int.tryParse(r.url.queryParameters['curseur'] ?? '0');
       if (curseur == null || curseur < 0) throw const ErreurProtocole(400, 'curseur', 'Curseur invalide.');
-      final rep = await sync.preparerReception(appareilId, curseur);
+      final protocole = int.tryParse(r.headers[enteteProtocole] ?? '') ?? 1;
+      final rep = await sync.preparerReception(appareilId, curseur, protocole: protocole);
       return _json(200, rep.versJson());
     })
     ..get('/api/v1/sync/fichiers/<table>/<id>', (Request r, String table, String id) async {

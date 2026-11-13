@@ -363,7 +363,7 @@ Widget camembert(List<(String, int, Color)> parts) {
         sectionsSpace: 2,
         centerSpaceRadius: 28,
         sections: [
-          for (final (l, n, c) in parts)
+          for (final (_, n, c) in parts)
             if (n > 0)
               PieChartSectionData(
                 value: n.toDouble(),

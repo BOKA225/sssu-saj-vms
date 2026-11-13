@@ -760,3 +760,15 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   `ServiceGestion.importerEtablissements`.
 - Tests : `grille_test.dart`, `reconnaissance_test.dart`, `import_etablissements_test.dart`,
   `sssu_mobile/test/migration_test.dart`, `depot_postgres_test.dart` (migration 040).
+
+## Version 1.2.1
+
+- **Compatibilité des versions** : le téléphone annonce sa version du protocole (en-tête
+  `x-sssu-protocole: 2`). Un téléphone resté en 1.1.x face à un poste en 1.2 reçoit tout ce que sa base sait
+  enregistrer, puis un refus clair (« installez la dernière version de l'application ») au lieu d'une erreur
+  de base de données à chaque synchronisation (critères de la nouvelle grille refusés par sa base).
+  `ServiceSynchronisation.preparerReception(protocole:)`, test `compatibilite_test.dart`.
+- **Messages d'erreur de synchronisation** précis sur le téléphone (`messageErreurSynchronisation`) :
+  réseau, certificat du poste changé, données incompatibles, autre erreur affichée telle quelle ; auparavant
+  toute erreur s'affichait « Poste central injoignable ».
+- Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.

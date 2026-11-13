@@ -82,8 +82,8 @@ class _EcranAppairageState extends ConsumerState<EcranAppairage> {
         _enCours = false;
         _erreur = e is ErreurProtocole
             ? e.message
-            : 'Poste central injoignable. Vérifiez que le téléphone est sur le même Wi-Fi que le poste (et non sur '
-                'un réseau « invité »), que l\'application du poste est ouverte, puis réessayez. Loin du poste, '
+            : '${messageErreurSynchronisation(e)} Vérifiez que le téléphone est sur le même Wi-Fi que le poste (et non '
+                'sur un réseau « invité ») et que l\'application du poste est ouverte, puis réessayez. Loin du poste, '
                 'utilisez « Pas de QR code ».';
       });
       await _scanner.start();
@@ -118,7 +118,7 @@ class _EcranAppairageState extends ConsumerState<EcranAppairage> {
                     ? null
                     : () async {
                         await _scanner.stop();
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         var enregistre = false;
                         await Navigator.push(
                           context,

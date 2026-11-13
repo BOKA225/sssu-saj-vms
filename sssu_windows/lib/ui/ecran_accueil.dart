@@ -314,7 +314,7 @@ class _PageAppareilsState extends ConsumerState<_PageAppareils> {
   /// Téléphone enregistré par un agent : choix de ses établissements, puis
   /// validation. Il reçoit alors les données à sa prochaine synchronisation.
   Future<void> _accepter(Enregistrement a) async {
-    if (!await _affecter(a, validation: true) || !mounted) return;
+    if (!await _affecter(a, validation: true) || !context.mounted) return;
     final s = ref.read(servicesProvider);
     await executer(context, () => s.appairage.accepter(a.id, ref.read(sessionProvider)!.droits),
         succes: 'Téléphone accepté. Il recevra ses données à sa prochaine synchronisation.');

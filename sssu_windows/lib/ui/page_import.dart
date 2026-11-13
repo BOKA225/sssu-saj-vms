@@ -263,6 +263,7 @@ class _PageImportState extends ConsumerState<PageImport> {
     }
     if (!mounted) return;
     final octets = await File(_chemin!).readAsBytes();
+    if (!mounted) return;
     ResultatImportServeur? r;
     final ok = await executer(context, () async {
       r = await _s.gestion.importerListe(

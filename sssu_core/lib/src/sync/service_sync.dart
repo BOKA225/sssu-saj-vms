@@ -214,12 +214,38 @@ class ServiceSynchronisation {
       }));
 
   /// Changements à transmettre à l'appareil depuis [curseur].
-  Future<ReponseReception> preparerReception(String appareilId, int curseur, {int limite = 500}) =>
+  /// Changements à envoyer au téléphone depuis [curseur]. [protocole] : version
+  /// annoncée par le téléphone ; un téléphone plus ancien que le poste reçoit
+  /// tout ce que sa base sait enregistrer, puis un refus clair l'invitant à
+  /// installer la nouvelle version de l'application (au lieu d'une erreur de
+  /// sa base de données à chaque synchronisation).
+  Future<ReponseReception> preparerReception(String appareilId, int curseur,
+          {int limite = 500, int protocole = protocoleSync}) =>
       depot.transaction((tx) async {
         final etablissements = await _etablissementsAffectes(tx, appareilId);
         final tables = {for (final t in registre) if (t.receptionParTelephone) t.nom};
-        final changements =
+        var changements =
             await tx.changementsDepuis(curseur, tables: tables, etablissements: etablissements, limite: limite);
+        if (protocole < 2) {
+          final i = changements.indexWhere((c) => !compatibleProtocole1(c.enregistrement));
+          if (i == 0) {
+            throw const ErreurProtocole(426, 'mise_a_jour_requise',
+                'Le poste central utilise la nouvelle grille d\'inspection (version 1.2) : installez la dernière version '
+                'de l\'application SSSU-SAJ VMS sur ce téléphone, puis synchronisez. Les données du téléphone sont '
+                'conservées et ont déjà été envoyées.');
+          }
+          if (i > 0) {
+            changements = changements.sublist(0, i);
+            return ReponseReception(
+              changements: [
+                for (final c in changements)
+                  ChangementRecu(c.enregistrement, resolutionConflit: c.motif == MotifsChangement.resolutionConflit)
+              ],
+              curseur: changements.last.seq,
+              suite: true,
+            );
+          }
+        }
         // Si un téléphone a un conflit en cours sur un enregistrement, seule la
         // décision du Médecin-Chef (motif « resolution_conflit ») remplace sa version.
         return ReponseReception(
@@ -231,6 +257,16 @@ class ServiceSynchronisation {
           suite: changements.length >= limite,
         );
       });
+
+  /// Enregistrement que la base d'un téléphone antérieur à la version 1.2.0
+  /// peut recevoir (critères de l'ancienne grille seulement).
+  static bool compatibleProtocole1(Enregistrement e) {
+    if (e.table != 'critere_inspection') return true;
+    const anciennes = {
+      'eau_potable', 'toilettes', 'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite'
+    };
+    return anciennes.contains(e.donnees['rubrique']);
+  }
 
   Future<Set<String>> _etablissementsAffectes(TransactionServeur tx, String appareilId) async {
     final liens = await tx.chercher('appareil_etablissement', {'appareil_id': appareilId});

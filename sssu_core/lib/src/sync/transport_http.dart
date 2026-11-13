@@ -90,6 +90,7 @@ class TransportHttp implements TransportSync {
 
   Map<String, String> _entetes([String? jeton]) => {
         'content-type': 'application/json; charset=utf-8',
+        enteteProtocole: '$protocoleSync',
         if (jeton != null) 'authorization': 'Bearer $jeton',
       };
 

@@ -292,6 +292,33 @@ class TelephoneBloque implements Exception {
 }
 
 /// Aucune adresse du poste central n'a répondu.
+/// Message lisible pour un échec de synchronisation : réseau, certificat du
+/// poste, données incompatibles avec cette version de l'application, ou autre
+/// erreur (affichée telle quelle, pour pouvoir la signaler).
+String messageErreurSynchronisation(Object e) {
+  if (e is ErreurProtocole) return e.message;
+  if (e is PosteInjoignable) {
+    return 'Poste central introuvable sur le Wi-Fi et par Internet. Les données restent enregistrées sur le téléphone.';
+  }
+  if (e is PremiereSynchronisationAFaire) return messageErreurSynchronisation(e.cause);
+  final texte = '$e';
+  if (e is HandshakeException || texte.contains('CERTIFICATE_VERIFY_FAILED') || texte.contains('HandshakeException')) {
+    return 'Le certificat du poste central n\'est pas celui de l\'appairage (poste réinstallé ?). Supprimez ce '
+        'téléphone sur le poste puis appairez-le de nouveau.';
+  }
+  if (e is SocketException || e is TimeoutException || e is HttpException || texte.contains('ClientException') ||
+      texte.contains('Connection refused') || texte.contains('Connection reset')) {
+    return 'Poste central injoignable (réseau coupé ou application du poste fermée). Les données restent '
+        'enregistrées sur le téléphone.';
+  }
+  if (texte.contains('constraint failed') || texte.contains('SqliteException')) {
+    return 'Les données reçues du poste central ne correspondent pas à cette version de l\'application : installez '
+        'la dernière version sur ce téléphone, puis synchronisez. Détail : $texte';
+  }
+  if (e is StateError) return e.message;
+  return 'Erreur pendant la synchronisation : $texte';
+}
+
 /// Téléphone appairé dont la première synchronisation n'a pas abouti.
 class PremiereSynchronisationAFaire implements Exception {
   final Object cause;

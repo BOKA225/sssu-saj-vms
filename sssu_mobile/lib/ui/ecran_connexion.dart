@@ -102,10 +102,8 @@ class _EcranConnexionState extends ConsumerState<EcranConnexion> {
           ? 'Le poste central ne reconnaît plus ce téléphone. Connectez-vous puis appairez-le de nouveau '
               '(QR code à demander à l\'administrateur).'
           : 'Échec : ${e.message}';
-    } on PosteInjoignable {
-      erreur = 'Poste central introuvable sur le Wi-Fi et par Internet.';
     } catch (e) {
-      erreur = 'Poste central injoignable.';
+      erreur = messageErreurSynchronisation(e);
     }
     if (!mounted) return;
     setState(() {

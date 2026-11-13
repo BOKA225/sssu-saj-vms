@@ -5,7 +5,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' show Color;
 
 import 'package:excel/excel.dart';

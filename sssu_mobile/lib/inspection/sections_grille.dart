@@ -26,8 +26,7 @@ class _Texte extends StatelessWidget {
   final bool actif;
   final ValueChanged<String> onChanged;
   final int lignes;
-  final TextInputType? clavier;
-  const _Texte(this.libelle, this.valeur, this.actif, this.onChanged, {this.lignes = 1, this.clavier});
+  const _Texte(this.libelle, this.valeur, this.actif, this.onChanged, {this.lignes = 1});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -35,7 +34,6 @@ class _Texte extends StatelessWidget {
         child: TextFormField(
           initialValue: valeur,
           enabled: actif,
-          keyboardType: clavier,
           maxLines: lignes == 1 ? 1 : null,
           minLines: lignes == 1 ? 1 : lignes,
           decoration: InputDecoration(labelText: libelle, isDense: true),
