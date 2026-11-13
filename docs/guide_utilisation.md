@@ -177,7 +177,8 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
   fichier : l'**établissement et la classe sont proposés** d'après le titre de la liste (« EPP KOUASSIKRO 1 –
   CLASSE DE CM2 A ») et le nom du fichier. Si la classe n'existe pas encore, un bouton propose de la créer.
   Vérifiez toujours la proposition avant de valider.
-- **Établissements** : **Importer une liste** (Excel ou CSV : code, nom, type, statut, région, district,
+- **Établissements** : **Importer une liste** (Excel, CSV, PDF texte ou scanné, ou photo d'une liste papier :
+  code, nom, type, statut, région, district,
   localité, responsable, téléphone ; un **modèle Excel** est proposé). Chaque ligne est comparée aux
   établissements connus (même code ou même nom) : création ou mise à jour, à vérifier avant de valider. La
   même importation est possible depuis **Paramètres**, où la liste des établissements (code, nom,

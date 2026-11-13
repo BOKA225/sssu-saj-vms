@@ -35,18 +35,26 @@ class _DialogueImportState extends ConsumerState<_DialogueImport> {
   String? _erreur;
   bool _occupe = false;
 
+  /// Étape de lecture affichée (PDF, reconnaissance optique…).
+  String? _etape;
+
   ServicesPoste get _s => ref.read(servicesProvider);
 
   Future<void> _choisir() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['xlsx', 'csv', 'txt']);
+    final r = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: const ['xlsx', 'csv', 'txt', 'pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff']);
     final chemin = r?.files.single.path;
     if (chemin == null) return;
     setState(() {
       _erreur = null;
       _lignes = null;
+      _occupe = true;
+      _etape = 'Lecture du fichier…';
     });
     try {
-      final brut = await _s.lecteur.lireLignes(chemin);
+      final brut = await _s.lecteur.lireLignes(chemin, progression: (e) {
+        if (mounted) setState(() => _etape = e);
+      });
       final e = detecterEnteteEtablissements(brut);
       setState(() {
         _fichier = p.basename(chemin);
@@ -57,8 +65,20 @@ class _DialogueImportState extends ConsumerState<_DialogueImport> {
       if (e != null) await _analyser();
     } on ErreurLecture catch (e) {
       setState(() => _erreur = e.message);
+    } catch (e) {
+      setState(() => _erreur = 'Lecture impossible : $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _occupe = false;
+          _etape = null;
+        });
+      }
     }
   }
+
+  bool get _estImage =>
+      _fichier != null && RegExp(r'\.(jpe?g|png|tiff?)$', caseSensitive: false).hasMatch(_fichier!);
 
   int get _nombreColonnes => (_brut ?? const []).fold(0, (m, l) => l.length > m ? l.length : m);
 
@@ -204,8 +224,9 @@ class _DialogueImportState extends ConsumerState<_DialogueImport> {
         child: Column(children: [
           ListTile(
             title: Text('Importer la liste des établissements', style: Theme.of(context).textTheme.titleLarge),
-            subtitle: const Text('Fichier Excel (.xlsx) ou CSV avec au moins une colonne « Nom » ; colonnes possibles : code, '
-                'type, statut, région, district sanitaire, localité, responsable, téléphone.'),
+            subtitle: const Text('Fichier Excel (.xlsx), CSV, PDF (texte ou scanné) ou photo d\'une liste papier, avec au '
+                'moins une colonne « Nom » ; colonnes possibles : code, type, statut, région, district sanitaire, localité, '
+                'responsable, téléphone.'),
             trailing: IconButton(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.close)),
           ),
           const Divider(height: 1),
@@ -229,8 +250,19 @@ class _DialogueImportState extends ConsumerState<_DialogueImport> {
                   label: const Text('Modèle Excel'),
                 ),
                 const SizedBox(width: 12),
-                if (_fichier != null) Expanded(child: Text(_fichier!, overflow: TextOverflow.ellipsis)),
+                if (_etape != null) ...[
+                  const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 8),
+                  Text(_etape!),
+                ] else if (_fichier != null)
+                  Expanded(child: Text(_fichier!, overflow: TextOverflow.ellipsis)),
               ]),
+              if (_fichier != null && _fichier!.toLowerCase().endsWith('.pdf') || _estImage)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('Document lu par extraction du texte ou reconnaissance optique : vérifiez bien les colonnes et '
+                      'chaque ligne (noms, codes) avant de valider.', style: TextStyle(fontSize: 12, color: Colors.deepOrange)),
+                ),
               if (_erreur != null)
                 Card(
                     color: Theme.of(context).colorScheme.errorContainer,

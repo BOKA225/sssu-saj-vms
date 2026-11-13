@@ -772,3 +772,9 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   réseau, certificat du poste changé, données incompatibles, autre erreur affichée telle quelle ; auparavant
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
+
+## Version 1.2.2
+
+- **Import de la liste des établissements en PDF** (texte ou scanné, lu par OCR) et depuis une photo d'une
+  liste papier, en plus d'Excel et CSV : `lignesEtablissementsDepuisMots` (titres écartés, colonnes
+  reconstruites d'après les intitulés, en-têtes répétés ignorés). Les listes d'élèves s'importaient déjà en PDF.

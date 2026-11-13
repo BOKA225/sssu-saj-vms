@@ -8,6 +8,7 @@ library;
 import '../modeles/enums.dart';
 import '../regles/identite.dart';
 import 'champs.dart' show normaliserEntete;
+import 'mots.dart';
 
 enum ChampEtablissement {
   code('Code', 'code'),
@@ -66,6 +67,158 @@ ChampEtablissement? reconnaitreEnteteEtablissement(String intitule) {
   if (n.contains('DIRECTEUR') || n.contains('RESPONSABLE') || n.startsWith('CHEF')) return ChampEtablissement.responsable;
   if (n.contains('ETABLISSEMENT') || n.contains('ECOLE')) return ChampEtablissement.nom;
   return null;
+}
+
+// ------------------------------------------------- PDF et documents scannés
+
+/// Intitulé exact (sans les règles « commence par… »), ou colonne de numéro
+/// d'ordre (`ignorer`), pour reconstruire le tableau d'un PDF.
+ChampEtablissement? _enteteExact(String libelle) {
+  final n = normaliserEntete(libelle);
+  if (const {'N', 'NO', 'NUM', 'NUMERO', 'N D ORDRE', 'N ORDRE', 'NUMERO D ORDRE', 'NR'}.contains(n)) {
+    return ChampEtablissement.ignorer;
+  }
+  return _index[n];
+}
+
+class _Colonne {
+  final ChampEtablissement champ;
+  final double gauche;
+  final double droite;
+  final String libelle;
+  _Colonne(this.champ, this.gauche, this.droite, this.libelle);
+}
+
+/// Intitulés reconnus dans une ligne de mots (groupes de mots voisins, le
+/// plus long d'abord).
+List<_Colonne> _intitules(List<MotPositionne> ligne, {required bool strict}) {
+  final r = <_Colonne>[];
+  var i = 0;
+  while (i < ligne.length) {
+    _Colonne? trouve;
+    var n = 5;
+    for (; n >= 1; n--) {
+      if (i + n > ligne.length) continue;
+      final groupe = ligne.sublist(i, i + n);
+      var voisins = true;
+      for (var k = 1; k < groupe.length; k++) {
+        if (groupe[k].gauche - groupe[k - 1].droite > 1.2 * groupe[k].hauteur) voisins = false;
+      }
+      if (!voisins) continue;
+      final libelle = groupe.map((m) => m.texte).join(' ');
+      final champ = _enteteExact(libelle) ?? (n == 1 && !strict ? reconnaitreEnteteEtablissement(libelle) : null);
+      if (champ != null && !r.any((c) => c.champ == champ && champ != ChampEtablissement.ignorer)) {
+        trouve = _Colonne(champ, groupe.first.gauche, groupe.last.droite, libelle);
+        break;
+      }
+    }
+    if (trouve != null) {
+      r.add(trouve);
+      i += n;
+    } else {
+      i++;
+    }
+  }
+  return r;
+}
+
+int _score(List<_Colonne> c) {
+  final champs = {for (final x in c) if (x.champ != ChampEtablissement.ignorer) x.champ};
+  return champs.contains(ChampEtablissement.nom) ? champs.length : 0;
+}
+
+/// Lignes d'une liste d'établissements lue dans un PDF (texte ou OCR) : la
+/// ligne d'en-tête (celle qui reconnaît le plus d'intitulés, dont le nom),
+/// puis une ligne par établissement, chaque mot placé dans la colonne de
+/// l'intitulé le plus proche. Les titres et les en-têtes répétés sur les
+/// pages suivantes sont écartés. Sans en-tête reconnu, les lignes sont
+/// découpées aux grands espaces (colonnes à indiquer par l'utilisateur).
+List<List<String>> lignesEtablissementsDepuisMots(List<MotPositionne> mots) {
+  final pages = <int, List<MotPositionne>>{};
+  for (final m in mots.where((m) => m.texte.trim().isNotEmpty)) {
+    pages.putIfAbsent(m.page, () => []).add(m);
+  }
+  final numeros = pages.keys.toList()..sort();
+  final lignesParPage = {for (final p in numeros) p: grouperEnLignes(pages[p]!)};
+
+  // En-tête : meilleur score parmi les 25 premières lignes de chaque page.
+  List<_Colonne>? colonnes;
+  (int, int)? position;
+  var meilleur = 1;
+  for (final p in numeros) {
+    final lignes = lignesParPage[p]!;
+    for (var i = 0; i < lignes.length && i < 25; i++) {
+      final c = _intitules(lignes[i], strict: false);
+      final s = _score(c);
+      if (s > meilleur) {
+        meilleur = s;
+        colonnes = c;
+        position = (p, i);
+      }
+    }
+    if (colonnes != null) break;
+  }
+
+  final sortie = <List<String>>[];
+  if (colonnes == null) {
+    for (final p in numeros) {
+      for (final l in lignesParPage[p]!) {
+        sortie.add(_decouper(l));
+      }
+    }
+    return sortie;
+  }
+  final cols = colonnes..sort((a, b) => a.gauche.compareTo(b.gauche));
+  sortie.add([for (final c in cols) c.libelle]);
+  for (final p in numeros) {
+    final lignes = lignesParPage[p]!;
+    var debut = 0;
+    if (p == position!.$1) {
+      debut = position.$2 + 1;
+    } else {
+      // Page suivante : titres et en-tête répété écartés.
+      for (var i = 0; i < lignes.length && i < 25; i++) {
+        if (_score(_intitules(lignes[i], strict: true)) >= 2) {
+          debut = i + 1;
+          break;
+        }
+      }
+    }
+    for (var i = debut; i < lignes.length; i++) {
+      final ligne = lignes[i];
+      if (_score(_intitules(ligne, strict: true)) >= 2) continue; // en-tête répété
+      final cellules = List<String>.filled(cols.length, '');
+      for (final m in ligne) {
+        var k = 0;
+        for (var j = cols.length - 1; j > 0; j--) {
+          if (m.centreX >= (cols[j - 1].droite + cols[j].gauche) / 2) {
+            k = j;
+            break;
+          }
+        }
+        cellules[k] = cellules[k].isEmpty ? m.texte : '${cellules[k]} ${m.texte}';
+      }
+      if (cellules.any((c) => c.isNotEmpty)) sortie.add(cellules);
+    }
+  }
+  return sortie;
+}
+
+List<String> _decouper(List<MotPositionne> ligne) {
+  final cellules = <String>[];
+  final hauteurs = ligne.map((m) => m.hauteur).toList()..sort();
+  final h = hauteurs[hauteurs.length ~/ 2];
+  var courante = StringBuffer();
+  for (var i = 0; i < ligne.length; i++) {
+    if (i > 0 && ligne[i].gauche - ligne[i - 1].droite > 1.5 * h) {
+      cellules.add(courante.toString());
+      courante = StringBuffer();
+    }
+    if (courante.isNotEmpty) courante.write(' ');
+    courante.write(ligne[i].texte);
+  }
+  cellules.add(courante.toString());
+  return cellules;
 }
 
 /// En-tête de la liste : la ligne qui reconnaît le plus de champs (au moins

@@ -100,4 +100,49 @@ void main() {
     expect(e.$2.length, 9);
     expect(lireTypeEtablissement(lignes[1][2]), TypeEtablissement.primaire);
   });
+
+  test('liste en PDF : titres écartés, colonnes reconstruites, en-tête répété sur la page 2', () async {
+    // Mots positionnés comme les rend l'extraction de texte d'un PDF.
+    final mots = <MotPositionne>[];
+    void ligne(int page, double haut, List<(String, double)> cellules) {
+      for (final (texte, gauche) in cellules) {
+        var x = gauche;
+        for (final mot in texte.split(' ')) {
+          final l = mot.length * 5.0;
+          mots.add(MotPositionne(mot, gauche: x, haut: haut, largeur: l, hauteur: 10, page: page));
+          x += l + 3;
+        }
+      }
+    }
+
+    const colonnes = [20.0, 60.0, 300.0, 400.0];
+    void entete(int page, double haut) => ligne(page, haut, [
+          ('N°', colonnes[0]),
+          ('Nom de l\'établissement', colonnes[1]),
+          ('Statut', colonnes[2]),
+          ('Localité', colonnes[3]),
+        ]);
+    ligne(0, 10, [('LISTE DES ÉTABLISSEMENTS DU DISTRICT SANITAIRE', 60)]);
+    entete(0, 40);
+    ligne(0, 60, [('1', 20), ('EPP Agbo 2', 60), ('Public', 300), ('Agbo', 400)]);
+    ligne(0, 80, [('2', 20), ('Collège Saint-Joseph', 60), ('Privé', 302), ('Kouassikro', 405)]);
+    ligne(1, 10, [('DISTRICT SANITAIRE (suite)', 60)]);
+    entete(1, 40);
+    ligne(1, 60, [('3', 20), ('EPP Kouassikro 3', 60), ('Public', 298), ('Kouassikro', 400)]);
+
+    final lignes = lignesEtablissementsDepuisMots(mots);
+    expect(lignes.first, ['N°', 'Nom de l\'établissement', 'Statut', 'Localité']);
+    expect(lignes.skip(1).toList(), [
+      ['1', 'EPP Agbo 2', 'Public', 'Agbo'],
+      ['2', 'Collège Saint-Joseph', 'Privé', 'Kouassikro'],
+      ['3', 'EPP Kouassikro 3', 'Public', 'Kouassikro'],
+    ]);
+    final e = detecterEnteteEtablissements(lignes)!;
+    final l = analyserEtablissements(lignes, ligneEntete: e.$1, correspondance: e.$2, existants: await existants());
+    expect(l.map((x) => (x.nom, x.statut, x.localite)), [
+      ('EPP Agbo 2', StatutEtablissement.public, 'Agbo'),
+      ('Collège Saint-Joseph', StatutEtablissement.prive, 'Kouassikro'),
+      ('EPP Kouassikro 3', StatutEtablissement.public, 'Kouassikro'),
+    ]);
+  });
 }

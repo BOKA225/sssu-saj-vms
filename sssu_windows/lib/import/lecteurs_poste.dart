@@ -73,16 +73,33 @@ class LecteurListes {
     }
   }
 
-  /// Lignes brutes d'un fichier Excel (.xlsx) ou CSV (liste des établissements).
-  Future<List<List<String>>> lireLignes(String chemin) async {
+  /// Lignes brutes de la liste des établissements : Excel (.xlsx), CSV, PDF
+  /// (texte ou scanné, lu par OCR) ou image d'une liste papier.
+  Future<List<List<String>>> lireLignes(String chemin, {Progression? progression}) async {
     final ext = p.extension(chemin).toLowerCase();
-    return switch (ext) {
-      '.csv' || '.txt' => lireCsv(decoderTexte(await File(chemin).readAsBytes())),
-      '.xlsx' => _lireXlsx(await File(chemin).readAsBytes()),
-      '.xls' => throw const ErreurLecture('Le format .xls (Excel 97-2003) n\'est pas pris en charge : '
-          'enregistrez le fichier au format .xlsx.'),
-      _ => throw ErreurLecture('Format non pris en charge ($ext) : Excel (.xlsx) ou CSV.'),
-    };
+    switch (ext) {
+      case '.csv':
+      case '.txt':
+        return lireCsv(decoderTexte(await File(chemin).readAsBytes()));
+      case '.xlsx':
+        return _lireXlsx(await File(chemin).readAsBytes());
+      case '.xls':
+        throw const ErreurLecture('Le format .xls (Excel 97-2003) n\'est pas pris en charge : '
+            'enregistrez le fichier au format .xlsx.');
+      case '.pdf':
+        return lignesEtablissementsDepuisMots((await _motsPdf(chemin, progression)).$1);
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.tif':
+      case '.tiff':
+        final source = img.decodeImage(await File(chemin).readAsBytes());
+        if (source == null) throw const ErreurLecture('Image illisible.');
+        progression?.call('Reconnaissance du texte (OCR)');
+        return lignesEtablissementsDepuisMots(await _ocr(_pretraiter(img.bakeOrientation(source)), 0));
+      default:
+        throw ErreurLecture('Format non pris en charge ($ext) : Excel (.xlsx), CSV, PDF ou image.');
+    }
   }
 
   List<List<String>> _lireXlsx(Uint8List octets) {
@@ -115,6 +132,13 @@ class LecteurListes {
   }
 
   Future<TableauBrut> _lirePdf(String chemin, Progression? progression) async {
+    final (mots, format) = await _motsPdf(chemin, progression);
+    return grilleDepuisMots(mots, format: format);
+  }
+
+  /// Mots positionnés d'un PDF : couche texte, ou reconnaissance optique
+  /// page par page pour un PDF scanné. Renvoie aussi le format (`pdf`, `pdf_ocr`).
+  Future<(List<MotPositionne>, String)> _motsPdf(String chemin, Progression? progression) async {
     final PdfDocument doc;
     try {
       doc = await PdfDocument.openFile(chemin);
@@ -132,7 +156,7 @@ class LecteurListes {
               gauche: b.left, haut: page.height - b.top, largeur: b.right - b.left, hauteur: (b.top - b.bottom).abs(), page: i)));
         }
       }
-      if (mots.length >= 10 * doc.pages.length) return grilleDepuisMots(mots, format: 'pdf');
+      if (mots.length >= 10 * doc.pages.length) return (mots, 'pdf');
 
       // PDF scanné : reconnaissance optique page par page.
       final ocr = <MotPositionne>[];
@@ -152,7 +176,7 @@ class LecteurListes {
         rendu.dispose();
         ocr.addAll(await _ocr(_pretraiter(image), i));
       }
-      return grilleDepuisMots(ocr, format: 'pdf_ocr');
+      return (ocr, 'pdf_ocr');
     } finally {
       await doc.dispose();
     }
