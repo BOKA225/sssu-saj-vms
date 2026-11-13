@@ -773,6 +773,25 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.3.0
+
+- **Classes de l'enseignement technique** : « 2nde G », « 2nd G1 », « 2nde G1 A », « Tle F2-2 », « Première G2 »,
+  « BT 1 », « CAP 2 », « BEP 1 », « BTS 1 » sont reconnues dans les titres, les noms de feuilles et les cellules
+  (`lireClasse`, nouvelles sections série + groupe, niveaux BT, CAP, BEP, BTS). Les libellés sont comparés à
+  l'écriture près (`cleClasse` : « 2nd G1 » = « 2nde G1 » = « Seconde G1 »), y compris pour refuser un doublon
+  de classe. Saisie d'une classe avec les classes usuelles proposées (`classesUsuelles`, `suggestionsClasses`),
+  niveau déduit du libellé (`niveauDeClasse`).
+- **Plusieurs classes dans un même fichier Excel** (`classes_fichier.dart`) :
+  - une feuille par classe (`tableauxDuClasseur` : feuilles d'élèves seulement), ou une colonne « Classe »
+    (nouveau champ `ChampListe.classe`, cellules fusionnées reprises) : `grouperParClasse` ;
+  - numéros de ligne d'origine conservés (`TableauBrut.numeros`), doublons entre classes signalés avec la classe ;
+  - poste central : classe de destination proposée par partie (`rapprocherClasse`), création des classes
+    manquantes, importation de toutes les classes en une transaction (`ServiceGestion.importerListes`, un lot
+    par classe) ; modèle Excel de plusieurs classes (`modeleListeEleves`) ;
+  - téléphone : choix de la classe du fichier, puis « Classe suivante du fichier ».
+- La colonne « Classe » ne compte pas pour reconnaître l'en-tête : une ligne de titre « Classe | Nom de
+  l'enseignant » n'est pas prise pour l'en-tête du tableau.
+
 ## Version 1.2.3
 
 - **Correction de la lecture des PDF scannés et des photos sur le poste** (« Échec de Tesseract : Error

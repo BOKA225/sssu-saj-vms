@@ -133,9 +133,12 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
         content: SizedBox(
           width: 360,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: libelle, decoration: const InputDecoration(labelText: 'Libellé (ex. CM2 A)')),
+            ChampLibelleClasse(libelle, autofocus: true),
             const SizedBox(height: 8),
-            TextField(controller: niveau, decoration: const InputDecoration(labelText: 'Niveau (ex. CM2)')),
+            TextField(
+                controller: niveau,
+                decoration: const InputDecoration(
+                    labelText: 'Niveau (facultatif)', helperText: 'Laissé vide : déduit du libellé (2nde G1 → 2NDE)')),
           ]),
         ),
         actions: [

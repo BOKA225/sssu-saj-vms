@@ -67,22 +67,36 @@ String _texteCellule(Data? d) {
 
 /// Feuille la plus remplie du classeur, en lignes de texte.
 List<List<String>> lireXlsx(Uint8List octets) {
+  final meilleure = lireFeuillesXlsx(octets)
+      .fold<List<List<String>>>(const [], (m, f) => f.lignes.length > m.length ? f.lignes : m);
+  if (meilleure.isEmpty) throw const ErreurImport('Le classeur ne contient aucune donnée.');
+  return meilleure;
+}
+
+/// Toutes les feuilles du classeur, dans l'ordre, sans les lignes vides.
+List<FeuilleBrute> lireFeuillesXlsx(Uint8List octets) {
   final Excel classeur;
   try {
     classeur = Excel.decodeBytes(octets);
   } catch (_) {
     throw const ErreurImport('Fichier Excel illisible ou protégé par mot de passe.');
   }
-  List<List<String>> meilleure = const [];
-  for (final feuille in classeur.tables.values) {
-    final lignes = [
-      for (final r in feuille.rows)
-        if (r.any((c) => _texteCellule(c).isNotEmpty)) [for (final c in r) _texteCellule(c)]
-    ];
-    if (lignes.length > meilleure.length) meilleure = lignes;
-  }
-  if (meilleure.isEmpty) throw const ErreurImport('Le classeur ne contient aucune donnée.');
-  return meilleure;
+  return [
+    for (final e in classeur.tables.entries)
+      FeuilleBrute(e.key, [
+        for (final r in e.value.rows)
+          if (r.any((c) => _texteCellule(c).isNotEmpty)) [for (final c in r) _texteCellule(c)]
+      ])
+  ];
+}
+
+/// Listes d'élèves d'un fichier : une par feuille utile d'un classeur Excel
+/// (une classe par feuille), sinon une seule.
+Future<List<TableauBrut>> lireListes(String chemin, {Progression? progression}) async {
+  if (p.extension(chemin).toLowerCase() != '.xlsx') return [await lireListe(chemin, progression: progression)];
+  final t = tableauxDuClasseur(await compute(lireFeuillesXlsx, await File(chemin).readAsBytes()));
+  if (t.isEmpty) throw const ErreurImport('Le classeur ne contient aucune donnée.');
+  return t;
 }
 
 // ---------------------------------------------------------------------- PDF

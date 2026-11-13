@@ -54,6 +54,14 @@ class _EcranImportState extends ConsumerState<EcranImport> {
   /// Établissement et classe proposés d'après les titres et le nom du fichier.
   ReconnaissanceListe? _reconnaissance;
 
+  /// Classes du fichier (une feuille Excel par classe, ou colonne « Classe ») :
+  /// sur le téléphone, elles s'importent une à une.
+  List<GroupeClasse> _groupes = const [];
+  int _groupe = 0;
+
+  /// Classes du fichier déjà importées pendant cette séance.
+  final Set<int> _importes = {};
+
   @override
   void initState() {
     super.initState();
@@ -129,17 +137,21 @@ class _EcranImportState extends ConsumerState<EcranImport> {
       _progression = 'Lecture du fichier…';
     });
     try {
-      final t = await lireListe(chemin, progression: (etape, _) {
+      final tableaux = await lireListes(chemin, progression: (etape, _) {
         if (mounted) setState(() => _progression = etape);
       });
-      if (t.lignes.isEmpty) throw const ErreurImport('Aucune donnée trouvée dans ce fichier.');
+      if (tableaux.every((t) => t.lignes.isEmpty)) throw const ErreurImport('Aucune donnée trouvée dans ce fichier.');
+      final groupes = grouperParClasse(tableaux);
       _existants = await ref.read(servicesProvider).requetes.identitesEleves();
-      await _reconnaitre(t, nom);
+      _groupes = groupes;
+      _groupe = 0;
+      _importes.clear();
+      await _reconnaitre(groupes.first, nom);
       setState(() {
         _chemin = chemin;
         _nomFichier = nom;
-        _tableau = t;
-        _correspondance = Map.of(t.correspondance);
+        _tableau = groupes.first.tableau;
+        _correspondance = Map.of(groupes.first.tableau.correspondance);
         _etape = _Etape.colonnes;
         _progression = null;
       });
@@ -159,7 +171,7 @@ class _EcranImportState extends ConsumerState<EcranImport> {
 
   /// Propose l'établissement et la classe de la liste ; appliqués si rien
   /// n'a encore été choisi.
-  Future<void> _reconnaitre(TableauBrut t, String nom) async {
+  Future<void> _reconnaitre(GroupeClasse g, String nom) async {
     final a = _annee;
     if (a == null) return;
     final r = ref.read(servicesProvider).requetes;
@@ -170,7 +182,8 @@ class _EcranImportState extends ConsumerState<EcranImport> {
       }
     }
     final reco = reconnaitreListe(
-      titres: t.titres,
+      titres: {...g.indices, ...g.tableau.titres}.toList(),
+      classeLue: g.classeLue,
       // Nom généré pour une photo : sans information utile.
       nomFichier: nom.startsWith('photo_liste_') ? null : nom,
       etablissements: [
@@ -184,8 +197,60 @@ class _EcranImportState extends ConsumerState<EcranImport> {
       if (reco.classe != null) _classe = _classes.where((c) => c.id == reco.classe!.id).firstOrNull;
     } else if (_etab != null && _etab!.id == reco.etablissement?.id && _classe == null && reco.classe != null) {
       _classe = _classes.where((c) => c.id == reco.classe!.id).firstOrNull;
+    } else if (_etab != null && _classe == null && reco.classeLue != null) {
+      // Établissement déjà choisi : la classe lue y est cherchée.
+      final c = rapprocherClasse(reco.classeLue!, _etab!.id, [
+        for (final x in _classes) ClasseConnue(id: x.id, etablissementId: _etab!.id, libelle: x.libelle, niveau: x.niveau)
+      ]);
+      if (c != null) _classe = _classes.where((x) => x.id == c.id).firstOrNull;
     }
   }
+
+  /// Passe à une autre classe du fichier.
+  Future<void> _choisirGroupe(int i) async {
+    final g = _groupes[i];
+    setState(() {
+      _groupe = i;
+      _classe = null;
+      _erreur = null;
+      _tableau = g.tableau;
+      _correspondance = Map.of(g.tableau.correspondance);
+      _lignes = [];
+      _resultat = null;
+      _etape = _Etape.colonnes;
+    });
+    await _reconnaitre(g, _nomFichier!);
+    if (mounted) setState(() {});
+  }
+
+  int _nombreLignes(GroupeClasse g) =>
+      g.tableau.lignes.length - (g.tableau.ligneEntete == null ? 0 : g.tableau.ligneEntete! + 1);
+
+  /// Choix de la classe du fichier à importer (fichier de plusieurs classes).
+  Widget _choixGroupe() => Card(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Ce fichier contient ${_groupes.length} classes. Sur le téléphone, elles s\'importent une à une '
+                '(le poste central les importe en une seule fois).'),
+            DropdownButtonFormField<int>(
+              value: _groupe,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Classe du fichier à importer'),
+              items: [
+                for (var i = 0; i < _groupes.length; i++)
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text('${_importes.contains(i) ? '✓ ' : ''}${_groupes[i].origine} · ${_nombreLignes(_groupes[i])} lignes',
+                        overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (i) => i == null || i == _groupe ? null : _choisirGroupe(i),
+            ),
+          ]),
+        ),
+      );
 
   /// Crée la classe lue dans la liste (droit de gérer les établissements).
   Future<void> _creerClasseLue() async {
@@ -196,7 +261,12 @@ class _EcranImportState extends ConsumerState<EcranImport> {
     final session = ref.read(sessionProvider)!;
     final c = await s.depot.creer(
       'classe',
-      {'etablissement_id': e.id, 'annee_scolaire_id': _annee!.id, 'libelle': lue.libelle, 'niveau': lue.niveau},
+      {
+        'etablissement_id': e.id,
+        'annee_scolaire_id': _annee!.id,
+        'libelle': lue.libelle,
+        'niveau': lue.niveau.isEmpty ? null : lue.niveau,
+      },
       utilisateurId: session.utilisateur.id,
       etablissementId: e.id,
     );
@@ -211,6 +281,7 @@ class _EcranImportState extends ConsumerState<EcranImport> {
     final existe = lue != null && _classes.any((c) => cleClasse(c.libelle) == cleClasse(lue.libelle));
     final peutCreer = ref.read(sessionProvider)!.droits.peut(Permission.etablissementGerer);
     return [
+      if (_groupes.length > 1) _choixGroupe(),
       if (r != null)
         Card(
           color: Theme.of(context).colorScheme.secondaryContainer,
@@ -250,8 +321,25 @@ class _EcranImportState extends ConsumerState<EcranImport> {
   /// source est conservé chiffré dans l'application).
   String? _supprimerApresImport;
 
-  void _analyser() {
+  Future<void> _analyser() async {
     final t = _tableau!.avecCorrespondance(_correspondance);
+    // Colonne « Classe » affectée à la main : la liste contient plusieurs
+    // classes, importées une à une.
+    final sous = grouperParClasse([t]);
+    if (sous.length > 1) {
+      final decalage = sous.length - 1;
+      _groupes = [..._groupes.take(_groupe), ...sous, ..._groupes.skip(_groupe + 1)];
+      final importes = {for (final i in _importes) i < _groupe ? i : i + decalage};
+      _importes
+        ..clear()
+        ..addAll(importes);
+      await _choisirGroupe(_groupe);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('${sous.length} classes dans cette liste : choisissez celle à importer, puis les suivantes.')));
+      }
+      return;
+    }
     final lignes = analyserTableau(t, formatMatricule: _formatMatricule);
     _controler(lignes);
     setState(() {
@@ -385,11 +473,12 @@ class _EcranImportState extends ConsumerState<EcranImport> {
         lignes: _lignes,
         classe: ClasseCible(_classe!.id, _classe!.etablissementId, _classe!.anneeScolaireId),
         tableau: _tableau!.avecCorrespondance(_correspondance),
-        nomFichier: _nomFichier!,
+        nomFichier: _groupes.length > 1 ? '${_nomFichier!} — ${_groupes[_groupe].origine}' : _nomFichier!,
         octetsSource: await File(_chemin!).readAsBytes(),
         utilisateurId: ref.read(sessionProvider)!.utilisateur.id,
       );
       if (_supprimerApresImport != null) await File(_supprimerApresImport!).delete();
+      _importes.add(_groupe);
       setState(() {
         _resultat = r;
         _etape = _Etape.termine;
@@ -466,7 +555,9 @@ class _EcranImportState extends ConsumerState<EcranImport> {
         const SizedBox(height: 16),
         const Text('Les PDF scannés et les photos sont lus par reconnaissance de texte sur le téléphone, sans '
             'Internet. L\'établissement et la classe peuvent rester vides : ils sont proposés d\'après le titre de la '
-            'liste et le nom du fichier. Aucune donnée n\'est enregistrée avant votre validation.'),
+            'liste et le nom du fichier. Un classeur Excel peut contenir plusieurs classes (une feuille par classe, ou '
+            'une colonne « Classe ») : elles s\'importent l\'une après l\'autre. Aucune donnée n\'est enregistrée '
+            'avant votre validation.'),
       ]);
 
   Widget _ecranColonnes() {
@@ -614,6 +705,10 @@ class _EcranImportState extends ConsumerState<EcranImport> {
 
   Widget _ecranTermine() {
     final r = _resultat!;
+    final restantes = [for (var i = 0; i < _groupes.length; i++) if (!_importes.contains(i)) i];
+    final suivante = _groupes.length > 1 && restantes.isNotEmpty
+        ? restantes.firstWhere((i) => i > _groupe, orElse: () => restantes.first)
+        : null;
     return ListView(padding: const EdgeInsets.all(24), children: [
       const Icon(Icons.check_circle, color: Colors.green, size: 64),
       const SizedBox(height: 12),
@@ -625,7 +720,18 @@ class _EcranImportState extends ConsumerState<EcranImport> {
       const Text('Les élèves sont disponibles pour les visites. Ils seront transmis au poste central à la '
           'prochaine synchronisation.'),
       const SizedBox(height: 24),
-      FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Terminer')),
+      if (suivante != null) ...[
+        FilledButton.icon(
+          onPressed: () => _choisirGroupe(suivante),
+          icon: const Icon(Icons.skip_next),
+          label: Text('Classe suivante du fichier : ${_groupes[suivante].libelle}'),
+        ),
+        const SizedBox(height: 8),
+        Text('${_importes.length} classe${_importes.length > 1 ? 's' : ''} importée${_importes.length > 1 ? 's' : ''} '
+            'sur ${_groupes.length}.'),
+        const SizedBox(height: 8),
+      ],
+      OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Terminer')),
     ]);
   }
 }

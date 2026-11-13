@@ -10,6 +10,7 @@ import '../data/requetes.dart';
 import '../import/ecran_import.dart';
 import '../services.dart';
 import '../visite/ecran_visite.dart';
+import 'champ_classe.dart';
 
 String _pourcent(int n, int total) => total == 0 ? '—' : '${(n * 100 / total).round()} %';
 
@@ -137,9 +138,9 @@ class _EcranClassesState extends ConsumerState<EcranClasses> {
       builder: (c) => AlertDialog(
         title: const Text('Nouvelle classe'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: libelle, decoration: const InputDecoration(labelText: 'Libellé (ex. CM2 A)')),
+          ChampLibelleClasse(libelle, autofocus: true),
           const SizedBox(height: 8),
-          TextField(controller: niveau, decoration: const InputDecoration(labelText: 'Niveau (ex. CM2)')),
+          TextField(controller: niveau, decoration: const InputDecoration(labelText: 'Niveau (facultatif)')),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
@@ -153,7 +154,7 @@ class _EcranClassesState extends ConsumerState<EcranClasses> {
     if (ok != true || l.isEmpty) return;
     final s = ref.read(servicesProvider);
     final session = ref.read(sessionProvider)!;
-    if ((_classes ?? []).any((c) => normaliserTexte(c.libelle) == normaliserTexte(l))) {
+    if ((_classes ?? []).any((c) => cleClasse(c.libelle) == cleClasse(l))) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cette classe existe déjà.')));
       return;
     }
@@ -163,7 +164,7 @@ class _EcranClassesState extends ConsumerState<EcranClasses> {
         'etablissement_id': widget.etablissement.id,
         'annee_scolaire_id': widget.annee.id,
         'libelle': l,
-        'niveau': n.isEmpty ? null : n,
+        'niveau': n.isEmpty ? niveauDeClasse(l) : n,
       },
       utilisateurId: session.utilisateur.id,
       etablissementId: widget.etablissement.id,

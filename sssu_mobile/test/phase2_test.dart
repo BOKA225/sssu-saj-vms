@@ -117,6 +117,21 @@ void main() {
     await expectLater(lireListe('${dossier.path}/ancien.xls'), throwsA(isA<ErreurImport>()));
   });
 
+  test('classeur de plusieurs classes : une feuille par classe', () async {
+    final x = Excel.createExcel();
+    x.rename(x.getDefaultSheet()!, 'Explications');
+    x['Explications'].appendRow([TextCellValue('Une feuille par classe.')]);
+    for (final (feuille, nom) in [('2nde G1', 'KOFFI'), ('Tle F2', 'TRAORE')]) {
+      x[feuille].appendRow([TextCellValue('Nom'), TextCellValue('Prénoms'), TextCellValue('Sexe')]);
+      x[feuille].appendRow([TextCellValue(nom), TextCellValue('Ange'), TextCellValue('F')]);
+    }
+    final chemin = '${dossier.path}/classes.xlsx';
+    File(chemin).writeAsBytesSync(x.save()!);
+    final groupes = grouperParClasse(await lireListes(chemin));
+    expect(groupes.map((g) => g.classeLue!.libelle), ['2nde G1', 'Tle F2']);
+    expect(analyserTableau(groupes[1].tableau).single.nom, 'TRAORE');
+  });
+
   test('dossier de visite : ébauche locale, rechargement, transmission de tous les éléments', () async {
     final eleve = (await requetes.elevesDeClasse(classe.id, annee)).first;
     final dv = DepotVisite(db, depot);
