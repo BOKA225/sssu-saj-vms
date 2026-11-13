@@ -179,7 +179,8 @@ void main() {
     // Ancienne grille livrée (002_referentiels) désactivée ; diffusée aux téléphones.
     // (d'autres fichiers de test peuvent en réactiver un : la version prouve la désactivation)
     final anciens = await depot.requete('SELECT actif, version FROM critere_inspection '
-        "WHERE created_at = CAST('2026-11-10T08:00:00Z' AS timestamptz) AND rubrique IN ('eau_potable', 'toilettes', "
+        // Critères livrés par 002_referentiels.sql (identifiants 01a1c478-98…).
+        "WHERE CAST(id AS text) LIKE '01a1c478-98%' AND rubrique IN ('eau_potable', 'toilettes', "
         "'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite')");
     expect(anciens, isNotEmpty);
     expect(anciens.where((x) => (x['version'] as int) < 2), isEmpty);
