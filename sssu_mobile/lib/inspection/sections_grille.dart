@@ -259,12 +259,12 @@ class SectionStructure extends StatelessWidget {
                 Expanded(
                     flex: 2,
                     child: _Nombre('G/H', g.effectifs[c.code]!.a, actif,
-                        (v) => m(() => g.effectifs[c.code]!.a = v, structure: c.code == 'eleves'))),
+                        (v) => m(() => g.effectifs[c.code]!.a = v))),
                 const SizedBox(width: 6),
                 Expanded(
                     flex: 2,
                     child: _Nombre('F', g.effectifs[c.code]!.b, actif,
-                        (v) => m(() => g.effectifs[c.code]!.b = v, structure: c.code == 'eleves'))),
+                        (v) => m(() => g.effectifs[c.code]!.b = v))),
                 SizedBox(
                     width: 44,
                     child: Text('${g.effectifs[c.code]!.total ?? '—'}', textAlign: TextAlign.right)),
