@@ -1,15 +1,17 @@
 /// Élèves : recherche par établissement, classe, nom ou matricule ; ouverture
-/// du dossier.
+/// du dossier ; ajout d'un élève (dossier créé et inscrit dans sa classe).
 library;
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sssu_core/sssu_core.dart';
 
 import '../donnees/requetes_poste.dart';
 import '../services.dart';
 import 'commun.dart';
+import 'dialogue_eleve.dart';
 import 'fiche_dossier.dart';
 
 class PageEleves extends ConsumerStatefulWidget {
@@ -66,6 +68,56 @@ class _PageElevesState extends ConsumerState<PageEleves> {
       if (mounted) setState(() => _classes = c);
     }
     await _chercher();
+  }
+
+  Future<void> _ouvrir(String eleveId) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => FicheDossier(eleveId: eleveId)));
+    _chercher();
+  }
+
+  /// Ajout d'un élève : identité, établissement et classe ; un élève
+  /// semblable déjà enregistré est signalé avant la création.
+  Future<void> _nouvelEleve() async {
+    final s = ref.read(servicesProvider);
+    final droits = ref.read(sessionProvider)!.droits;
+    final saisie = await showDialog<SaisieEleve>(
+      context: context,
+      builder: (_) => DialogueEleve(
+        titre: 'Nouvel élève (${_annee!.libelle})',
+        etablissements: _etabs,
+        classesDe: (id) => _r.classes(id, _annee!),
+        etablissementId: _etab,
+        classeId: _classe,
+      ),
+    );
+    if (saisie == null || !mounted) return;
+    final existants = await s.depot.transaction((tx) => tx.chercher('eleve', const {}));
+    final semblable = eleveSemblable(saisie.identite, existants);
+    if (semblable != null && mounted) {
+      final choix = await showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('Cet élève semble déjà enregistré'),
+          content: Text('${semblable.nom} ${semblable.prenoms}'
+              '${semblable.matricule == null ? '' : ' · matricule ${semblable.matricule}'}'
+              '${semblable.dateNaissance == null ? '' : ' · né(e) le ${dateFr(semblable.dateNaissance)}'}\n\n'
+              'Ouvrez son dossier pour le compléter ou changer sa classe, plutôt que de créer un second dossier.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d), child: const Text('Annuler')),
+            OutlinedButton(onPressed: () => Navigator.pop(d, 'creer'), child: const Text('Créer quand même')),
+            FilledButton(onPressed: () => Navigator.pop(d, 'ouvrir'), child: const Text('Ouvrir son dossier')),
+          ],
+        ),
+      );
+      if (choix == null || !mounted) return;
+      if (choix == 'ouvrir') return _ouvrir(semblable.id!);
+    }
+    if (!mounted) return;
+    Enregistrement? cree;
+    final ok = await executer(context, () async {
+      cree = await s.gestion.creerEleve(droits, identite: saisie.identite, classeId: saisie.classeId!);
+    }, succes: 'Élève ajouté.');
+    if (ok && cree != null && mounted) await _ouvrir(cree!.id);
   }
 
   Future<void> _chercher() async {
@@ -131,6 +183,12 @@ class _PageElevesState extends ConsumerState<PageEleves> {
             onSelected: (v) => setState(() => _nonExamines = v),
           ),
           Text('${visibles.length} élève(s)'),
+          if (ref.read(sessionProvider)!.droits.peutGererEleves)
+            FilledButton.icon(
+              onPressed: _annee == null ? null : _nouvelEleve,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Nouvel élève'),
+            ),
         ]),
         const SizedBox(height: 12),
         Expanded(
@@ -151,10 +209,7 @@ class _PageElevesState extends ConsumerState<PageEleves> {
                     rows: [
                       for (final e in visibles)
                         DataRow(
-                          onSelectChanged: (_) async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (_) => FicheDossier(eleveId: e.id)));
-                            _chercher();
-                          },
+                          onSelectChanged: (_) => _ouvrir(e.id),
                           cells: [
                             DataCell(Text(e.matricule ?? '—')),
                             DataCell(Text('${e.nom} ${e.prenoms}')),
