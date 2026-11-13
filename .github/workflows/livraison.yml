@@ -59,6 +59,7 @@ jobs:
         run: |
           ../installation/ci/journal.sh dart pub get
           ../installation/ci/journal.sh dart analyze --no-fatal-warnings
+          ../installation/ci/analyse.sh commun dart analyze --no-fatal-warnings --no-fatal-infos
       - name: Paquet commun (tests)
         if: always() && steps.core.outcome == 'success'
         working-directory: sssu_core
@@ -72,6 +73,7 @@ jobs:
           ../installation/ci/journal.sh flutter pub get
           ../installation/ci/journal.sh dart run build_runner build --delete-conflicting-outputs
           ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
+          ../installation/ci/analyse.sh mobile flutter analyze --no-fatal-warnings --no-fatal-infos
       - name: Application mobile (tests)
         if: always() && steps.mobile.outcome == 'success'
         working-directory: sssu_mobile
@@ -83,6 +85,7 @@ jobs:
         run: |
           ../installation/ci/journal.sh flutter pub get
           ../installation/ci/journal.sh flutter analyze --no-fatal-warnings --no-fatal-infos
+          ../installation/ci/analyse.sh poste flutter analyze --no-fatal-warnings --no-fatal-infos
       - name: Poste central (tests PostgreSQL, un fichier à la fois)
         if: always() && steps.poste.outcome == 'success'
         working-directory: sssu_windows
