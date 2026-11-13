@@ -72,7 +72,7 @@ class SourceStatistiquesPoste {
   Future<List<Map<String, dynamic>>> inspections({String? etablissementId}) => depot.requete(
         'SELECT CAST(i.id AS text) AS id, CAST(i.etablissement_id AS text) AS etablissement_id, e.nom AS etablissement, '
         'i.date_inspection, i.statut, i.taux_conformite, i.niveau, i.nb_conformes, i.nb_partiels, i.nb_non_conformes, '
-        'i.nb_non_applicables, a.libelle AS annee, '
+        'i.nb_non_applicables, a.libelle AS annee, (i.grille IS NOT NULL) AS grille, '
         "COALESCE(u.nom || COALESCE(' ' || u.prenoms, ''), '') AS inspecteur, "
         '(SELECT COUNT(*) FROM inspection_photo p JOIN inspection_reponse r ON r.id = p.inspection_reponse_id '
         'WHERE r.inspection_id = i.id AND p.deleted_at IS NULL) AS photos '

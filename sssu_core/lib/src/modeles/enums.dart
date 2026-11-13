@@ -92,6 +92,24 @@ enum ResultatInspection {
 /// Rubriques de la grille d'inspection sanitaire (section 11 du prompt).
 /// Les critères de chaque rubrique sont paramétrables (table `critere_inspection`).
 enum RubriqueInspection {
+  // Grille d'inspection sanitaire des établissements scolaires (sections B à J).
+  eauBoisson('eau_boisson', 'B. Eau de boisson et points de rafraîchissement', 'Points d\'eau, source, qualité, entretien',
+      lettre: 'B'),
+  latrines('latrines', 'C. Latrines et toilettes', 'Disponibilité, séparation, état, propreté, entretien', lettre: 'C'),
+  hygieneMains('hygiene_mains', 'D. Hygiène des mains', 'Dispositifs de lavage des mains, savon, pratiques', lettre: 'D'),
+  hygieneMenstruelle('hygiene_menstruelle', 'E. Gestion de l\'hygiène menstruelle', 'Équipements et accompagnement des filles',
+      lettre: 'E'),
+  courDechets('cour_dechets', 'F. Salubrité de la cour et gestion des déchets', 'Poubelles, collecte, gîtes larvaires',
+      lettre: 'F'),
+  sallesClasse('salles_classe', 'G. Salles de classe', 'Propreté, effectifs, aération, éclairage, bâti', lettre: 'G'),
+  cantineVente('cantine_vente', 'H. Cantine scolaire et vente d\'aliments', 'Cuisine, vivres, cuisinières, vendeuses',
+      lettre: 'H'),
+  securiteEnvironnement('securite_environnement', 'I. Sécurité et environnement', 'Clôture, bâtiments, risques, nuisances',
+      lettre: 'I'),
+  santeScolaire('sante_scolaire', 'J. Santé scolaire et promotion de la santé', 'Pharmacie, référent, registres, prévention',
+      lettre: 'J'),
+
+  // Ancienne grille (inspections faites avant la version 1.2.0).
   eauPotable('eau_potable', 'Eau potable', 'Disponibilité, accessibilité et qualité'),
   toilettes('toilettes', 'Toilettes', 'Nombre, propreté, fonctionnalité, séparation filles/garçons'),
   lavageMains('lavage_mains', 'Lavage des mains', 'Dispositifs et disponibilité du savon'),
@@ -105,7 +123,16 @@ enum RubriqueInspection {
   final String code;
   final String libelle;
   final String elements;
-  const RubriqueInspection(this.code, this.libelle, this.elements);
+
+  /// Lettre de la section dans la grille ; `null` pour l'ancienne grille.
+  final String? lettre;
+  const RubriqueInspection(this.code, this.libelle, this.elements, {this.lettre});
+
+  /// Rubrique de l'ancienne grille (critères désactivés en version 1.2.0).
+  bool get ancienne => lettre == null;
+
+  /// Rubriques proposées pour un nouveau critère.
+  static List<RubriqueInspection> get actuelles => [for (final r in values) if (!r.ancienne) r];
   static RubriqueInspection depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
 }
 

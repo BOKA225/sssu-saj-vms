@@ -16,6 +16,7 @@ import '../data/requetes.dart';
 import '../services.dart';
 import '../ui/etablissements.dart' show formaterDateFr;
 import 'depot_inspection.dart';
+import 'sections_grille.dart';
 import 'signature.dart';
 
 DepotInspection _depotDe(WidgetRef ref) {
@@ -167,12 +168,14 @@ class _EcranHistoriqueInspectionsState extends ConsumerState<EcranHistoriqueInsp
                     Card(
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: couleurNiveau(i.niveau),
+                          backgroundColor: i.grilleNationale
+                              ? couleurClassement(classementEnregistre(i.niveau?.code, i.taux))
+                              : couleurNiveau(i.niveau),
                           child: Text(i.taux == null ? '–' : '${i.taux!.round()}',
                               style: const TextStyle(color: Colors.white, fontSize: 13)),
                         ),
                         title: Text('Inspection du ${formaterDateFr(i.date)}'),
-                        subtitle: Text('${i.niveau?.libelle ?? 'Taux non calculé'} · ${libelleEtat(i.statut, i.etat)}'
+                        subtitle: Text('${i.libelleNiveau} · ${libelleEtat(i.statut, i.etat)}'
                             '${i.inspecteur == null || i.inspecteur!.isEmpty ? '' : '\n${i.inspecteur}'}'),
                         isThreeLine: i.inspecteur != null && i.inspecteur!.isNotEmpty,
                         onTap: () => _ouvrir(inspectionId: i.id),
@@ -268,6 +271,9 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
         _modifie = true;
       });
 
+  /// Donnée de la grille modifiée (le champ a déjà été mis à jour).
+  void _grilleModifiee() => _changer(() {});
+
   Future<void> _transmettre() async {
     _lireChamps();
     final c = controlerInspection(_f);
@@ -283,15 +289,20 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
       return;
     }
     final r = _f.resultat(_seuils);
+    final ev = _f.grilleNationale ? _f.evaluation() : null;
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: const Text('Enregistrer et transmettre ?'),
-        content: Text([
-          'Taux de conformité : ${pourcentage(r.taux)} (${r.niveau?.libelle ?? 'non calculé'}).',
+        content: SingleChildScrollView(
+            child: Text([
+          ev == null
+              ? 'Taux de conformité : ${pourcentage(r.taux)} (${r.niveau?.libelle ?? 'non calculé'}).'
+              : 'Score global : ${pourcentage(ev.scoreGlobal)} — ${ev.classement?.libelle ?? 'non calculé'}'
+                  '${ev.plafonne ? ' (plafonné par un critère ★)' : ''}.',
           if (c.avertissements.isNotEmpty) '\nÀ vérifier :\n• ${c.avertissements.join('\n• ')}',
           '\nL\'inspection ne sera plus modifiable sur le téléphone.',
-        ].join('\n')),
+        ].join('\n'))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Revenir')),
           FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Transmettre')),
@@ -390,15 +401,34 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
   Widget _critere(CritereGrille c) {
     final r = _f.reponses[c.id]!;
     final insuffisance = r.resultat == ResultatInspection.nonConforme || r.resultat == ResultatInspection.partiel;
+    final nationale = _f.grilleNationale;
+    // Grille nationale : C / NC / NA ; NA à justifier en observation.
+    final choix = nationale
+        ? const [ResultatInspection.conforme, ResultatInspection.nonConforme, ResultatInspection.nonApplicable]
+        : ResultatInspection.values;
+    final libelles = nationale
+        ? const {
+            ResultatInspection.conforme: 'C · Conforme',
+            ResultatInspection.nonConforme: 'NC · Non conforme',
+            ResultatInspection.nonApplicable: 'NA',
+          }
+        : const <ResultatInspection, String>{};
+    final avecObservation = insuffisance || (nationale && r.resultat == ResultatInspection.nonApplicable);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(c.libelle, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Text.rich(TextSpan(children: [
+          if (c.national)
+            TextSpan(
+                text: '${c.code}${c.critique ? ' ★' : ''}  ',
+                style: TextStyle(fontWeight: FontWeight.bold, color: c.critique ? Colors.red.shade700 : null)),
+          TextSpan(text: c.libelle, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ])),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 4, children: [
-          for (final x in ResultatInspection.values)
+          for (final x in choix)
             ChoiceChip(
-              label: Text(x.libelle, style: const TextStyle(fontSize: 12)),
+              label: Text(libelles[x] ?? x.libelle, style: const TextStyle(fontSize: 12)),
               selected: r.resultat == x,
               selectedColor: switch (x) {
                 ResultatInspection.conforme => Colors.green.shade100,
@@ -409,11 +439,13 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
               onSelected: _modifiable ? (s) => _changer(() => r.resultat = s ? x : null) : null,
             ),
         ]),
-        if (insuffisance || (_obsCriteres[c.id]?.text.isNotEmpty ?? false))
+        if (avecObservation || (_obsCriteres[c.id]?.text.isNotEmpty ?? false))
           TextField(
             controller: _obsCriteres[c.id],
             enabled: _modifiable,
-            decoration: const InputDecoration(labelText: 'Observation', isDense: true),
+            decoration: InputDecoration(
+                labelText: r.resultat == ResultatInspection.nonApplicable ? 'Justification du NA' : 'Observation',
+                isDense: true),
             maxLines: null,
             onChanged: (_) => _modifie = true,
           ),
@@ -429,6 +461,14 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
               onPressed: () => _photo(c), icon: const Icon(Icons.add_a_photo), label: const Text('Photo de l\'insuffisance')),
       ]),
     );
+  }
+
+  String _scoreRubrique(RubriqueInspection rub) {
+    if (!_f.grilleNationale) return '';
+    for (final d in _f.evaluation().domaines) {
+      if (d.rubrique == rub && d.score != null) return ' · ${pourcentage(d.score)}';
+    }
+    return '';
   }
 
   @override
@@ -475,6 +515,11 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
               ]),
             ),
           ),
+          if (_f.grilleNationale) ...[
+            CarteScores(_f),
+            SectionIdentification(_f.grille, _modifiable, _grilleModifiee),
+            SectionStructure(_f, _modifiable, _grilleModifiee),
+          ] else
           Card(
             color: couleurNiveau(r.niveau).withOpacity(0.08),
             child: Padding(
@@ -493,17 +538,38 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
             Card(
               child: ExpansionTile(
                 title: Text(rub.libelle),
-                subtitle: Text(
-                    '${rub.elements} · ${criteres.where((c) => _f.reponses[c.id]!.resultat != null).length}/${criteres.length}'),
+                subtitle: Text('${rub.elements} · ${criteres.where((c) => _f.reponses[c.id]!.resultat != null).length}'
+                    '/${criteres.length}${_scoreRubrique(rub)}'),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                children: [for (final c in criteres) _critere(c)],
+                expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (consignesSections[rub] case final consigne?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(consigne, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                    ),
+                  ...precisionsSection(rub, _f.grille, _modifiable, _grilleModifiee),
+                  for (final (i, c) in criteres.indexed) ...[
+                    if (c.groupe != null && (i == 0 || criteres[i - 1].groupe != c.groupe))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(c.groupe!, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                      ),
+                    _critere(c),
+                  ],
+                ],
               ),
             ),
+          if (_f.grilleNationale) ...[
+            SectionNiveauxService(_f, _modifiable, _grilleModifiee),
+            SectionConstats(_f, _modifiable, _grilleModifiee, nomInspecteur: session.utilisateur.nomAffiche),
+          ],
           const SizedBox(height: 8),
           TextField(
             controller: _observations,
             enabled: _modifiable,
-            decoration: const InputDecoration(labelText: 'Observations', border: OutlineInputBorder()),
+            decoration: InputDecoration(
+                labelText: _f.grilleNationale ? 'Observations générales' : 'Observations', border: const OutlineInputBorder()),
             maxLines: 4,
             onChanged: (_) => _modifie = true,
           ),
@@ -511,7 +577,9 @@ class _EcranInspectionState extends ConsumerState<EcranInspection> with WidgetsB
           TextField(
             controller: _recommandations,
             enabled: _modifiable,
-            decoration: const InputDecoration(labelText: 'Recommandations', border: OutlineInputBorder()),
+            decoration: InputDecoration(
+                labelText: _f.grilleNationale ? 'Recommandations générales' : 'Recommandations',
+                border: const OutlineInputBorder()),
             maxLines: 4,
             onChanged: (_) => _modifie = true,
           ),

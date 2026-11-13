@@ -165,4 +165,23 @@ void main() {
     final jeton = await jetons.emettre(await id.demandeJeton(horloge));
     expect(await jetons.appareilDuJeton(jeton.jeton), appareilId);
   }, skip: ignorer);
+
+  test('grille d\'inspection nationale installée par la migration 040 : identique au paquet commun', () async {
+    final l = await depot.requete(
+        'SELECT CAST(id AS text) AS id, code, libelle, rubrique, ordre, actif FROM critere_inspection WHERE deleted_at IS NULL');
+    final parId = {for (final x in l) x['id'] as String: x};
+    for (final c in criteresGrille) {
+      final x = parId[c.id];
+      expect(x, isNotNull, reason: c.code);
+      expect([x!['code'], x['libelle'], x['rubrique'], x['ordre'], x['actif']], [c.code, c.libelle, c.rubrique.code, c.ordre, true],
+          reason: c.code);
+    }
+    // Ancienne grille désactivée ; diffusée aux téléphones.
+    expect(l.where((x) => RubriqueInspection.depuisCode(x['rubrique'] as String).ancienne && x['actif'] == true), isEmpty);
+    final diffuses = await depot.requete(
+        "SELECT COUNT(DISTINCT record_id) AS n FROM sync_changement WHERE table_name = 'critere_inspection' "
+        'AND record_id IN (SELECT id FROM critere_inspection WHERE code = ANY(CAST(@codes AS text[])))',
+        {'codes': '{${criteresGrille.map((c) => c.code).join(',')}}'});
+    expect(diffuses.single['n'], 118);
+  }, skip: ignorer);
 }

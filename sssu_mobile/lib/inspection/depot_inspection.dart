@@ -38,7 +38,15 @@ class ResumeInspection {
   final double? taux;
   final NiveauConformite? niveau;
   final String? inspecteur;
-  const ResumeInspection(this.id, this.date, this.statut, this.etat, this.taux, this.niveau, this.inspecteur);
+
+  /// Faite avec la grille nationale (classement en 4 niveaux).
+  final bool grilleNationale;
+  const ResumeInspection(this.id, this.date, this.statut, this.etat, this.taux, this.niveau, this.inspecteur,
+      {this.grilleNationale = false});
+
+  String get libelleNiveau => grilleNationale
+      ? (classementEnregistre(niveau?.code, taux)?.libelle ?? 'Score non calculé')
+      : (niveau?.libelle ?? 'Taux non calculé');
 }
 
 class DepotInspection {
@@ -69,13 +77,52 @@ class DepotInspection {
     if (criteres.isEmpty) {
       throw StateError('La grille d\'inspection n\'a pas encore été reçue : synchronisez avec le poste central.');
     }
-    return DossierInspection(FormulaireInspection(
+    final f = FormulaireInspection(
       etablissementId: etablissementId,
       anneeScolaireId: anneeScolaireId,
       inspecteurId: inspecteurId,
       dateInspection: date,
       criteres: criteres,
-    ));
+    );
+    if (f.grilleNationale) f.grille = await preremplir(etablissementId, anneeScolaireId);
+    return DossierInspection(f);
+  }
+
+  /// Grille préremplie : fiche de l'établissement, élèves inscrits cette
+  /// année par sexe, nombre de classes, dernière inspection transmise.
+  Future<DonneesGrille> preremplir(String etablissementId, String anneeScolaireId) async {
+    final etab = await depot.lire('etablissement', etablissementId);
+    final effectifs = await db.customSelect(
+      'SELECT e.sexe AS sexe, COUNT(DISTINCT e.id) AS n FROM inscription i '
+      'JOIN classe c ON c.id = i.classe_id JOIN eleve e ON e.id = i.eleve_id '
+      'WHERE c.etablissement_id = ? AND i.annee_scolaire_id = ? AND i.deleted_at IS NULL AND e.deleted_at IS NULL '
+      "AND c.deleted_at IS NULL AND i.statut = 'inscrit' GROUP BY e.sexe",
+      variables: [Variable(etablissementId), Variable(anneeScolaireId)],
+    ).get();
+    int? nb(String sexe) {
+      for (final l in effectifs) {
+        if (l.read<String>('sexe') == sexe) return l.read<int>('n');
+      }
+      return effectifs.isEmpty ? null : 0;
+    }
+
+    final classes = await db.customSelect(
+      'SELECT COUNT(*) AS n FROM classe WHERE etablissement_id = ? AND annee_scolaire_id = ? AND deleted_at IS NULL',
+      variables: [Variable(etablissementId), Variable(anneeScolaireId)],
+    ).getSingle();
+    final derniere = await db.customSelect(
+      "SELECT MAX(date_inspection) AS d FROM inspection WHERE etablissement_id = ? AND deleted_at IS NULL "
+      "AND statut <> 'ebauche'",
+      variables: [Variable(etablissementId)],
+    ).getSingle();
+    final d = derniere.readNullable<String>('d');
+    return DonneesGrille.preremplie(
+      etablissement: etab?.donnees,
+      garcons: nb(Sexe.masculin.code),
+      filles: nb(Sexe.feminin.code),
+      classes: classes.read<int>('n'),
+      derniereInspection: d == null ? null : lireDate(d),
+    );
   }
 
   Future<DossierInspection> charger(String inspectionId) async {
@@ -180,7 +227,7 @@ class DepotInspection {
   /// Inspections enregistrées sur ce téléphone pour l'établissement, la plus récente d'abord.
   Future<List<ResumeInspection>> inspections(String etablissementId) async {
     final r = await db.customSelect(
-      'SELECT i.id, i.date_inspection, i.statut, i.sync_status, i.taux_conformite, i.niveau, u.nom, u.prenoms '
+      'SELECT i.id, i.date_inspection, i.statut, i.sync_status, i.taux_conformite, i.niveau, i.grille, u.nom, u.prenoms '
       'FROM inspection i LEFT JOIN utilisateur u ON u.id = i.inspecteur_id '
       'WHERE i.etablissement_id = ? AND i.deleted_at IS NULL ORDER BY i.date_inspection DESC, i.updated_at DESC',
       variables: [Variable(etablissementId)],
@@ -195,6 +242,7 @@ class DepotInspection {
           l.readNullable<double>('taux_conformite'),
           l.readNullable<String>('niveau') == null ? null : NiveauConformite.depuisCode(l.read<String>('niveau')),
           [l.readNullable<String>('nom'), l.readNullable<String>('prenoms')].whereType<String>().join(' '),
+          grilleNationale: l.readNullable<String>('grille') != null,
         )
     ];
   }

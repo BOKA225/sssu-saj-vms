@@ -13,6 +13,7 @@ import 'dart:convert';
 import '../commun/commun.dart';
 import '../modeles/enums.dart';
 import '../regles/inspection.dart';
+import 'grille.dart';
 
 /// Critère de la grille (table `critere_inspection`).
 class CritereGrille {
@@ -31,6 +32,18 @@ class CritereGrille {
     this.ordre = 0,
     this.actif = true,
   });
+
+  /// Critère critique ★ de la grille nationale.
+  bool get critique => definitionParCode(code)?.critique ?? false;
+
+  /// Sous-titre de regroupement dans la section (grille nationale).
+  String? get groupe => definitionParCode(code)?.groupe;
+
+  /// Critère de la grille nationale (B1 à J12).
+  bool get national => definitionParCode(code) != null;
+
+  /// Libellé précédé du numéro de la grille (« B1 ★ … »).
+  String get libelleNumerote => national ? '$code${critique ? ' ★' : ''} $libelle' : libelle;
 
   factory CritereGrille.depuisDonnees(String id, Map<String, Object?> d) => CritereGrille(
         id: id,
@@ -95,6 +108,10 @@ class FormulaireInspection {
   /// Réponses par identifiant de critère.
   final Map<String, ReponseCritere> reponses;
 
+  /// Identification, structure et effectifs, constats et plan d'action
+  /// (grille nationale), enregistrés en JSON dans `inspection.grille`.
+  DonneesGrille grille = DonneesGrille();
+
   FormulaireInspection({
     this.id,
     required this.etablissementId,
@@ -115,6 +132,38 @@ class FormulaireInspection {
 
   int get nombreRepondus => reponses.values.where((r) => r.resultat != null).length;
 
+  /// Inspection faite avec la grille nationale (sections B à J).
+  bool get grilleNationale => criteres.any((c) => !c.rubrique.ancienne);
+
+  /// Cotations par code de critère.
+  Map<String, ResultatInspection?> get resultatsParCode => {for (final c in criteres) c.code: reponses[c.id]?.resultat};
+
+  /// Scores par domaine, score global, critères ★ non conformes, classement.
+  EvaluationGrille evaluation() => EvaluationGrille.calculer([
+        for (final c in criteres) CritereCote(c.code, c.libelle, c.rubrique, c.critique, reponses[c.id]?.resultat)
+      ]);
+
+  /// Niveau de service retenu : choix de l'inspecteur, sinon proposition.
+  NiveauService? niveauService(DomaineService d) =>
+      grille.niveauxService[d] ?? niveauServicePropose(d, resultatsParCode, grille);
+
+  /// Cote NA les critères sans réponse que la structure rend non applicables
+  /// (pas de cantine, préscolaire ou pas de filles, pas d'électricité), avec
+  /// le motif en observation. Renvoie le nombre de critères cotés.
+  int appliquerNonApplicablesAutomatiques() {
+    final auto = grille.nonApplicablesAutomatiques;
+    var n = 0;
+    for (final c in criteres) {
+      final motif = auto[c.code];
+      final r = reponses[c.id];
+      if (motif == null || r == null || r.resultat != null) continue;
+      r.resultat = ResultatInspection.nonApplicable;
+      if (r.observation.trim().isEmpty) r.observation = motif;
+      n++;
+    }
+    return n;
+  }
+
   ResultatConformite resultat([SeuilsConformite seuils = const SeuilsConformite()]) => calculerConformite(
         [for (final r in reponses.values) if (r.resultat != null) r.resultat!],
         seuilSatisfaisant: seuils.satisfaisant,
@@ -133,6 +182,10 @@ class FormulaireInspection {
   Map<String, Object?> donneesInspection([SeuilsConformite seuils = const SeuilsConformite()]) {
     final r = resultat(seuils);
     String? texte(String s) => s.trim().isEmpty ? null : s.trim();
+    // Grille nationale : score global et classement de la grille (plafonné
+    // par un critère ★ non conforme) ; « Acceptable » est enregistré « moyen »
+    // et « Critique » « insuffisant » pour les statistiques.
+    final ev = grilleNationale ? evaluation() : null;
     return {
       'etablissement_id': etablissementId,
       'annee_scolaire_id': anneeScolaireId,
@@ -145,9 +198,10 @@ class FormulaireInspection {
       'nb_partiels': r.partiels,
       'nb_non_conformes': r.nonConformes,
       'nb_non_applicables': r.nonApplicables,
-      'taux_conformite': r.taux,
-      'niveau': r.niveau?.code,
+      'taux_conformite': ev == null ? r.taux : ev.scoreGlobal,
+      'niveau': ev == null ? r.niveau?.code : ev.classement?.niveau.code,
       'statut': statut.code,
+      'grille': ev == null ? null : jsonEncode(grille.versJson()),
     };
   }
 
@@ -170,6 +224,14 @@ class FormulaireInspection {
     final sig = d['signature'] as String?;
     signaturePng = sig == null ? null : base64.decode(sig);
     statut = StatutInspection.depuisCode((d['statut'] as String?) ?? 'ebauche');
+    final g = d['grille'] as String?;
+    if (g != null && g.isNotEmpty) {
+      try {
+        grille = DonneesGrille.depuisJson((jsonDecode(g) as Map).cast<String, Object?>());
+      } on FormatException {
+        grille = DonneesGrille();
+      }
+    }
   }
 
   /// Charge une réponse enregistrée. Un critère désactivé depuis est ajouté à
@@ -212,11 +274,44 @@ ControleInspection controlerInspection(FormulaireInspection f, {DateTime? aujour
   if (f.criteres.isNotEmpty && f.resultat().evalues == 0 && sansReponse == 0) {
     avert.add('Tous les critères sont « non applicable » : aucun taux de conformité ne sera calculé.');
   }
-  for (final c in f.insuffisances) {
-    if (f.reponses[c.id]!.observation.trim().isEmpty) avert.add('« ${c.libelle} » : insuffisance sans observation.');
+  if (!f.grilleNationale) {
+    for (final c in f.insuffisances) {
+      if (f.reponses[c.id]!.observation.trim().isEmpty) avert.add('« ${c.libelle} » : insuffisance sans observation.');
+    }
+    if (f.insuffisances.isNotEmpty && f.recommandations.trim().isEmpty) {
+      avert.add('Des insuffisances sont constatées sans recommandation.');
+    }
+    return ControleInspection(erreurs, avert);
   }
-  if (f.insuffisances.isNotEmpty && f.recommandations.trim().isEmpty) {
-    avert.add('Des insuffisances sont constatées sans recommandation.');
+
+  // Grille nationale : C, NC ou NA seulement ; NA justifié ; critères ★.
+  final partiels = [for (final c in f.criteres) if (f.reponses[c.id]?.resultat == ResultatInspection.partiel) c.code];
+  if (partiels.isNotEmpty) {
+    erreurs.add('La grille se cote C, NC ou NA : « partiellement conforme » n\'est pas admis (${partiels.join(', ')}).');
+  }
+  final naSansMotif = [
+    for (final c in f.criteres)
+      if (f.reponses[c.id]?.resultat == ResultatInspection.nonApplicable && f.reponses[c.id]!.observation.trim().isEmpty)
+        c.code
+  ];
+  if (naSansMotif.isNotEmpty) {
+    avert.add('Critère(s) NA sans justification en observation : ${naSansMotif.join(', ')}.');
+  }
+  final g = f.grille;
+  if (g.typeVisite == null) avert.add('Type de visite non renseigné (programmée, inopinée, contre-visite).');
+  if (g.eleves == null) avert.add('Effectif des élèves non renseigné (section A).');
+  final ev = f.evaluation();
+  if (ev.critiquesNonConformes.isNotEmpty) {
+    avert.add('Critère(s) ★ non conforme(s) : ${ev.critiquesNonConformes.map((c) => c.code).join(', ')} — classement '
+        'plafonné à « Insuffisant », mesure corrective immédiate à prévoir.');
+  }
+  final nc = [for (final c in f.criteres) if (f.reponses[c.id]?.resultat == ResultatInspection.nonConforme) c.code];
+  if (nc.isNotEmpty && g.problemes.every((p) => p.vide)) {
+    avert.add('${nc.length} critère(s) non conforme(s) sans problème prioritaire au plan d\'action.');
+  }
+  final cl = ev.classement;
+  if ((cl == ClassementGrille.insuffisant || cl == ClassementGrille.critique) && g.dateContreVisite == null) {
+    avert.add('Classement « ${cl!.libelle} » : date de contre-visite à fixer (${cl.conduite}).');
   }
   return ControleInspection(erreurs, avert);
 }

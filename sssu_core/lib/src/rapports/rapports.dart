@@ -14,6 +14,7 @@ import 'dart:convert';
 import '../auth/permissions.dart';
 import '../commun/commun.dart';
 import '../inspection/formulaire_inspection.dart';
+import '../inspection/grille.dart';
 import '../modeles/enums.dart';
 import '../regles/age.dart';
 import '../regles/imc.dart';
@@ -108,7 +109,7 @@ List<BlocRapport> _blocsInspections(SyntheseInspections x, JeuStatistiques jeu) 
         ('Établissements du périmètre', '${x.etablissements}'),
         ('Établissements inspectés', '${x.inspectes}'),
         ('Niveau satisfaisant (conformes)', '${x.satisfaisants}'),
-        ('Niveau moyen', '${x.moyens}'),
+        ('Niveau moyen (grille : acceptable)', '${x.moyens}'),
         ('Niveau insuffisant', '${x.insuffisants}'),
         ('Taux moyen de conformité', pourcentage(x.tauxMoyen)),
       ]),
@@ -129,7 +130,17 @@ List<BlocRapport> _blocsInspections(SyntheseInspections x, JeuStatistiques jeu) 
           titre: 'Principales insuffisances (dernières inspections)',
           entetes: ['Critère', 'Non conforme', 'Partiellement conforme'],
           largeurs: const [6, 1.5, 2],
-          lignes: [for (final i in x.principalesInsuffisances.take(15)) [i.libelle, i.nonConformes, i.partiels]],
+          lignes: [
+            for (final i in x.principalesInsuffisances.take(15))
+              [
+                switch (definitionParId(i.critereId)) {
+                  final c? => '${c.code}${c.critique ? ' ★' : ''} ${i.libelle}',
+                  null => i.libelle,
+                },
+                i.nonConformes,
+                i.partiels
+              ]
+          ],
         ),
     ];
 
@@ -541,16 +552,38 @@ class ReponseFiche {
 class FicheInspection {
   final Enregistrement inspection;
   final String etablissement;
+
+  /// Fiche de l'établissement (code, localité, responsable…).
+  final Map<String, Object?> etablissementDonnees;
   final String? annee;
   final String? inspecteur;
   final List<ReponseFiche> reponses;
   const FicheInspection({
     required this.inspection,
     required this.etablissement,
+    this.etablissementDonnees = const {},
     this.annee,
     this.inspecteur,
     required this.reponses,
   });
+
+  /// Inspection faite avec la grille nationale (sections B à J).
+  bool get nationale => reponses.any((r) => !r.critere.rubrique.ancienne);
+
+  /// Données de la grille (identification, section A, constats).
+  DonneesGrille get grille {
+    final g = inspection.donnees['grille'] as String?;
+    if (g == null || g.isEmpty) return DonneesGrille();
+    try {
+      return DonneesGrille.depuisJson((jsonDecode(g) as Map).cast<String, Object?>());
+    } on FormatException {
+      return DonneesGrille();
+    }
+  }
+
+  EvaluationGrille evaluation() => EvaluationGrille.calculer([
+        for (final r in reponses) CritereCote(r.critere.code, r.critere.libelle, r.critere.rubrique, r.critere.critique, r.resultat)
+      ]);
 
   static Future<FicheInspection> charger(TransactionServeur tx, String inspectionId) async {
     final i = await tx.lire('inspection', inspectionId);
@@ -572,6 +605,7 @@ class FicheInspection {
     }
     return FicheInspection(
       inspection: i,
+      etablissementDonnees: etab?.donnees ?? const {},
       etablissement: etab?.donnees['nom'] as String? ?? '',
       annee: annee?.donnees['libelle'] as String?,
       inspecteur: u == null ? null : [u.donnees['nom'], u.donnees['prenoms']].whereType<String>().join(' '),
@@ -592,6 +626,7 @@ DocumentRapport rapportInspection(
   if (!acteur.peut(Permission.inspectionRealiser) && !acteur.peut(Permission.statistiquesConsulter)) {
     throw const RapportRefuse('Votre profil ne permet pas d\'éditer les rapports d\'inspection.');
   }
+  if (fi.nationale) return _rapportGrille(fi, entete: entete, genereLe: genereLe, photos: photos);
   final d = fi.inspection.donnees;
   final parRubrique = grilleParRubrique(fi.reponses.map((r) => r.critere));
   final reponseDe = {for (final r in fi.reponses) r.critere.id: r};
@@ -656,6 +691,245 @@ DocumentRapport rapportInspection(
   );
 }
 
+// ------------------------------------------------ grille d'inspection nationale
+
+String _cases(List<Choix> choix, String? code) => [for (final c in choix) '${c.code == code ? '☒' : '☐'} ${c.libelle}'].join('   ');
+
+String _nombre(double? v) => v == null ? '—' : texteCellule(v);
+
+/// Rapport d'une inspection faite avec la grille nationale : la grille
+/// remplie (identification, section A, sections B à J cotées, récapitulatif,
+/// niveaux de service, classement, plan d'action, signatures), prête à
+/// imprimer pour la signature et le cachet du chef d'établissement.
+DocumentRapport _rapportGrille(
+  FicheInspection fi, {
+  required EnteteRapport entete,
+  required DateTime genereLe,
+  required Map<String, List<int>> photos,
+}) {
+  final d = fi.inspection.donnees;
+  final g = fi.grille;
+  final ev = fi.evaluation();
+  final cl = ev.classement;
+  final date = lireDate(d['date_inspection']! as String);
+  final parRubrique = grilleParRubrique(fi.reponses.map((r) => r.critere));
+  final reponseDe = {for (final r in fi.reponses) r.critere.id: r};
+  final resultats = {for (final r in fi.reponses) r.critere.code: r.resultat};
+  final signature = d['signature'] as String?;
+  String texte(String s) => s.trim().isEmpty ? '' : s.trim();
+  String? niveauDe(DomaineService dom) => (g.niveauxService[dom] ?? niveauServicePropose(dom, resultats, g))?.code;
+  final photosInsuffisances = [
+    for (final r in fi.reponses)
+      for (final p in r.photos)
+        if (photos[p] case final img?) BlocImage(img, legende: '${r.critere.code} — ${r.critere.libelle}', largeurMax: 200)
+  ];
+
+  String marque(ResultatInspection? r, ResultatInspection attendu) =>
+      r == attendu || (attendu == ResultatInspection.conforme && r == ResultatInspection.partiel) ? 'X' : '';
+
+  BlocTableau section(RubriqueInspection rub, List<CritereGrille> criteres) {
+    final lignes = <List<Object?>>[];
+    String? groupe;
+    for (final c in criteres) {
+      if (c.groupe != null && c.groupe != groupe) {
+        groupe = c.groupe;
+        lignes.add(['', groupe!.toUpperCase(), '', '', '', '']);
+      }
+      final r = reponseDe[c.id];
+      lignes.add([
+        '${c.code}${c.critique ? ' ★' : ''}',
+        c.libelle,
+        marque(r?.resultat, ResultatInspection.conforme),
+        marque(r?.resultat, ResultatInspection.nonConforme),
+        marque(r?.resultat, ResultatInspection.nonApplicable),
+        r?.observation ?? '',
+      ]);
+    }
+    return BlocTableau(
+      entetes: const ['N°', 'Critère', 'C', 'NC', 'NA', 'Observations'],
+      largeurs: const [0.9, 6, 0.55, 0.6, 0.6, 3.2],
+      lignes: lignes,
+    );
+  }
+
+  final scoreDe = {for (final x in ev.domaines) x.rubrique: x};
+  final problemes = [for (final p in g.problemes) if (!p.vide) p];
+  return DocumentRapport(
+    titre: 'Grille d\'inspection sanitaire des établissements scolaires',
+    sousTitre: '${fi.etablissement} · ${_date(date)}',
+    entete: entete,
+    blocs: [
+      BlocChamps([
+        ('Fiche n°', texte(g.ficheNumero)),
+        ('Année scolaire', fi.annee ?? ''),
+        ('Score global', '${pourcentage(ev.scoreGlobal)} — ${cl == null ? 'non calculé' : '${cl.libelle} (${cl.couleur})'}'),
+        if (ev.critiquesNonConformes.isNotEmpty)
+          ('Critère(s) ★ non conforme(s)', ev.critiquesNonConformes.map((c) => c.code).join(', ')),
+        if (cl != null) ('Conduite à tenir', cl.conduite),
+      ]),
+      if (ev.plafonne)
+        const BlocParagraphe('Classement plafonné à « Insuffisant » : au moins un critère critique (★) est non conforme.',
+            italique: true),
+      const BlocTitre('Identification de la visite'),
+      BlocTableau(
+        entetes: const ['Rubrique', 'Renseignement'],
+        largeurs: const [3, 6],
+        lignes: [
+          ['DRENA / IEPP', texte(g.drenaIepp)],
+          ['Nom de l\'établissement', fi.etablissement],
+          ['Localité / quartier', texte(g.localite)],
+          ['Aire sanitaire (ESPC de rattachement)', texte(g.aireSanitaire)],
+          ['Chef d\'établissement (nom, téléphone)', texte(g.chefEtablissement)],
+          ['Personne ayant accompagné l\'inspection (nom, fonction)', texte(g.accompagnateur)],
+          ['Date de la visite', _date(date)],
+          ['Heure d\'arrivée – heure de départ',
+            [texte(g.heureArrivee), texte(g.heureDepart)].where((x) => x.isNotEmpty).join(' – ')],
+          ['Type de visite', _cases(typesVisite, g.typeVisite)],
+          ['Date de la dernière inspection sanitaire', _date(g.dateDerniereInspection)],
+          ['Équipe d\'inspection (noms, fonctions)', texte(g.equipe).isEmpty ? (fi.inspecteur ?? '') : texte(g.equipe)],
+        ],
+      ),
+      const BlocTitre('A. Structure et effectifs de l\'établissement (non coté)'),
+      BlocTableau(
+        entetes: const ['Rubrique', 'Réponse'],
+        largeurs: const [2.2, 7],
+        lignes: [
+          ['Ordre d\'enseignement', _cases(ordresEnseignement, g.ordreEnseignement)],
+          ['Statut', _cases(statutsGrille, g.statut)],
+          ['Fréquentation', _cases(frequentations, g.frequentation)],
+          ['Régime', _cases(regimes, g.regime)],
+          ['Milieu', _cases(milieux, g.milieu)],
+          ['Électricité', _cases(electricites, g.electricite)],
+          ['Cantine scolaire',
+            _cases(const [Choix('oui', 'Oui'), Choix('non', 'Non')], g.cantine == null ? null : (g.cantine! ? 'oui' : 'non'))],
+        ],
+      ),
+      BlocTableau(
+        titre: 'Effectifs',
+        entetes: const ['Catégorie', 'Garçons / Hommes', 'Filles / Femmes', 'Total'],
+        largeurs: const [4, 2, 2, 1.5],
+        lignes: [
+          for (final c in categoriesEffectifs)
+            [c.libelle, g.effectifs[c.code]?.a, g.effectifs[c.code]?.b, g.effectifs[c.code]?.total]
+        ],
+      ),
+      BlocTableau(
+        titre: 'Inventaire des équipements',
+        entetes: const ['Équipement', 'Existant', 'Fonctionnel', 'Norme de référence'],
+        largeurs: const [3.6, 1.3, 1.5, 4.6],
+        lignes: [
+          for (final e in equipementsGrille)
+            [e.libelle, g.equipements[e.code]?.a, e.sansFonctionnel ? '—' : g.equipements[e.code]?.b, e.norme]
+        ],
+      ),
+      BlocTableau(
+        titre: 'Ratios calculés',
+        entetes: const ['Ratio', 'Calcul', 'Valeur', 'Seuil'],
+        largeurs: const [3, 3.4, 1.2, 3],
+        lignes: [
+          for (final r in g.ratios) [r.libelle, r.calcul, '${_nombre(r.valeur)}${r.horsNorme ? ' (hors norme)' : ''}', r.seuil]
+        ],
+      ),
+      for (final MapEntry(key: rub, value: criteres) in parRubrique.entries) ...[
+        BlocTitre(rub.libelle.toUpperCase()),
+        if (consignesSections[rub] case final consigne?) BlocParagraphe(consigne, italique: true),
+        if (rub == RubriqueInspection.eauBoisson) BlocParagraphe('Source principale : ${_cases(sourcesEau, g.sourceEau)}'),
+        if (rub == RubriqueInspection.latrines) BlocParagraphe('Type principal : ${_cases(typesLatrines, g.typeLatrine)}'),
+        if (rub == RubriqueInspection.sallesClasse) BlocParagraphe('Classes visitées : ${texte(g.classesVisitees)}'),
+        if (rub == RubriqueInspection.cantineVente)
+          BlocParagraphe('Nombre de cuisinières : ${g.nbCuisinieres ?? '—'}      Nombre de vendeuses : ${g.nbVendeuses ?? '—'}'),
+        if (rub == RubriqueInspection.courDechets && texte(g.dateJourneeSalubrite).isNotEmpty)
+          BlocParagraphe('Dernière journée de salubrité : ${texte(g.dateJourneeSalubrite)}'),
+        section(rub, criteres),
+        if (scoreDe[rub] case final sc?)
+          BlocParagraphe('Score ${rub.lettre ?? ''} : ${texteCellule(sc.points)} / ${sc.applicables} = ${pourcentage(sc.score)}'),
+      ],
+      const BlocTitre('Récapitulatif des scores et classement'),
+      BlocParagraphe('Le score global se calcule sur l\'ensemble des critères applicables '
+          '(${ev.criteres} critères, dont ${fi.reponses.where((r) => r.critere.critique).length} critiques ★).'),
+      BlocTableau(
+        entetes: const ['Domaine', 'Critères', 'Points obtenus', 'Critères applicables', 'Score (%)', 'Critères ★ NC'],
+        largeurs: const [3.6, 1.2, 1.4, 1.6, 1.3, 1.6],
+        lignes: [
+          for (final x in ev.domaines)
+            [x.rubrique.libelle, x.criteres, x.points, x.applicables, pourcentage(x.score),
+              x.critiquesNonConformes.isEmpty ? '—' : x.critiquesNonConformes.map((c) => c.code).join(', ')]
+        ],
+        totaux: ['TOTAL', ev.criteres, ev.points, ev.applicables, pourcentage(ev.scoreGlobal),
+          ev.critiquesNonConformes.isEmpty ? '—' : ev.critiquesNonConformes.map((c) => c.code).join(', ')],
+      ),
+      BlocTableau(
+        titre: 'Niveau de service eau, assainissement et hygiène (définitions OMS/UNICEF reprises par les normes MENA)',
+        entetes: const ['Domaine', 'Élémentaire', 'Limité', 'Absence de service'],
+        largeurs: const [2, 3, 3, 3],
+        lignes: [
+          for (final dom in DomaineService.values)
+            [
+              dom.libelle,
+              for (final n in NiveauService.values) '${niveauDe(dom) == n.code ? '☒' : '☐'} ${dom.definitions[n.index]}',
+            ]
+        ],
+      ),
+      BlocParagraphe('Classement de l\'établissement : '
+          '${[for (final c in ClassementGrille.values) '${c == cl ? '☒' : '☐'} ${c.libelle}'].join('   ')}'),
+      BlocParagraphe('Critère(s) ★ non conforme(s) : '
+          '${ev.critiquesNonConformes.isEmpty ? 'aucun' : ev.critiquesNonConformes.map((c) => '${c.code} (${c.libelle})').join(' ; ')}'),
+      BlocTableau(
+        entetes: const ['Score global', 'Classement', 'Conduite à tenir'],
+        largeurs: const [1.5, 2, 6],
+        lignes: [for (final (seuil, c) in baremeGrille) [seuil, '${c.libelle} (${c.couleur})', c.conduite]],
+      ),
+      const BlocTitre('Constats, recommandations et signatures'),
+      BlocChamps([('Points forts', texte(g.pointsForts))]),
+      BlocTableau(
+        titre: 'Problèmes prioritaires',
+        entetes: const ['N°', 'Problème constaté (n° du critère)', 'Mesure recommandée', 'Responsable', 'Délai',
+          'Réalisé à la contre-visite'],
+        largeurs: const [0.5, 3.6, 3.2, 1.6, 1.2, 1.6],
+        lignes: [
+          for (final (i, p) in (problemes.isEmpty ? [ProblemeConstate()] : problemes).indexed)
+            [
+              '${i + 1}',
+              [texte(p.probleme), if (texte(p.criteres).isNotEmpty) '(${texte(p.criteres)})'].join(' '),
+              texte(p.mesure),
+              texte(p.responsable),
+              texte(p.delai),
+              '${p.realise == true ? '☒' : '☐'} Oui  ${p.realise == false ? '☒' : '☐'} Non',
+            ]
+        ],
+      ),
+      BlocParagraphe('Date de la contre-visite : ${g.dateContreVisite == null ? '____ / ____ / ________' : _date(g.dateContreVisite)}'),
+      if (texte((d['observations'] as String?) ?? '').isNotEmpty) ...[
+        const BlocTitre('Observations générales'),
+        BlocParagraphe(texte(d['observations']! as String)),
+      ],
+      if (texte((d['recommandations'] as String?) ?? '').isNotEmpty) ...[
+        const BlocTitre('Recommandations générales'),
+        BlocParagraphe(texte(d['recommandations']! as String)),
+      ],
+      if (photosInsuffisances.isNotEmpty) ...[
+        const BlocTitre('Photographies des insuffisances constatées'),
+        ...photosInsuffisances,
+      ],
+      BlocSignatures([
+        BlocSignature(
+          fonction: 'Le chef de l\'équipe d\'inspection',
+          nom: texte(g.chefEquipe).isEmpty ? fi.inspecteur : texte(g.chefEquipe),
+          image: signature == null ? null : base64.decode(signature),
+          cachet: false,
+        ),
+        BlocSignature(
+          fonction: 'Le chef d\'établissement\n« lu et approuvé »',
+          nom: g.chefEtablissement.split(',').first.trim().isEmpty ? null : g.chefEtablissement.split(',').first.trim(),
+        ),
+      ]),
+      const BlocParagraphe(ampliationGrille, italique: true),
+      const BlocParagraphe(referencesGrille, italique: true),
+    ],
+    genereLe: genereLe,
+  );
+}
+
 /// Historique des inspections d'un établissement (ou de tous).
 DocumentRapport rapportHistoriqueInspections(
   JeuStatistiques jeu, {
@@ -674,12 +948,68 @@ DocumentRapport rapportHistoriqueInspections(
       final e = (jeu.etablissements[a.etablissementId] ?? '').compareTo(jeu.etablissements[b.etablissementId] ?? '');
       return e != 0 ? e : b.date.compareTo(a.date);
     });
+  // Grille nationale : dernière inspection de chaque établissement, scores
+  // par domaine (B à J), score global, classement, critères ★ non conformes.
+  final dernieresGrille = <String, (InspectionStat, EvaluationGrille)>{};
+  for (final i in liste) {
+    final cotes = [
+      for (final MapEntry(key: id, value: r) in i.reponses.entries)
+        if (definitionParId(id) case final c?) CritereCote(c.code, c.libelle, c.rubrique, c.critique, r)
+    ];
+    if (cotes.isEmpty) continue;
+    final deja = dernieresGrille[i.etablissementId];
+    if (deja == null || i.date.isAfter(deja.$1.date)) dernieresGrille[i.etablissementId] = (i, EvaluationGrille.calculer(cotes));
+  }
+  final parClassement = <ClassementGrille, int>{};
+  for (final (_, ev) in dernieresGrille.values) {
+    if (ev.classement case final c?) parClassement[c] = (parClassement[c] ?? 0) + 1;
+  }
   return DocumentRapport(
     titre: 'Synthèse des inspections sanitaires',
     sousTitre: descriptionPerimetre(jeu, f),
     entete: entete,
+    paysage: dernieresGrille.isNotEmpty,
     blocs: [
       ..._blocsInspections(s.inspections, jeu),
+      if (dernieresGrille.isNotEmpty) ...[
+        const BlocTitre('Grille d\'inspection sanitaire : dernière inspection par établissement'),
+        BlocChamps([
+          ('Établissements inspectés avec la grille', '${dernieresGrille.length}'),
+          for (final c in ClassementGrille.values) ('${c.libelle} (${c.couleur})', '${parClassement[c] ?? 0}'),
+          (
+            'Établissements avec un critère ★ non conforme',
+            '${dernieresGrille.values.where((x) => x.$2.critiquesNonConformes.isNotEmpty).length}'
+          ),
+        ]),
+        BlocTableau(
+          entetes: [
+            'Établissement',
+            'Date',
+            for (final r in RubriqueInspection.actuelles) r.lettre!,
+            'Global',
+            'Classement',
+            'Critères ★ NC',
+          ],
+          largeurs: [3.2, 1.4, for (final _ in RubriqueInspection.actuelles) 0.9, 1.1, 1.6, 1.6],
+          lignes: [
+            for (final e in jeu.etablissements.keys)
+              if (dernieresGrille[e] case (final i, final ev))
+                [
+                  jeu.etablissements[e],
+                  _date(i.date),
+                  for (final r in RubriqueInspection.actuelles)
+                    _nombre(ev.domaines.where((d) => d.rubrique == r).firstOrNull?.score),
+                  pourcentage(ev.scoreGlobal),
+                  ev.classement?.libelle ?? '—',
+                  ev.critiquesNonConformes.isEmpty ? '—' : ev.critiquesNonConformes.map((c) => c.code).join(', '),
+                ]
+          ],
+        ),
+        const BlocParagraphe('Scores en % des critères applicables (B eau de boisson, C latrines, D hygiène des mains, '
+            'E hygiène menstruelle, F cour et déchets, G salles de classe, H cantine et vente d\'aliments, I sécurité, '
+            'J santé scolaire). Un critère ★ non conforme plafonne le classement à « Insuffisant ».',
+            italique: true),
+      ],
       BlocTableau(
         titre: 'Historique des inspections',
         entetes: ['Établissement', 'Date', 'Conformes', 'Partiels', 'Non conformes', 'Non applicables', 'Taux', 'Niveau'],

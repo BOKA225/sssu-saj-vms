@@ -76,6 +76,11 @@ List<int> rendreExcel(DocumentRapport d, {String nomFeuille = 'Rapport'}) {
       case BlocSignature(:final fonction, :final nom):
         ligne++;
         ecrire([fonction, nom ?? ''], style: gras);
+      case BlocSignatures(:final signatures):
+        ligne++;
+        for (final x in signatures) {
+          ecrire([x.fonction, x.nom ?? ''], style: gras);
+        }
       case BlocImage(:final legende):
         if (legende != null) ecrire(['[Image] $legende']);
       case BlocSautDePage():

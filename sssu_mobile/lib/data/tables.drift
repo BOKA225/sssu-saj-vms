@@ -387,7 +387,7 @@ CREATE TABLE critere_inspection (
   deleted_at DATETIME,
   sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
   portee_etablissement_id TEXT,
-  rubrique TEXT NOT NULL CHECK (rubrique IN ('eau_potable', 'toilettes', 'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite')),
+  rubrique TEXT NOT NULL CHECK (rubrique IN ('eau_potable', 'toilettes', 'lavage_mains', 'dechets', 'environnement', 'cantine', 'vendeuses', 'infirmerie', 'securite', 'eau_boisson', 'latrines', 'hygiene_mains', 'hygiene_menstruelle', 'cour_dechets', 'salles_classe', 'cantine_vente', 'securite_environnement', 'sante_scolaire')),
   code TEXT NOT NULL,
   libelle TEXT NOT NULL,
   ordre INTEGER NOT NULL DEFAULT 0,
@@ -420,7 +420,8 @@ CREATE TABLE inspection (
   nb_non_applicables INTEGER NOT NULL DEFAULT 0,
   taux_conformite REAL,
   niveau TEXT CHECK (niveau IS NULL OR niveau IN ('satisfaisant', 'moyen', 'insuffisant')),
-  statut TEXT NOT NULL DEFAULT 'ebauche' CHECK (statut IN ('ebauche', 'enregistre', 'valide'))
+  statut TEXT NOT NULL DEFAULT 'ebauche' CHECK (statut IN ('ebauche', 'enregistre', 'valide')),
+  grille TEXT
 ) AS InspectionRow;
 
 CREATE TABLE inspection_reponse (

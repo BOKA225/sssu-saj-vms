@@ -172,6 +172,7 @@ class _PageRapportsState extends ConsumerState<PageRapports> {
                   SegmentedButton<FormatRapport>(
                     segments: const [
                       ButtonSegment(value: FormatRapport.pdf, label: Text('PDF'), icon: Icon(Icons.picture_as_pdf)),
+                      ButtonSegment(value: FormatRapport.word, label: Text('Word'), icon: Icon(Icons.description)),
                       ButtonSegment(value: FormatRapport.excel, label: Text('Excel'), icon: Icon(Icons.table_chart)),
                     ],
                     selected: {_format},

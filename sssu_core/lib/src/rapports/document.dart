@@ -1,5 +1,6 @@
 /// Modèle neutre d'un rapport (en-tête institutionnel, blocs de contenu),
-/// rendu ensuite en PDF ([rendrePdf]) ou en Excel ([rendreExcel]).
+/// rendu ensuite en PDF ([rendrePdf]), en Word ([rendreWord]) ou en Excel
+/// ([rendreExcel]).
 library;
 
 /// En-tête institutionnel, lu dans les paramètres (section 13) : lignes
@@ -84,6 +85,12 @@ class BlocSignature extends BlocRapport {
   final List<int>? image;
   final bool cachet;
   const BlocSignature({required this.fonction, this.nom, this.image, this.cachet = true});
+}
+
+/// Plusieurs signatures côte à côte (chef d'équipe et chef d'établissement).
+class BlocSignatures extends BlocRapport {
+  final List<BlocSignature> signatures;
+  const BlocSignatures(this.signatures);
 }
 
 class BlocSautDePage extends BlocRapport {

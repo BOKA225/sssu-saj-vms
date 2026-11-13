@@ -422,6 +422,9 @@ const List<TableSpec> registre = [
       Colonne('taux_conformite', TypeColonne.reel),
       Colonne('niveau', TypeColonne.text),
       Colonne('statut', TypeColonne.text, obligatoire: true, aValeurParDefaut: true),
+      // Grille nationale (version 1.2.0) : identification, section A, constats
+      // et plan d'action, en JSON (DonneesGrille).
+      Colonne('grille', TypeColonne.text),
     ],
   ),
   TableSpec(

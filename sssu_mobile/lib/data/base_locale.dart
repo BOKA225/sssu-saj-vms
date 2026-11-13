@@ -11,11 +11,26 @@ class BaseLocale extends _$BaseLocale {
   BaseLocale(super.e);
 
   @override
-  int get schemaVersion => 1;
+  /// 2 (version 1.2.0) : grille d'inspection nationale (rubriques B à J,
+  /// colonne `inspection.grille`).
+  @override
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
+        onUpgrade: (m, de, vers) async {
+          // Clés étrangères suspendues : la table des critères est recréée
+          // (nouvelle contrainte sur la rubrique), ses réponses gardées.
+          await customStatement('PRAGMA foreign_keys = OFF');
+          await transaction(() async {
+            if (de < 2) {
+              await m.alterTable(TableMigration(critereInspection));
+              await m.addColumn(inspection, inspection.grille);
+            }
+          });
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },

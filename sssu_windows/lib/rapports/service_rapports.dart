@@ -1,5 +1,5 @@
 /// Édition des rapports sur le poste central : en-tête institutionnel lu
-/// dans les paramètres, polices, rendu PDF ou Excel, enregistrement du
+/// dans les paramètres, polices, rendu PDF, Word ou Excel, enregistrement du
 /// fichier choisi par l'utilisateur et trace dans le journal d'audit.
 library;
 
@@ -14,6 +14,7 @@ import '../donnees/stockage_photos.dart';
 
 enum FormatRapport {
   pdf('pdf', 'PDF'),
+  word('docx', 'Word'),
   excel('xlsx', 'Excel');
 
   final String extension;
@@ -59,6 +60,7 @@ class ServiceRapports {
 
   Future<List<int>> rendre(DocumentRapport d, FormatRapport format) async => switch (format) {
         FormatRapport.pdf => await rendrePdf(d, await polices()),
+        FormatRapport.word => rendreWord(d),
         FormatRapport.excel => rendreExcel(d),
       };
 

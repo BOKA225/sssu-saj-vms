@@ -67,6 +67,26 @@ Future<List<int>> rendrePdf(DocumentRapport d, PolicesRapport polices) async {
     ]);
   }
 
+  pw.Widget signature(BlocSignature s) => pw.SizedBox(
+        width: 220,
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+          pw.Text(s.fonction, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          pw.Container(
+            height: 70,
+            width: 200,
+            alignment: pw.Alignment.center,
+            decoration: s.image == null ? pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400, width: 0.5)) : null,
+            child: s.image == null
+                ? pw.Text(s.cachet ? 'Signature et cachet' : 'Signature',
+                    style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey500))
+                : pw.Image(pw.MemoryImage(Uint8List.fromList(s.image!)), fit: pw.BoxFit.contain),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(s.nom ?? '', style: const pw.TextStyle(fontSize: 9)),
+        ]),
+      );
+
   List<pw.Widget> bloc(BlocRapport b) {
     switch (b) {
       case BlocTitre(:final texte):
@@ -143,31 +163,16 @@ Future<List<int>> rendrePdf(DocumentRapport d, PolicesRapport polices) async {
             if (legende != null) pw.Text(legende, style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic)),
           ]),
         )];
-      case BlocSignature(:final fonction, :final nom, :final image, :final cachet):
+      case BlocSignature():
         return [pw.Padding(
           padding: const pw.EdgeInsets.only(top: 18),
-          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-            pw.SizedBox(
-              width: 220,
-              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-                pw.Text(fonction, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 4),
-                pw.Container(
-                  height: 70,
-                  width: 200,
-                  alignment: pw.Alignment.center,
-                  decoration: image == null
-                      ? pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400, width: 0.5))
-                      : null,
-                  child: image == null
-                      ? pw.Text(cachet ? 'Signature et cachet' : 'Signature',
-                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey500))
-                      : pw.Image(pw.MemoryImage(Uint8List.fromList(image)), fit: pw.BoxFit.contain),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text(nom ?? '', style: const pw.TextStyle(fontSize: 9)),
-              ]),
-            ),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [signature(b)]),
+        )];
+      case BlocSignatures(:final signatures):
+        return [pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 18),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceAround, children: [
+            for (final x in signatures) signature(x),
           ]),
         )];
       case BlocSautDePage():

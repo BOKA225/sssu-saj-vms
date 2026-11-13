@@ -23,6 +23,25 @@ Color _couleurNiveau(String? n) => switch (n) {
       _ => Colors.grey,
     };
 
+Color _couleurClassement(ClassementGrille? c) => switch (c) {
+      ClassementGrille.satisfaisant => Colors.green.shade700,
+      ClassementGrille.acceptable => Colors.amber.shade800,
+      ClassementGrille.insuffisant => Colors.orange.shade800,
+      ClassementGrille.critique => Colors.red.shade700,
+      null => Colors.grey,
+    };
+
+/// Niveau affiché : classement de la grille nationale (4 niveaux) ou niveau
+/// de l'ancienne grille.
+(String, Color) _niveauAffiche(Map<String, dynamic> i) {
+  final niveau = i['niveau'] as String?;
+  if (i['grille'] == true) {
+    final c = classementEnregistre(niveau, (i['taux_conformite'] as num?)?.toDouble());
+    return (c?.libelle ?? '—', _couleurClassement(c));
+  }
+  return (niveau == null ? '—' : NiveauConformite.depuisCode(niveau).libelle, _couleurNiveau(niveau));
+}
+
 class PageInspections extends ConsumerWidget {
   const PageInspections({super.key});
 
@@ -112,8 +131,8 @@ class _HistoriqueState extends ConsumerState<_Historique> {
                           DataColumn(label: Text('PC'), numeric: true),
                           DataColumn(label: Text('NC'), numeric: true),
                           DataColumn(label: Text('NA'), numeric: true),
-                          DataColumn(label: Text('Taux'), numeric: true),
-                          DataColumn(label: Text('Niveau')),
+                          DataColumn(label: Text('Score'), numeric: true),
+                          DataColumn(label: Text('Classement')),
                           DataColumn(label: Text('Photos'), numeric: true),
                         ],
                         rows: [
@@ -130,9 +149,8 @@ class _HistoriqueState extends ConsumerState<_Historique> {
                                 DataCell(Text('${i['nb_non_conformes']}')),
                                 DataCell(Text('${i['nb_non_applicables']}')),
                                 DataCell(Text(pourcentage((i['taux_conformite'] as num?)?.toDouble()))),
-                                DataCell(Text(
-                                    i['niveau'] == null ? '—' : NiveauConformite.depuisCode(i['niveau'] as String).libelle,
-                                    style: TextStyle(color: _couleurNiveau(i['niveau'] as String?), fontWeight: FontWeight.bold))),
+                                DataCell(Text(_niveauAffiche(i).$1,
+                                    style: TextStyle(color: _niveauAffiche(i).$2, fontWeight: FontWeight.bold))),
                                 DataCell(Text('${i['photos']}')),
                               ],
                             ),
@@ -222,6 +240,11 @@ class _DetailInspectionState extends ConsumerState<_DetailInspection> {
                             icon: const Icon(Icons.table_chart),
                             label: const Text('Excel')),
                         const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                            onPressed: () => _exporter(FormatRapport.word),
+                            icon: const Icon(Icons.description),
+                            label: const Text('Rapport Word')),
+                        const SizedBox(width: 8),
                         FilledButton.icon(
                             onPressed: () => _exporter(FormatRapport.pdf),
                             icon: const Icon(Icons.picture_as_pdf),
@@ -238,7 +261,31 @@ class _DetailInspectionState extends ConsumerState<_DetailInspection> {
     final parRubrique = grilleParRubrique(f.reponses.map((r) => r.critere));
     final reponse = {for (final r in f.reponses) r.critere.id: r};
     final signature = d['signature'] as String?;
+    final ev = f.nationale ? f.evaluation() : null;
+    final cl = ev?.classement;
     return ListView(padding: const EdgeInsets.all(16), children: [
+      if (ev != null) ...[
+        Text('Score global : ${pourcentage(ev.scoreGlobal)} · ${cl?.libelle ?? '—'}${cl == null ? '' : ' (${cl.couleur})'}',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _couleurClassement(cl))),
+        if (ev.plafonne)
+          const Text('Classement plafonné à « Insuffisant » : critère ★ non conforme.', style: TextStyle(color: Colors.red)),
+        if (ev.critiquesNonConformes.isNotEmpty)
+          Text('Critère(s) ★ non conforme(s) : ${ev.critiquesNonConformes.map((c) => '${c.code} ${c.libelle}').join(' ; ')}'),
+        if (cl != null) Text('Conduite à tenir : ${cl.conduite}'),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final x in ev.domaines)
+            Chip(
+              label: Text('${x.rubrique.lettre} · ${pourcentage(x.score)}'),
+              backgroundColor: x.score == null ? null : _couleurClassement(ClassementGrille.depuisScore(x.score!)).withOpacity(0.15),
+            ),
+        ]),
+        const SizedBox(height: 4),
+        Text('Le rapport Word ou PDF reprend la grille complète (identification, structure et effectifs, ratios, '
+            'critères cotés, récapitulatif, niveaux de service, plan d\'action) pour signature et cachet.',
+            style: Theme.of(context).textTheme.bodySmall),
+        const Divider(height: 24),
+      ] else
       Wrap(spacing: 24, runSpacing: 8, children: [
         Text('Taux de conformité : ${pourcentage((d['taux_conformite'] as num?)?.toDouble())}',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _couleurNiveau(d['niveau'] as String?))),
@@ -269,7 +316,7 @@ class _DetailInspectionState extends ConsumerState<_DetailInspection> {
                 ResultatInspection.nonApplicable => Colors.grey,
               },
             ),
-            title: Text(c.libelle + (c.actif ? '' : '  (critère retiré depuis)')),
+            title: Text(c.libelleNumerote + (c.actif ? '' : '  (critère retiré depuis)')),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(reponse[c.id]!.resultat.libelle + (reponse[c.id]!.observation == null ? '' : ' · ${reponse[c.id]!.observation}')),
               if (reponse[c.id]!.photos.isNotEmpty)
@@ -333,7 +380,7 @@ class _GrilleState extends ConsumerState<_Grille> {
   Future<void> _editer({CritereGrille? critere, RubriqueInspection? rubrique}) async {
     final libelle = TextEditingController(text: critere?.libelle ?? '');
     final ordre = TextEditingController(text: critere == null ? '' : '${critere.ordre}');
-    var rub = critere?.rubrique ?? rubrique ?? RubriqueInspection.eauPotable;
+    var rub = critere?.rubrique ?? rubrique ?? RubriqueInspection.eauBoisson;
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => StatefulBuilder(
@@ -345,7 +392,10 @@ class _GrilleState extends ConsumerState<_Grille> {
               DropdownButtonFormField<RubriqueInspection>(
                 value: rub,
                 decoration: const InputDecoration(labelText: 'Rubrique'),
-                items: [for (final r in RubriqueInspection.values) DropdownMenuItem(value: r, child: Text(r.libelle))],
+                items: [
+                  for (final r in RubriqueInspection.values)
+                    if (!r.ancienne || r == rub) DropdownMenuItem(value: r, child: Text(r.libelle))
+                ],
                 onChanged: critere == null ? (v) => setD(() => rub = v!) : null,
               ),
               TextField(controller: libelle, decoration: const InputDecoration(labelText: 'Critère à inspecter'), autofocus: true),
@@ -395,12 +445,18 @@ class _GrilleState extends ConsumerState<_Grille> {
     final l = _criteres;
     if (l == null) return const Center(child: CircularProgressIndicator());
     final grille = grilleParRubrique(l);
-    final parRubrique = {for (final r in RubriqueInspection.values) r: grille[r] ?? const <CritereGrille>[]};
+    // Grille nationale (B à J), puis rubriques de l'ancienne grille qui ont
+    // encore des critères (désactivés en 1.2.0, réactivables).
+    final parRubrique = {
+      for (final r in RubriqueInspection.values)
+        if (!r.ancienne || (grille[r]?.isNotEmpty ?? false)) r: grille[r] ?? const <CritereGrille>[]
+    };
     return ListView(padding: const EdgeInsets.all(24), children: [
       Row(children: [
         Expanded(
           child: Text('${l.where((c) => c.actif).length} critères actifs sur ${l.length}. '
-              'Pour chaque critère : Conforme / Partiellement conforme / Non conforme / Non applicable.'),
+              'Grille nationale : chaque critère se cote C (conforme), NC (non conforme) ou NA (non applicable) ; '
+              'les critères ★ sont critiques. Les rubriques de l\'ancienne grille sont repliées en bas.'),
         ),
         FilledButton.icon(onPressed: () => _editer(), icon: const Icon(Icons.add), label: const Text('Ajouter un critère')),
       ]),
@@ -408,8 +464,8 @@ class _GrilleState extends ConsumerState<_Grille> {
       for (final MapEntry(key: rub, value: criteres) in parRubrique.entries)
         Card(
           child: ExpansionTile(
-            initiallyExpanded: true,
-            title: Text(rub.libelle),
+            initiallyExpanded: !rub.ancienne,
+            title: Text(rub.ancienne ? '${rub.libelle} (ancienne grille)' : rub.libelle),
             subtitle: Text('${rub.elements} · ${criteres.where((c) => c.actif).length} critère(s) actif(s)'),
             trailing: IconButton(
                 tooltip: 'Ajouter un critère à cette rubrique',
@@ -420,7 +476,7 @@ class _GrilleState extends ConsumerState<_Grille> {
                 ListTile(
                   dense: true,
                   leading: Text('${c.ordre}'),
-                  title: Text(c.libelle,
+                  title: Text(c.libelleNumerote,
                       style: TextStyle(
                           color: c.actif ? null : Colors.black38, decoration: c.actif ? null : TextDecoration.lineThrough)),
                   subtitle: Text(c.code, style: const TextStyle(fontSize: 11)),
