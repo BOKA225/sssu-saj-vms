@@ -11,11 +11,19 @@ import '../auth/mot_de_passe.dart';
 import '../auth/permissions.dart';
 import '../commun/commun.dart';
 import '../import/analyse.dart';
+import '../import/etablissements.dart';
 import '../modeles/enums.dart';
 import '../regles/identite.dart';
 import '../sync/depot_serveur.dart';
 import '../sync/diffusion.dart';
 import '../sync/enregistrement.dart';
+
+class ResultatImportEtablissements {
+  final int crees;
+  final int misAJour;
+  final int ignores;
+  const ResultatImportEtablissements(this.crees, this.misAJour, this.ignores);
+}
 
 class ErreurGestion implements Exception {
   final String message;
@@ -202,6 +210,42 @@ class ServiceGestion {
         throw const ErreurGestion('Un établissement porte déjà ce code.');
       }
       return _creer(tx, 'etablissement', {...donnees, 'code': code}, a);
+    });
+  }
+
+  /// Importation d'une liste d'établissements validée : créations et mises
+  /// à jour (seuls les champs fournis par la liste sont modifiés), en une
+  /// seule transaction ; les établissements sont ensuite à affecter aux
+  /// téléphones concernés.
+  Future<ResultatImportEtablissements> importerEtablissements(Droits a, List<LigneEtablissementImport> lignes) async {
+    _exiger(a, Permission.etablissementGerer);
+    final b = bilanEtablissements(lignes);
+    if (!b.validable) throw const ErreurGestion('La liste contient des lignes en erreur, ou rien à importer.');
+    return depot.transaction((tx) async {
+      var crees = 0, misAJour = 0;
+      for (final l in lignes) {
+        if (l.action == ActionEtablissement.ignorer || l.bloquee) continue;
+        final d = l.donnees();
+        final memeCode = await tx.chercher('etablissement', {'code': d['code']});
+        if (l.action == ActionEtablissement.creer) {
+          _controlerEtablissement(d);
+          if (memeCode.isNotEmpty) throw ErreurGestion('Ligne ${l.numeroSource} : un établissement porte déjà le code ${d['code']}.');
+          await _creer(tx, 'etablissement', d, a);
+          crees++;
+        } else {
+          final e = await _lire(tx, 'etablissement', l.existantId!);
+          if (memeCode.any((x) => x.id != e.id)) {
+            throw ErreurGestion('Ligne ${l.numeroSource} : le code ${d['code']} est déjà celui d\'un autre établissement.');
+          }
+          final fusion = {for (final k in _champsEtablissement) k: e.donnees[k], ...d};
+          _controlerEtablissement(fusion);
+          if (_champsEtablissement.any((k) => fusion[k] != e.donnees[k])) {
+            await _modifier(tx, e, fusion, a);
+            misAJour++;
+          }
+        }
+      }
+      return ResultatImportEtablissements(crees, misAJour, b.ignorees);
     });
   }
 

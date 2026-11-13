@@ -9,6 +9,7 @@ import '../donnees/requetes_poste.dart';
 import '../services.dart';
 import 'commun.dart';
 import 'dialogue_etablissement.dart';
+import 'import_etablissements.dart';
 
 class PageEtablissements extends ConsumerStatefulWidget {
   const PageEtablissements({super.key});
@@ -193,9 +194,18 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
                 child: const Text('Rendre active'),
               ),
             const SizedBox(width: 8),
-            if (gerer)
+            if (gerer) ...[
+              OutlinedButton.icon(
+                onPressed: () async {
+                  if (await importerEtablissements(context)) await _charger();
+                },
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Importer une liste'),
+              ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                   onPressed: () => _editerEtablissement(null), icon: const Icon(Icons.add), label: const Text('Établissement')),
+            ],
           ]),
           const SizedBox(height: 16),
           DataTable(

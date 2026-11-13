@@ -15,6 +15,7 @@ export 'src/inspection/formulaire_inspection.dart';
 export 'src/inspection/grille.dart';
 export 'src/import/champs.dart';
 export 'src/import/csv.dart';
+export 'src/import/etablissements.dart';
 export 'src/import/mots.dart';
 export 'src/import/reconnaissance.dart';
 export 'src/import/tableau.dart';

@@ -73,6 +73,18 @@ class LecteurListes {
     }
   }
 
+  /// Lignes brutes d'un fichier Excel (.xlsx) ou CSV (liste des établissements).
+  Future<List<List<String>>> lireLignes(String chemin) async {
+    final ext = p.extension(chemin).toLowerCase();
+    return switch (ext) {
+      '.csv' || '.txt' => lireCsv(decoderTexte(await File(chemin).readAsBytes())),
+      '.xlsx' => _lireXlsx(await File(chemin).readAsBytes()),
+      '.xls' => throw const ErreurLecture('Le format .xls (Excel 97-2003) n\'est pas pris en charge : '
+          'enregistrez le fichier au format .xlsx.'),
+      _ => throw ErreurLecture('Format non pris en charge ($ext) : Excel (.xlsx) ou CSV.'),
+    };
+  }
+
   List<List<String>> _lireXlsx(Uint8List octets) {
     final Excel classeur;
     try {

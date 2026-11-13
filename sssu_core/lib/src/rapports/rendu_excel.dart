@@ -93,3 +93,28 @@ List<int> rendreExcel(DocumentRapport d, {String nomFeuille = 'Rapport'}) {
   }
   return excel.encode()!;
 }
+
+/// Modèle Excel de la liste des établissements à importer (intitulés
+/// reconnus et une ligne d'exemple).
+List<int> modeleListeEtablissements() {
+  final excel = Excel.createExcel();
+  final defaut = excel.getDefaultSheet() ?? 'Sheet1';
+  excel.rename(defaut, 'Etablissements');
+  final f = excel['Etablissements'];
+  const entetes = [
+    'Code', 'Nom', 'Type', 'Statut', 'Région', 'District sanitaire', 'Localité', 'Responsable', 'Téléphone'
+  ];
+  const exemple = [
+    'KKR001', 'EPP Kouassikro 1', 'Primaire', 'Public', 'N\'Zi', 'Kouassi-Kouassikro', 'Kouassikro', 'M. KOFFI Jean',
+    '0102030405'
+  ];
+  final gras = CellStyle(bold: true);
+  for (var c = 0; c < entetes.length; c++) {
+    f.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+      ..value = TextCellValue(entetes[c])
+      ..cellStyle = gras;
+    f.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1)).value = TextCellValue(exemple[c]);
+    f.setColumnWidth(c, c == 1 ? 32 : 18);
+  }
+  return excel.encode()!;
+}

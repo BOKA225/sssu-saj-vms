@@ -18,6 +18,7 @@ import 'package:sssu_core/sssu_core.dart';
 import '../services.dart';
 import 'commun.dart';
 import 'dialogue_etablissement.dart';
+import 'import_etablissements.dart';
 
 /// Logo réduit à 400 px au plus et réencodé en PNG (fond transparent conservé).
 Uint8List preparerLogo(Uint8List octets) {
@@ -253,6 +254,16 @@ class _PageParametresState extends ConsumerState<PageParametres> {
             Expanded(
               child: Text('Établissements (${_etablissements.length})', style: Theme.of(context).textTheme.titleMedium),
             ),
+            if (peutGerer) ...[
+              OutlinedButton.icon(
+                onPressed: () async {
+                  if (await importerEtablissements(context)) await _rechargerEtablissements();
+                },
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Importer une liste'),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (peutGerer)
               OutlinedButton.icon(
                 onPressed: () async {
