@@ -695,7 +695,7 @@ DocumentRapport rapportInspection(
 
 String _cases(List<Choix> choix, String? code) => [for (final c in choix) '${c.code == code ? '☒' : '☐'} ${c.libelle}'].join('   ');
 
-String _nombre(double? v) => v == null ? '—' : texteCellule(v);
+String _valeurOuTiret(double? v) => v == null ? '—' : texteCellule(v);
 
 /// Rapport d'une inspection faite avec la grille nationale : la grille
 /// remplie (identification, section A, sections B à J cotées, récapitulatif,
@@ -827,7 +827,7 @@ DocumentRapport _rapportGrille(
         entetes: const ['Ratio', 'Calcul', 'Valeur', 'Seuil'],
         largeurs: const [3, 3.4, 1.2, 3],
         lignes: [
-          for (final r in g.ratios) [r.libelle, r.calcul, '${_nombre(r.valeur)}${r.horsNorme ? ' (hors norme)' : ''}', r.seuil]
+          for (final r in g.ratios) [r.libelle, r.calcul, '${_valeurOuTiret(r.valeur)}${r.horsNorme ? ' (hors norme)' : ''}', r.seuil]
         ],
       ),
       for (final MapEntry(key: rub, value: criteres) in parRubrique.entries) ...[
@@ -998,7 +998,7 @@ DocumentRapport rapportHistoriqueInspections(
                   jeu.etablissements[e],
                   _date(i.date),
                   for (final r in RubriqueInspection.actuelles)
-                    _nombre(ev.domaines.where((d) => d.rubrique == r).firstOrNull?.score),
+                    _valeurOuTiret(ev.domaines.where((d) => d.rubrique == r).firstOrNull?.score),
                   pourcentage(ev.scoreGlobal),
                   ev.classement?.libelle ?? '—',
                   ev.critiquesNonConformes.isEmpty ? '—' : ev.critiquesNonConformes.map((c) => c.code).join(', '),

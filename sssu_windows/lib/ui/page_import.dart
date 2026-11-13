@@ -35,6 +35,9 @@ class _PageImportState extends ConsumerState<PageImport> {
   String? _progression;
   String? _erreur;
 
+  /// Établissement et classe proposés d'après les titres et le nom du fichier.
+  ReconnaissanceListe? _reconnaissance;
+
   ServicesPoste get _s => ref.read(servicesProvider);
   Droits get _droits => ref.read(sessionProvider)!.droits;
 
@@ -81,7 +84,25 @@ class _PageImportState extends ConsumerState<PageImport> {
         if (mounted) setState(() => _progression = etape);
       });
       final existants = await _s.depot.transaction((tx) => tx.chercher('eleve', const {}));
+      final reco = reconnaitreListe(
+        titres: t.titres,
+        nomFichier: p.basename(chemin),
+        etablissements: [
+          for (final e in _etabs)
+            EtablissementConnu(
+                id: e.id, nom: e.nom, code: '${e.donnees['code'] ?? ''}', localite: e.donnees['localite'] as String?)
+        ],
+        classes: await _s.requetes.classesDeLAnnee(_annee!),
+      );
+      // Proposition appliquée si rien n'a encore été choisi.
+      if (_etab == null && reco.etablissement != null) {
+        await _choisirEtab(reco.etablissement!.id);
+        if (reco.classe != null) _classe = reco.classe!.id;
+      } else if (_etab != null && _etab == reco.etablissement?.id && _classe == null && reco.classe != null) {
+        _classe = reco.classe!.id;
+      }
       setState(() {
+        _reconnaissance = reco;
         _chemin = chemin;
         _tableau = t;
         _correspondance = Map.of(t.correspondance);
@@ -103,6 +124,75 @@ class _PageImportState extends ConsumerState<PageImport> {
         _progression = null;
       });
     }
+  }
+
+  /// Applique la proposition (établissement et classe).
+  Future<void> _appliquer(ReconnaissanceListe r) async {
+    if (r.etablissement == null) return;
+    await _choisirEtab(r.etablissement!.id);
+    if (r.classe != null && mounted) setState(() => _classe = r.classe!.id);
+  }
+
+  /// Crée la classe lue dans la liste, dans l'établissement proposé.
+  Future<void> _creerClasse(ReconnaissanceListe r) async {
+    final etab = _etab ?? r.etablissement?.id;
+    final lue = r.classeLue;
+    if (etab == null || lue == null || _annee == null) return;
+    final nom = _etabs.firstWhere((e) => e.id == etab).nom;
+    if (!await confirmer(context, 'Créer la classe « ${lue.libelle} » ?',
+        'Classe de $nom pour l\'année ${_annee!.libelle}. Les élèves de la liste y seront inscrits à la validation.',
+        bouton: 'Créer')) {
+      return;
+    }
+    if (!mounted) return;
+    Enregistrement? cree;
+    final ok = await executer(context, () async {
+      cree = await _s.gestion.creerClasse(_droits,
+          etablissementId: etab, anneeScolaireId: _annee!.id, libelle: lue.libelle, niveau: lue.niveau);
+    }, succes: 'Classe « ${lue.libelle} » créée.');
+    if (!ok || cree == null) return;
+    await _choisirEtab(etab);
+    if (mounted) setState(() => _classe = cree!.id);
+  }
+
+  Widget _carteReconnaissance(ReconnaissanceListe r) {
+    final schema = Theme.of(context).colorScheme;
+    final propose = r.etablissement;
+    final differente = propose != null && _etab != null && _etab != propose.id;
+    final classeLue = r.classeLue;
+    final classeExiste = classeLue != null &&
+        _classes.any((c) => cleClasse(c.libelle) == cleClasse(classeLue.libelle));
+    return Card(
+      color: schema.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.auto_awesome),
+            const SizedBox(width: 8),
+            Text('Reconnaissance automatique', style: Theme.of(context).textTheme.titleSmall),
+          ]),
+          const SizedBox(height: 4),
+          for (final x in r.raisons) Text('• $x'),
+          if (_tableau != null && _tableau!.titres.isNotEmpty)
+            Text('Titres lus : ${_tableau!.titres.take(4).join(' · ')}',
+                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (differente)
+              OutlinedButton(onPressed: () => _appliquer(r), child: Text('Utiliser « ${propose.nom} »')),
+            if (classeLue != null && !classeExiste && (_etab ?? propose?.id) != null)
+              FilledButton.tonalIcon(
+                onPressed: () => _creerClasse(r),
+                icon: const Icon(Icons.add),
+                label: Text('Créer la classe « ${classeLue.libelle} »'),
+              ),
+          ]),
+          const Text('Vérifiez l\'établissement et la classe ci-dessus avant de valider : vous pouvez les changer.',
+              style: TextStyle(fontSize: 12)),
+        ]),
+      ),
+    );
   }
 
   void _analyser() {
@@ -163,7 +253,10 @@ class _PageImportState extends ConsumerState<PageImport> {
 
   Future<void> _valider() async {
     final b = bilan(_lignes!);
+    final etab = _etabs.where((e) => e.id == _etab).firstOrNull?.nom ?? '';
+    final classe = _classes.where((c) => c.id == _classe).firstOrNull?.libelle ?? '';
     if (!await confirmer(context, 'Confirmer l\'importation',
+        'Classe $classe — $etab (${_annee?.libelle ?? ''}).\n'
         '${b.aCreer} nouveaux élèves, ${b.aRattacher} rattachés, ${b.ignorees} lignes non importées.',
         bouton: 'Importer')) {
       return;
@@ -196,6 +289,7 @@ class _PageImportState extends ConsumerState<PageImport> {
       _lignes = null;
       _tableau = null;
       _chemin = null;
+      _reconnaissance = null;
     });
   }
 
@@ -231,11 +325,17 @@ class _PageImportState extends ConsumerState<PageImport> {
           ),
         ),
         FilledButton.icon(
-          onPressed: _classe == null ? null : _choisirFichier,
+          onPressed: _annee == null ? null : _choisirFichier,
           icon: const Icon(Icons.folder_open),
           label: const Text('Choisir le fichier (Excel, CSV, PDF, image)'),
         ),
       ]),
+      const Padding(
+        padding: EdgeInsets.only(top: 6),
+        child: Text('Choisissez directement le fichier : l\'établissement et la classe sont proposés d\'après le titre de la '
+            'liste et le nom du fichier.', style: TextStyle(fontSize: 12)),
+      ),
+      if (_reconnaissance != null && _tableau != null) _carteReconnaissance(_reconnaissance!),
       if (_erreur != null)
         Card(color: Theme.of(context).colorScheme.errorContainer, child: Padding(padding: const EdgeInsets.all(12), child: Text(_erreur!))),
       if (_tableau != null && _lignes == null) ...[
@@ -279,7 +379,13 @@ class _PageImportState extends ConsumerState<PageImport> {
           child: Text('${_lignes!.length} lignes : ${b.aCreer} nouveaux, ${b.aRattacher} rattachés, ${b.ignorees} non importés'
               '${b.bloquees == 0 ? '' : ', ${b.bloquees} en erreur'}'),
         ),
-        FilledButton(onPressed: b.validable ? _valider : null, child: const Text('VALIDER L\'IMPORTATION')),
+        if (_classe == null)
+          const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Text('Choisissez la classe', style: TextStyle(color: Colors.red)),
+          ),
+        FilledButton(
+            onPressed: b.validable && _classe != null ? _valider : null, child: const Text('VALIDER L\'IMPORTATION')),
       ]),
       const SizedBox(height: 8),
       DataTable(

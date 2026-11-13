@@ -18,12 +18,37 @@ class TableauBrut {
   /// Origine, pour l'affichage et le journal (`xlsx`, `csv`, `pdf`, `pdf_ocr`).
   final String format;
 
-  const TableauBrut({required this.lignes, required this.ligneEntete, required this.correspondance, required this.format});
+  /// Texte lu avant l'en-tête du tableau (titres : établissement, classe,
+  /// année…), une ligne par élément ; sert à reconnaître l'établissement et
+  /// la classe de la liste.
+  final List<String> texteAvant;
+
+  const TableauBrut(
+      {required this.lignes,
+      required this.ligneEntete,
+      required this.correspondance,
+      required this.format,
+      this.texteAvant = const []});
+
+  /// Titres de la liste : texte avant l'en-tête, ou premières lignes du
+  /// tableau sans en-tête reconnu.
+  List<String> get titres {
+    if (texteAvant.isNotEmpty) return texteAvant;
+    final fin = ligneEntete ?? (lignes.length < 6 ? lignes.length : 6);
+    return [
+      for (final l in lignes.take(fin))
+        if (l.any((c) => c.trim().isNotEmpty)) l.where((c) => c.trim().isNotEmpty).join(' ')
+    ];
+  }
 
   int get nombreColonnes => lignes.fold(0, (m, l) => l.length > m ? l.length : m);
 
-  TableauBrut avecCorrespondance(Map<int, ChampListe> c, {int? ligneEntete}) =>
-      TableauBrut(lignes: lignes, ligneEntete: ligneEntete ?? this.ligneEntete, correspondance: c, format: format);
+  TableauBrut avecCorrespondance(Map<int, ChampListe> c, {int? ligneEntete}) => TableauBrut(
+      lignes: lignes,
+      ligneEntete: ligneEntete ?? this.ligneEntete,
+      correspondance: c,
+      format: format,
+      texteAvant: texteAvant);
 }
 
 class EnteteDetectee {

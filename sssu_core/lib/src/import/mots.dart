@@ -135,6 +135,7 @@ TableauBrut grilleDepuisMots(List<MotPositionne> mots, {required String format})
   final numerosPages = pages.keys.toList()..sort();
   List<_Ancre>? colonnes;
   final lignesSortie = <List<String>>[];
+  final titres = <String>[];
   var enteteEcrite = false;
 
   for (final p in numerosPages) {
@@ -148,6 +149,8 @@ TableauBrut grilleDepuisMots(List<MotPositionne> mots, {required String format})
         debut = i + 1;
         break;
       }
+      // Titres au-dessus du premier en-tête (établissement, classe…).
+      if (colonnes == null) titres.add([for (final m in lignes[i]) m.texte].join(' '));
     }
     if (colonnes == null) continue; // pas encore d'en-tête : titres, page de garde
     if (!enteteEcrite) {
@@ -183,6 +186,7 @@ TableauBrut grilleDepuisMots(List<MotPositionne> mots, {required String format})
     ligneEntete: 0,
     correspondance: {for (var i = 0; i < colonnes.length; i++) i: colonnes[i].champ},
     format: format,
+    texteAvant: titres,
   );
 }
 

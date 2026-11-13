@@ -51,6 +51,9 @@ class _EcranImportState extends ConsumerState<EcranImport> {
   String? _erreur;
   ResultatImport? _resultat;
 
+  /// Établissement et classe proposés d'après les titres et le nom du fichier.
+  ReconnaissanceListe? _reconnaissance;
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +134,7 @@ class _EcranImportState extends ConsumerState<EcranImport> {
       });
       if (t.lignes.isEmpty) throw const ErreurImport('Aucune donnée trouvée dans ce fichier.');
       _existants = await ref.read(servicesProvider).requetes.identitesEleves();
+      await _reconnaitre(t, nom);
       setState(() {
         _chemin = chemin;
         _nomFichier = nom;
@@ -151,6 +155,95 @@ class _EcranImportState extends ConsumerState<EcranImport> {
         _progression = null;
       });
     }
+  }
+
+  /// Propose l'établissement et la classe de la liste ; appliqués si rien
+  /// n'a encore été choisi.
+  Future<void> _reconnaitre(TableauBrut t, String nom) async {
+    final a = _annee;
+    if (a == null) return;
+    final r = ref.read(servicesProvider).requetes;
+    final classes = <ClasseConnue>[];
+    for (final e in _etablissements) {
+      for (final c in await r.classes(e.id, a)) {
+        classes.add(ClasseConnue(id: c.id, etablissementId: e.id, libelle: c.libelle, niveau: c.niveau));
+      }
+    }
+    final reco = reconnaitreListe(
+      titres: t.titres,
+      // Nom généré pour une photo : sans information utile.
+      nomFichier: nom.startsWith('photo_liste_') ? null : nom,
+      etablissements: [
+        for (final e in _etablissements) EtablissementConnu(id: e.id, nom: e.nom, code: e.code, localite: e.localite)
+      ],
+      classes: classes,
+    );
+    _reconnaissance = reco;
+    if (_etab == null && reco.etablissement != null) {
+      await _choisirEtablissement(_etablissements.firstWhere((e) => e.id == reco.etablissement!.id));
+      if (reco.classe != null) _classe = _classes.where((c) => c.id == reco.classe!.id).firstOrNull;
+    } else if (_etab != null && _etab!.id == reco.etablissement?.id && _classe == null && reco.classe != null) {
+      _classe = _classes.where((c) => c.id == reco.classe!.id).firstOrNull;
+    }
+  }
+
+  /// Crée la classe lue dans la liste (droit de gérer les établissements).
+  Future<void> _creerClasseLue() async {
+    final lue = _reconnaissance?.classeLue;
+    final e = _etab;
+    if (lue == null || e == null || _annee == null) return;
+    final s = ref.read(servicesProvider);
+    final session = ref.read(sessionProvider)!;
+    final c = await s.depot.creer(
+      'classe',
+      {'etablissement_id': e.id, 'annee_scolaire_id': _annee!.id, 'libelle': lue.libelle, 'niveau': lue.niveau},
+      utilisateurId: session.utilisateur.id,
+      etablissementId: e.id,
+    );
+    await _choisirEtablissement(e);
+    if (mounted) setState(() => _classe = _classes.where((x) => x.id == c.id).firstOrNull);
+  }
+
+  /// Établissement et classe de destination, avec la proposition automatique.
+  List<Widget> _destination() {
+    final r = _reconnaissance;
+    final lue = r?.classeLue;
+    final existe = lue != null && _classes.any((c) => cleClasse(c.libelle) == cleClasse(lue.libelle));
+    final peutCreer = ref.read(sessionProvider)!.droits.peut(Permission.etablissementGerer);
+    return [
+      if (r != null)
+        Card(
+          color: Theme.of(context).colorScheme.secondaryContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Reconnaissance automatique', style: TextStyle(fontWeight: FontWeight.bold)),
+              for (final x in r.raisons) Text('• $x', style: const TextStyle(fontSize: 13)),
+              if (lue != null && !existe && _etab != null && peutCreer)
+                TextButton.icon(
+                  onPressed: _creerClasseLue,
+                  icon: const Icon(Icons.add),
+                  label: Text('Créer la classe « ${lue.libelle} »'),
+                ),
+            ]),
+          ),
+        ),
+      DropdownButtonFormField<ResumeEtablissement>(
+        value: _etab,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Établissement'),
+        items: [for (final e in _etablissements) DropdownMenuItem(value: e, child: Text(e.nom))],
+        onChanged: _choisirEtablissement,
+      ),
+      DropdownButtonFormField<ResumeClasse>(
+        value: _classe,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: 'Classe (${_annee?.libelle ?? ''})'),
+        items: [for (final c in _classes) DropdownMenuItem(value: c, child: Text('${c.libelle} · ${c.effectif} élèves'))],
+        onChanged: (c) => setState(() => _classe = c),
+      ),
+      const SizedBox(height: 12),
+    ];
   }
 
   /// Photo prise par l'appareil : effacée après l'importation (le fichier
@@ -360,19 +453,20 @@ class _EcranImportState extends ConsumerState<EcranImport> {
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
-          onPressed: _classe == null ? null : _choisirFichier,
+          onPressed: _annee == null ? null : _choisirFichier,
           icon: const Icon(Icons.folder_open),
           label: const Text('IMPORTER UN FICHIER (Excel, CSV, PDF)'),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: _classe == null ? null : _photographier,
+          onPressed: _annee == null ? null : _photographier,
           icon: const Icon(Icons.document_scanner),
           label: const Text('PHOTOGRAPHIER UNE LISTE PAPIER'),
         ),
         const SizedBox(height: 16),
         const Text('Les PDF scannés et les photos sont lus par reconnaissance de texte sur le téléphone, sans '
-            'Internet. Aucune donnée n\'est enregistrée avant votre validation.'),
+            'Internet. L\'établissement et la classe peuvent rester vides : ils sont proposés d\'après le titre de la '
+            'liste et le nom du fichier. Aucune donnée n\'est enregistrée avant votre validation.'),
       ]);
 
   Widget _ecranColonnes() {
@@ -381,6 +475,7 @@ class _EcranImportState extends ConsumerState<EcranImport> {
     final apercu = t.lignes.skip(debut + 1).take(4).toList();
     final aNom = _correspondance.values.any((c) => c.estNom);
     return ListView(padding: const EdgeInsets.all(16), children: [
+      ..._destination(),
       Text(t.ligneEntete == null
           ? 'Les intitulés des colonnes n\'ont pas été reconnus : indiquez le contenu de chaque colonne.'
           : 'Colonnes reconnues automatiquement : vérifiez et corrigez si nécessaire.'),
@@ -505,8 +600,12 @@ class _EcranImportState extends ConsumerState<EcranImport> {
               '${b.bloquees == 0 ? '' : ' · ${b.bloquees} en erreur'}'),
           const SizedBox(height: 6),
           FilledButton(
-            onPressed: b.validable ? _valider : null,
-            child: Text(b.validable ? 'VALIDER L\'IMPORTATION' : 'Corrigez les lignes en erreur'),
+            onPressed: b.validable && _classe != null ? _valider : null,
+            child: Text(_classe == null
+                ? 'Choisissez la classe (étape des colonnes)'
+                : b.validable
+                    ? 'VALIDER L\'IMPORTATION'
+                    : 'Corrigez les lignes en erreur'),
           ),
         ]),
       ),

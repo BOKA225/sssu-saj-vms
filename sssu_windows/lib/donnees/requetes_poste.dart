@@ -153,6 +153,19 @@ class RequetesPoste {
     ];
   }
 
+  /// Toutes les classes de l'année (reconnaissance des listes importées).
+  Future<List<ClasseConnue>> classesDeLAnnee(Annee annee) async => [
+        for (final l in await depot.requete(
+            'SELECT CAST(id AS text) AS id, CAST(etablissement_id AS text) AS etablissement_id, libelle, niveau FROM classe '
+            'WHERE annee_scolaire_id = CAST(@annee AS uuid) AND deleted_at IS NULL',
+            {'annee': annee.id}))
+          ClasseConnue(
+              id: l['id'] as String,
+              etablissementId: l['etablissement_id'] as String,
+              libelle: l['libelle'] as String,
+              niveau: l['niveau'] as String?)
+      ];
+
   /// Élèves de l'année, filtrés par établissement, classe ou texte (nom,
   /// prénoms, matricule). Sans filtre de classe ni d'établissement, la
   /// recherche porte aussi sur les élèves non inscrits cette année.
