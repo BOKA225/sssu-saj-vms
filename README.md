@@ -773,6 +773,26 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.6.0
+
+- **Visite médicale d'aptitude** (classes de 3ème et de terminale, enseignement général et technique :
+  `classeConcerneeParAptitude`), distincte de la visite systématique :
+  - `TypeVisite` (systématique, aptitude) et `DecisionAptitude` (apte, aptitude partielle, inapte
+    temporairement, inapte définitivement) ; colonnes `visite.type_visite` (défaut « systematique »),
+    `aptitude`, `aptitude_restrictions` (PostgreSQL `050_visite_aptitude.sql`, SQLite schéma 3, registre) ;
+  - téléphone : choix de la visite pour un élève de 3ème ou Tle, décision d'aptitude dans la rubrique F
+    (obligatoire ; restrictions ou motif obligatoires sauf « apte »), type affiché dans le dossier ;
+  - protocole de synchronisation 3 : un téléphone en 1.5 ou avant reçoit tout jusqu'à la première visite
+    d'aptitude, puis un message l'invitant à se mettre à jour (il effacerait la décision en modifiant la visite).
+- **Statistiques séparées** : filtre `FiltreStatistiques.typeVisite` ; pour l'aptitude, population des classes de
+  3ème et Tle, décisions d'aptitude (`Statistiques.aptitudes`) ; les « examinés » des écrans d'établissements et
+  des listes comptent la visite systématique ; sélecteur du type sur le tableau de bord, les statistiques et les
+  rapports (poste) et sur le téléphone ; liste nominative « Décisions d'aptitude » (`rapportAptitudes`) ; fiche de
+  visite avec le type et la décision.
+- **Tranches d'âge** : 0–4, 5–9, 10–14, 15–19, 20–24, 25–49 ans, 50 ans et plus (`TrancheAge`), et tableau des
+  élèves par tranche d'âge et par sexe, effectif et examinés (`Statistiques.parTrancheAge`, âge de chaque élève
+  à une même date) dans les statistiques et les rapports.
+
 ## Version 1.5.0
 
 - **Poste central : menu « Listes de classe »** (`page_listes_classe.dart`) : par année et par établissement

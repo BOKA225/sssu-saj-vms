@@ -53,7 +53,12 @@ class ResumeVisite {
   final EtatSync etat;
   final String? conclusion;
   final String agentId;
-  const ResumeVisite(this.id, this.date, this.statut, this.etat, this.conclusion, this.agentId);
+  final TypeVisite type;
+
+  /// Décision d'une visite d'aptitude.
+  final DecisionAptitude? aptitude;
+  const ResumeVisite(this.id, this.date, this.statut, this.etat, this.conclusion, this.agentId,
+      {this.type = TypeVisite.systematique, this.aptitude});
 
   String get libelleStatut => statutAffiche(statut, etat);
 }
@@ -66,7 +71,7 @@ class LigneEleve {
   final String? etablissementId;
   final String? etablissementNom;
 
-  /// Dernière visite de l'année scolaire, s'il y en a une.
+  /// Dernière visite systématique de l'année scolaire, s'il y en a une.
   final ResumeVisite? derniereVisite;
 
   const LigneEleve(this.eleve, this.inscriptionId, this.classeId, this.classeLibelle, this.etablissementId,
@@ -110,9 +115,10 @@ class Requetes {
         l.read<String>('id'), l.read<String>('libelle'), l.read<String>('date_debut'), l.read<String>('date_fin'));
   }
 
-  /// Sous-requête : élève examiné pendant l'année (visite autre qu'une ébauche).
+  /// Sous-requête : élève examiné pendant l'année (visite systématique autre
+  /// qu'une ébauche ; la visite d'aptitude est comptée à part).
   static const _examine = 'EXISTS (SELECT 1 FROM visite v WHERE v.eleve_id = i.eleve_id AND v.deleted_at IS NULL '
-      "AND v.statut <> 'ebauche' AND v.date_visite BETWEEN ? AND ?)";
+      "AND v.type_visite = 'systematique' AND v.statut <> 'ebauche' AND v.date_visite BETWEEN ? AND ?)";
 
   Future<List<ResumeEtablissement>> etablissements(AnneeCourante a) async {
     final r = await _q(
@@ -173,7 +179,7 @@ class Requetes {
   static const _selectEleve = 'SELECT el.*, i.id AS inscription_id, c.id AS classe_id, c.libelle AS classe_libelle, '
       'e.id AS etab_id, e.nom AS etab_nom, '
       '(SELECT v.id FROM visite v WHERE v.eleve_id = el.id AND v.deleted_at IS NULL AND v.date_visite BETWEEN ? AND ? '
-      'ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) AS visite_id '
+      "AND v.type_visite = 'systematique' ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) AS visite_id "
       'FROM eleve el '
       "LEFT JOIN inscription i ON i.eleve_id = el.id AND i.annee_scolaire_id = ? AND i.deleted_at IS NULL "
       'LEFT JOIN classe c ON c.id = i.classe_id '
@@ -220,7 +226,8 @@ class Requetes {
 
   Future<ResumeVisite?> resumeVisite(String visiteId) async {
     final r = await _q(
-        'SELECT id, date_visite, statut, sync_status, conclusion, agent_id FROM visite WHERE id = ?', [visiteId]);
+        'SELECT id, date_visite, statut, sync_status, conclusion, agent_id, type_visite, aptitude FROM visite WHERE id = ?',
+        [visiteId]);
     if (r.isEmpty) return null;
     final l = r.first;
     return ResumeVisite(
@@ -230,6 +237,8 @@ class Requetes {
       EtatSync.depuisCode(l.read<String>('sync_status')),
       l.readNullable<String>('conclusion'),
       l.read<String>('agent_id'),
+      type: TypeVisite.depuisCode(l.readNullable<String>('type_visite')),
+      aptitude: switch (l.readNullable<String>('aptitude')) { final String c => DecisionAptitude.depuisCode(c), null => null },
     );
   }
 
@@ -314,8 +323,8 @@ class Requetes {
       inscriptions: await _lignes('SELECT eleve_id, classe_id, statut, deleted_at FROM inscription '
           'WHERE annee_scolaire_id = ?', [a.id]),
       eleves: await _lignes('SELECT id, sexe, date_naissance, deleted_at FROM eleve'),
-      visites: await _lignes('SELECT id, eleve_id, date_visite, statut, conclusion, deleted_at FROM visite '
-          'WHERE date_visite BETWEEN ? AND ?', [a.debut, a.fin]),
+      visites: await _lignes('SELECT id, eleve_id, date_visite, statut, type_visite, conclusion, aptitude, deleted_at '
+          'FROM visite WHERE date_visite BETWEEN ? AND ?', [a.debut, a.fin]),
       visitePathologies: await _lignes('SELECT vp.visite_id, vp.pathologie_id, vp.deleted_at FROM visite_pathologie vp '
           'JOIN visite v ON v.id = vp.visite_id WHERE v.date_visite BETWEEN ? AND ?', [a.debut, a.fin]),
       pathologies: await _lignes('SELECT id, libelle, ordre, deleted_at FROM pathologie'),

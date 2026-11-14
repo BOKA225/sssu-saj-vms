@@ -45,8 +45,8 @@ class SourceStatistiquesPoste {
           'AND i.annee_scolaire_id = CAST(@annee AS uuid))',
           p),
       visites: await q(
-          'SELECT CAST(id AS text) AS id, CAST(eleve_id AS text) AS eleve_id, date_visite, statut, conclusion, deleted_at'
-          '${identite ? ', diagnostic, structure_reference, date_controle' : ''} '
+          'SELECT CAST(id AS text) AS id, CAST(eleve_id AS text) AS eleve_id, date_visite, statut, type_visite, conclusion, '
+          'aptitude, deleted_at${identite ? ', diagnostic, structure_reference, date_controle, aptitude_restrictions' : ''} '
           'FROM visite WHERE date_visite BETWEEN $periode',
           p),
       visitePathologies: await q(

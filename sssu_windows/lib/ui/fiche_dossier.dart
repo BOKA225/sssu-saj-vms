@@ -186,9 +186,11 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
               for (final v in _visites)
                 Card(
                   child: ListTile(
-                    leading: Icon(v.statut == 'valide' ? Icons.verified : Icons.assignment),
-                    title: Text('${dateFr(v.date)} · ${libelleStatutVisite(v.statut)}'),
-                    subtitle: Text('${libelleConclusion(v.conclusion)}'
+                    leading: Icon(v.type == TypeVisite.aptitude
+                        ? Icons.directions_run
+                        : (v.statut == 'valide' ? Icons.verified : Icons.assignment)),
+                    title: Text('${dateFr(v.date)} · ${v.type.libelle} · ${libelleStatutVisite(v.statut)}'),
+                    subtitle: Text('${v.aptitude == null ? '' : '${v.aptitude!.libelle} · '}${libelleConclusion(v.conclusion)}'
                         '${v.diagnostic == null ? '' : ' · ${v.diagnostic}'} · agent : ${v.agent}'
                         '${v.photos == 0 ? '' : ' · ${v.photos} photo(s)'}'),
                     trailing: const Icon(Icons.chevron_right),

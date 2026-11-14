@@ -252,6 +252,10 @@ const List<TableSpec> registre = [
       Colonne('date_visite', TypeColonne.date, obligatoire: true),
       Colonne('structure_origine', TypeColonne.text),
       Colonne('statut', TypeColonne.text, obligatoire: true, aValeurParDefaut: true),
+      // Version 1.6.0 : visite d'aptitude (3ème et Tle).
+      Colonne('type_visite', TypeColonne.text, obligatoire: true, aValeurParDefaut: true),
+      Colonne('aptitude', TypeColonne.text),
+      Colonne('aptitude_restrictions', TypeColonne.text),
       Colonne('poids_kg', TypeColonne.reel),
       Colonne('taille_cm', TypeColonne.reel),
       Colonne('imc', TypeColonne.reel),

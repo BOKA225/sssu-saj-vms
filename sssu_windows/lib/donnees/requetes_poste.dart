@@ -76,7 +76,10 @@ class LigneVisite {
   final String agent;
   final String? diagnostic;
   final int photos;
-  const LigneVisite(this.id, this.date, this.statut, this.conclusion, this.agent, this.diagnostic, this.photos);
+  final TypeVisite type;
+  final DecisionAptitude? aptitude;
+  const LigneVisite(this.id, this.date, this.statut, this.conclusion, this.agent, this.diagnostic, this.photos,
+      {this.type = TypeVisite.systematique, this.aptitude});
 }
 
 class LignePhoto {
@@ -109,8 +112,10 @@ class RequetesPoste {
     return a.firstWhere((x) => x.active, orElse: () => a.first);
   }
 
+  /// Élève examiné : visite systématique de l'année (la visite d'aptitude est
+  /// comptée à part, dans les statistiques).
   static const _examine = 'EXISTS (SELECT 1 FROM visite v WHERE v.eleve_id = i.eleve_id AND v.deleted_at IS NULL '
-      "AND v.statut <> 'ebauche' AND v.date_visite BETWEEN a.date_debut AND a.date_fin)";
+      "AND v.type_visite = 'systematique' AND v.statut <> 'ebauche' AND v.date_visite BETWEEN a.date_debut AND a.date_fin)";
 
   /// Tous les établissements non archivés (paramètres), par code.
   Future<List<Map<String, dynamic>>> listeEtablissements() =>
@@ -169,7 +174,7 @@ class RequetesPoste {
       'JOIN classe c ON c.id = i.classe_id AND c.deleted_at IS NULL '
       'JOIN eleve el ON el.id = i.eleve_id AND el.deleted_at IS NULL '
       'LEFT JOIN LATERAL (SELECT v.date_visite, v.statut FROM visite v WHERE v.eleve_id = el.id AND v.deleted_at IS NULL '
-      'AND v.date_visite BETWEEN CAST(@debut AS date) AND CAST(@fin AS date) '
+      "AND v.type_visite = 'systematique' AND v.date_visite BETWEEN CAST(@debut AS date) AND CAST(@fin AS date) "
       'ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) dv ON TRUE '
       "WHERE c.etablissement_id = CAST(@etab AS uuid) AND i.annee_scolaire_id = CAST(@annee AS uuid) "
       "AND i.deleted_at IS NULL AND i.statut = 'inscrit' "
@@ -243,7 +248,7 @@ class RequetesPoste {
       'LEFT JOIN classe c ON c.id = i.classe_id '
       'LEFT JOIN etablissement e ON e.id = c.etablissement_id '
       'LEFT JOIN LATERAL (SELECT v.date_visite, v.statut FROM visite v WHERE v.eleve_id = el.id AND v.deleted_at IS NULL '
-      'AND v.date_visite BETWEEN CAST(@debut AS date) AND CAST(@fin AS date) '
+      "AND v.type_visite = 'systematique' AND v.date_visite BETWEEN CAST(@debut AS date) AND CAST(@fin AS date) "
       'ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) dv ON TRUE '
       'WHERE ${conditions.join(' AND ')} ORDER BY el.nom, el.prenoms LIMIT $limite',
       params,
@@ -280,7 +285,7 @@ class RequetesPoste {
 
   Future<List<LigneVisite>> visites(String eleveId) async => [
         for (final l in await depot.requete(
-          'SELECT v.id, v.date_visite, v.statut, v.conclusion, v.diagnostic, '
+          'SELECT v.id, v.date_visite, v.statut, v.conclusion, v.diagnostic, v.type_visite, v.aptitude, '
           "COALESCE(u.prenoms || ' ', '') || COALESCE(u.nom, '?') AS agent, "
           '(SELECT COUNT(*) FROM photo p WHERE p.visite_id = v.id AND p.deleted_at IS NULL) AS photos '
           'FROM visite v LEFT JOIN utilisateur u ON u.id = v.agent_id '
@@ -288,7 +293,9 @@ class RequetesPoste {
           {'eleve': eleveId},
         ))
           LigneVisite(l['id'].toString(), _d(l['date_visite']), l['statut'] as String, _s(l['conclusion']),
-              l['agent'] as String, _s(l['diagnostic']), _i(l['photos'])),
+              l['agent'] as String, _s(l['diagnostic']), _i(l['photos']),
+              type: TypeVisite.depuisCode(_s(l['type_visite'])),
+              aptitude: l['aptitude'] == null ? null : DecisionAptitude.depuisCode(l['aptitude'] as String)),
       ];
 
   /// Photographies de toutes les visites de l'élève (visites précédentes comprises).

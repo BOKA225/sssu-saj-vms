@@ -52,8 +52,10 @@ Le bouton **SYNCHRONISER MES DONNÉES** envoie vos saisies au poste central et r
 
 ### A4. Visite médicale
 
-1. Ouvrez l'élève, puis touchez « Nouvelle visite ».
-2. Remplissez les rubriques A à F : identification, antécédents, examen clinique, examen physique (l'IMC est calculé), dépistage, conclusion.
+1. Ouvrez l'élève, puis touchez « Nouvelle visite ». Pour un élève de **3ème** ou de **terminale** (enseignement général ou technique), l'application demande quelle visite faire :
+   - **visite médicale systématique** : le bilan de santé de tous les élèves ;
+   - **visite médicale d'aptitude** : l'aptitude à la pratique de l'EPS et aux examens (BEPC, BAC).
+2. Remplissez les rubriques A à F : identification, antécédents, examen clinique, examen physique (l'IMC est calculé), dépistage, conclusion. Pour une visite d'aptitude, la rubrique F commence par la **décision d'aptitude** : apte, aptitude partielle (avec restrictions), inapte temporairement ou inapte définitivement. Sauf pour « apte », précisez les restrictions ou le motif et la durée de l'inaptitude.
 3. Le dossier est **enregistré automatiquement** toutes les 30 secondes et à chaque changement de rubrique. Rien n'est perdu en cas d'appel, de batterie vide ou de fermeture.
 4. **Valider et synchroniser** met la visite en attente d'envoi. Les contrôles signalent ce qui manque : conclusion, diagnostic, structure de référence…
 5. Une visite commencée et non terminée reste dans **Ébauches**.
@@ -103,7 +105,7 @@ Le rapport à imprimer (grille remplie, signature et cachet du chef d'établisse
 
 ### A8. Statistiques
 
-Les statistiques sont réservées aux médecins et au Médecin-Chef. Elles ne portent que sur les données de **ce téléphone** : couverture, conclusions, pathologies, inspections. Les statistiques complètes sont sur le poste central.
+Les statistiques sont réservées aux médecins et au Médecin-Chef. Elles ne portent que sur les données de **ce téléphone** : couverture, conclusions, pathologies, inspections, élèves par tranche d'âge et par sexe. Choisissez en haut **Systématique** ou **Aptitude** : les deux visites ont des statistiques séparées (la visite d'aptitude porte sur les élèves de 3ème et de terminale, avec leurs décisions d'aptitude). Les statistiques complètes sont sur le poste central.
 
 ### A9. Téléphone perdu ou volé
 
@@ -133,7 +135,7 @@ Le tableau de bord présente :
 - les indicateurs de l'année : établissements, classes, effectifs, garçons et filles, élèves examinés et non examinés, visites, établissements inspectés, taux de couverture ;
 - trois graphiques.
 
-Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les chiffres se mettent à jour d'eux-mêmes après chaque synchronisation.
+Les filtres portent sur le **type de visite** (systématique ou d'aptitude), l'année, l'établissement, la classe et le sexe. Les chiffres se mettent à jour d'eux-mêmes après chaque synchronisation.
 
 ### B3. Comptes et téléphones (administrateur)
 
@@ -231,20 +233,27 @@ La décision est transmise aux téléphones à leur synchronisation suivante.
 
 ### B6. Statistiques et rapports
 
-- **Statistiques** : quatre onglets.
-  - Couverture : par sexe, par établissement, par classe.
+- **Statistiques** : quatre onglets, pour la **visite systématique** ou la **visite d'aptitude** (bouton en haut
+  à gauche) : les deux visites sont comptées séparément. La visite d'aptitude porte sur les élèves de 3ème et de
+  terminale et ajoute la répartition des décisions (apte, aptitude partielle, inapte).
+  - Couverture : par sexe, par établissement, par classe, et **par tranche d'âge et par sexe** (0–4, 5–9, 10–14,
+    15–19, 20–24, 25–49 ans, 50 ans et plus ; âge de chaque élève au jour de la consultation, ou à la fin de
+    l'année scolaire si elle est terminée).
   - Pathologies : cas, sexe, tranches d'âge, prévalence.
   - Inspections : établissements inspectés, niveaux, principales insuffisances.
   - Évolution mensuelle.
 
-  Les filtres portent sur l'année, l'établissement, la classe, le sexe et la période.
-- **Rapports**, en **PDF, Word ou Excel** :
-  - rapport annuel, par établissement, par classe ;
+  Les filtres portent sur le type de visite, l'année, l'établissement, la classe, le sexe et la période.
+- **Rapports**, en **PDF, Word ou Excel**, pour le type de visite choisi :
+  - rapport annuel, par établissement, par classe (avec le tableau par tranche d'âge et par sexe, et pour la
+    visite d'aptitude, les décisions d'aptitude) ;
   - pathologies ;
   - synthèse des inspections (avec, pour la grille nationale, les scores par section, le classement et les
     critères ★ non conformes de chaque établissement) ;
   - listes des élèves examinés et non examinés ;
-  - élèves référés et à suivre.
+  - élèves référés et à suivre ;
+  - **décisions d'aptitude (3ème et Tle)** : liste nominative des élèves vus, avec leur décision et les
+    restrictions, à transmettre pour les examens.
 
   Les listes nominatives portent la mention « secret médical », et leur édition est tracée.
 - L'en-tête, le logo et le nom du Médecin-Chef se règlent dans **Paramètres**.

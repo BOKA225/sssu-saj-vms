@@ -1,6 +1,6 @@
-/// Formulaire de visite médicale systématique, en rubriques :
+/// Formulaire de visite médicale (systématique ou d'aptitude), en rubriques :
 /// A Identification · B Antécédents · C Examen clinique · D Examen physique ·
-/// E Dépistage · F Conclusion · Photos.
+/// E Dépistage · F Conclusion (et décision d'aptitude) · Photos.
 ///
 /// Sauvegarde automatique toutes les 30 secondes, à chaque changement de
 /// rubrique, à la mise en arrière-plan et à la sortie de l'écran.
@@ -23,7 +23,10 @@ import 'table_oms.dart';
 class EcranVisite extends ConsumerStatefulWidget {
   final String eleveId;
   final String? visiteId;
-  const EcranVisite({super.key, required this.eleveId, this.visiteId});
+
+  /// Type d'une nouvelle visite (une visite existante garde le sien).
+  final TypeVisite type;
+  const EcranVisite({super.key, required this.eleveId, this.visiteId, this.type = TypeVisite.systematique});
 
   @override
   ConsumerState<EcranVisite> createState() => _EcranVisiteState();
@@ -86,6 +89,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
             etablissementId: eleve?.etablissementId,
             agent: _session.utilisateur,
             date: DateTime.now().toUtc(),
+            type: widget.type,
           );
     if (!mounted) return;
     setState(() {
@@ -388,6 +392,27 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
       ]);
 
   Widget _conclusion() => ListView(padding: const EdgeInsets.all(16), children: [
+        if (_f.type == TypeVisite.aptitude) ...[
+          Text('Décision d\'aptitude', style: Theme.of(context).textTheme.titleMedium),
+          for (final d in DecisionAptitude.values)
+            RadioListTile<DecisionAptitude>(
+              contentPadding: EdgeInsets.zero,
+              title: Text(d.libelle),
+              value: d,
+              groupValue: _f.aptitude,
+              onChanged: _modifiable ? (v) => _changer(() => _f.aptitude = v) : null,
+            ),
+          if (_f.aptitude?.aPreciser ?? false)
+            _texte(
+                _f.aptitude == DecisionAptitude.aptePartiel
+                    ? 'Restrictions (activités à éviter ou à adapter) — obligatoire'
+                    : 'Motif et durée de l\'inaptitude — obligatoire',
+                _f.aptitudeRestrictions,
+                (v) => _f.aptitudeRestrictions = v,
+                lignes: 2),
+          const Divider(height: 24),
+          Text('Conclusion médicale', style: Theme.of(context).textTheme.titleMedium),
+        ],
         for (final c in ConclusionVisite.values)
           RadioListTile<ConclusionVisite>(
             contentPadding: EdgeInsets.zero,
@@ -475,14 +500,14 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
             isScrollable: true,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            tabs: const [
-              Tab(text: 'A. Identité'),
-              Tab(text: 'B. Antécédents'),
-              Tab(text: 'C. Clinique'),
-              Tab(text: 'D. Appareils'),
-              Tab(text: 'E. Dépistage'),
-              Tab(text: 'F. Conclusion'),
-              Tab(text: 'Photos'),
+            tabs: [
+              const Tab(text: 'A. Identité'),
+              const Tab(text: 'B. Antécédents'),
+              const Tab(text: 'C. Clinique'),
+              const Tab(text: 'D. Appareils'),
+              const Tab(text: 'E. Dépistage'),
+              Tab(text: _f.type == TypeVisite.aptitude ? 'F. Aptitude et conclusion' : 'F. Conclusion'),
+              const Tab(text: 'Photos'),
             ],
           ),
           actions: [
@@ -495,7 +520,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
             width: double.infinity,
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Text('Statut : $statut'
+            child: Text('${_f.type.libelle} · statut : $statut'
                 '${_derniereSauvegarde == null ? '' : ' · enregistré à $_derniereSauvegarde'}'
                 '${_modifiable ? '' : ' · lecture seule'}'),
           ),

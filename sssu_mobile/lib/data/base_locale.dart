@@ -13,8 +13,10 @@ class BaseLocale extends _$BaseLocale {
   @override
   /// 2 (version 1.2.0) : grille d'inspection nationale (rubriques B à J,
   /// colonne `inspection.grille`).
+  /// 3 (version 1.6.0) : visite d'aptitude (colonnes `visite.type_visite`,
+  /// `aptitude`, `aptitude_restrictions`).
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -28,6 +30,11 @@ class BaseLocale extends _$BaseLocale {
               await m.alterTable(TableMigration(critereInspection));
               await m.addColumn(inspection, inspection.grille);
             }
+            if (de < 3) {
+              for (final c in [visite.typeVisite, visite.aptitude, visite.aptitudeRestrictions]) {
+                await _ajouterColonne(m, visite, c);
+              }
+            }
           });
           await customStatement('PRAGMA foreign_keys = ON');
         },
@@ -35,4 +42,11 @@ class BaseLocale extends _$BaseLocale {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// Ajoute une colonne si elle n'existe pas encore (migration rejouée).
+  Future<void> _ajouterColonne(Migrator m, TableInfo table, GeneratedColumn colonne) async {
+    final existe = await customSelect('SELECT 1 FROM pragma_table_info(?) WHERE name = ?',
+        variables: [Variable(table.actualTableName), Variable(colonne.name)]).get();
+    if (existe.isEmpty) await m.addColumn(table, colonne);
+  }
 }

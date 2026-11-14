@@ -43,6 +43,7 @@ class DepotVisite {
     required String? etablissementId,
     required Utilisateur agent,
     required DateTime date,
+    TypeVisite type = TypeVisite.systematique,
   }) async {
     final f = FormulaireVisite(
       eleveId: eleveId,
@@ -51,6 +52,7 @@ class DepotVisite {
       appareilId: depot.appareilId,
       dateVisite: date,
       structureOrigine: agent.structure,
+      type: type,
     );
     final precedentes = await depot.chercher('antecedent', {'eleve_id': eleveId});
     if (precedentes.isNotEmpty) {

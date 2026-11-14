@@ -16,11 +16,16 @@
 /// - conclusion, tranche d'âge : celles de la dernière visite de l'élève ;
 /// - inspections : la dernière inspection (non ébauche) de chaque
 ///   établissement sur l'année ou la période.
+///
+/// Les deux types de visite sont comptés séparément (filtre `typeVisite`) :
+/// visite systématique, pour tous les élèves ; visite d'aptitude, dont la
+/// population est celle des classes de 3ème et de terminale.
 library;
 
 import '../commun/commun.dart';
 import '../modeles/enums.dart';
 import '../regles/age.dart';
+import '../visite/aptitude.dart';
 
 // ------------------------------------------------------------- données d'entrée
 
@@ -38,6 +43,9 @@ class ClasseStat {
   final String? niveau;
   final String etablissementId;
   const ClasseStat(this.id, this.libelle, this.niveau, this.etablissementId);
+
+  /// Classe d'examen (3ème, Tle) : concernée par la visite d'aptitude.
+  bool get aptitude => classeConcerneeParAptitude(libelle, niveau: niveau);
 }
 
 /// Élève inscrit dans une classe de l'année. Les champs d'identité ne sont
@@ -72,23 +80,32 @@ class VisiteStat {
   final String eleveId;
   final DateTime date;
   final StatutVisite statut;
+  final TypeVisite type;
   final ConclusionVisite? conclusion;
+
+  /// Décision d'une visite d'aptitude.
+  final DecisionAptitude? aptitude;
   final Set<String> pathologieIds;
 
-  /// Détails pour les listes des élèves référés et à suivre.
+  /// Détails pour les listes des élèves référés et à suivre, et des
+  /// décisions d'aptitude.
   final String? diagnostic;
   final String? structureReference;
   final DateTime? dateControle;
+  final String? aptitudeRestrictions;
   const VisiteStat({
     required this.id,
     required this.eleveId,
     required this.date,
     required this.statut,
+    this.type = TypeVisite.systematique,
     this.conclusion,
+    this.aptitude,
     this.pathologieIds = const {},
     this.diagnostic,
     this.structureReference,
     this.dateControle,
+    this.aptitudeRestrictions,
   });
 }
 
@@ -208,11 +225,14 @@ class JeuStatistiques {
             eleveId: id(v, 'eleve_id'),
             date: _date(v['date_visite'])!,
             statut: StatutVisite.depuisCode((v['statut'] as String?) ?? 'ebauche'),
+            type: TypeVisite.depuisCode(v['type_visite'] as String?),
             conclusion: v['conclusion'] == null ? null : ConclusionVisite.depuisCode(v['conclusion']! as String),
+            aptitude: v['aptitude'] == null ? null : DecisionAptitude.depuisCode(v['aptitude']! as String),
             pathologieIds: pathosParVisite[id(v)] ?? const {},
             diagnostic: identite ? v['diagnostic'] as String? : null,
             structureReference: identite ? v['structure_reference'] as String? : null,
             dateControle: identite ? _date(v['date_controle']) : null,
+            aptitudeRestrictions: identite ? v['aptitude_restrictions'] as String? : null,
           )
     ];
     final reponsesParInspection = <String, Map<String, ResultatInspection>>{};
@@ -277,21 +297,38 @@ class FiltreStatistiques {
   /// Période (bornes incluses), à l'intérieur de l'année scolaire.
   final DateTime? du;
   final DateTime? au;
-  const FiltreStatistiques({this.etablissementId, this.classeId, this.sexe, this.du, this.au});
+
+  /// Type de visite compté : les statistiques des deux visites sont séparées.
+  final TypeVisite typeVisite;
+
+  /// Date à laquelle l'âge des élèves est calculé pour le tableau par tranche
+  /// d'âge (par défaut aujourd'hui, ramené dans la période).
+  final DateTime? dateAge;
+  const FiltreStatistiques({
+    this.etablissementId,
+    this.classeId,
+    this.sexe,
+    this.du,
+    this.au,
+    this.typeVisite = TypeVisite.systematique,
+    this.dateAge,
+  });
 
   bool get vide => etablissementId == null && classeId == null && sexe == null && du == null && au == null;
 }
 
 // ------------------------------------------------------------------ résultats
 
-/// Tranches d'âge des statistiques (âge à la date de la visite).
+/// Tranches d'âge des statistiques : 0–4, 5–9, 10–14, 15–19, 20–24, 25–49,
+/// 50 ans et plus.
 enum TrancheAge {
-  moins6('< 6 ans', 0, 5),
-  de6a9('6–9 ans', 6, 9),
+  de0a4('0–4 ans', 0, 4),
+  de5a9('5–9 ans', 5, 9),
   de10a14('10–14 ans', 10, 14),
   de15a19('15–19 ans', 15, 19),
   de20a24('20–24 ans', 20, 24),
-  plus25('25 ans et plus', 25, 200),
+  de25a49('25–49 ans', 25, 49),
+  plus50('50 ans et plus', 50, 1000),
   inconnu('Âge inconnu', -1, -1);
 
   final String libelle;
@@ -338,6 +375,20 @@ class Couverture {
   /// Part des garçons et des filles parmi les examinés.
   double? get partGarconsExamines => taux(garconsExamines, examines);
   double? get partFillesExamines => taux(fillesExamines, examines);
+}
+
+/// Élèves d'une tranche d'âge, par sexe : effectif et examinés.
+class LigneTrancheAge {
+  final TrancheAge tranche;
+  final int garcons;
+  final int filles;
+  final int garconsExamines;
+  final int fillesExamines;
+  const LigneTrancheAge(this.tranche, this.garcons, this.filles, this.garconsExamines, this.fillesExamines);
+
+  int get effectif => garcons + filles;
+  int get examines => garconsExamines + fillesExamines;
+  double? get tauxCouverture => taux(examines, effectif);
 }
 
 class LignePathologie {
@@ -436,6 +487,14 @@ class Statistiques {
   final int elevesAvecPathologie;
   final SyntheseInspections inspections;
   final List<PointEvolution> evolution;
+
+  /// Élèves par tranche d'âge et par sexe (âge à [dateAge]) : toutes les
+  /// tranches, dans l'ordre, la tranche « âge inconnu » seulement si elle compte.
+  final List<LigneTrancheAge> parTrancheAge;
+  final DateTime dateAge;
+
+  /// Visite d'aptitude : décision de la dernière visite des élèves examinés.
+  final Map<DecisionAptitude, int> aptitudes;
   const Statistiques({
     required this.filtre,
     required this.nbEtablissements,
@@ -449,7 +508,12 @@ class Statistiques {
     required this.elevesAvecPathologie,
     required this.inspections,
     required this.evolution,
+    required this.parTrancheAge,
+    required this.dateAge,
+    required this.aptitudes,
   });
+
+  TypeVisite get typeVisite => filtre.typeVisite;
 }
 
 // ------------------------------------------------------------------- calcul
@@ -471,18 +535,23 @@ class Perimetre {
 Perimetre perimetre(JeuStatistiques jeu, FiltreStatistiques f) {
   final debut = f.du != null && f.du!.isAfter(jeu.annee.debut) ? f.du! : jeu.annee.debut;
   final fin = f.au != null && f.au!.isBefore(jeu.annee.fin) ? f.au! : jeu.annee.fin;
+  // Visite d'aptitude : classes de 3ème et de terminale seulement, et les
+  // établissements qui en ont.
+  final aptitude = f.typeVisite == TypeVisite.aptitude;
   final classes = <String>{
     for (final c in jeu.classes.values)
       if ((f.etablissementId == null || c.etablissementId == f.etablissementId) &&
-          (f.classeId == null || c.id == f.classeId))
+          (f.classeId == null || c.id == f.classeId) &&
+          (!aptitude || c.aptitude))
         c.id
   };
+  final avecClasse = {for (final c in classes) jeu.classes[c]!.etablissementId};
   final etabs = <String>{
     if (f.classeId != null)
-      ...{for (final c in classes) jeu.classes[c]!.etablissementId}
+      ...avecClasse
     else
       for (final e in jeu.etablissements.keys)
-        if (f.etablissementId == null || e == f.etablissementId) e
+        if ((f.etablissementId == null || e == f.etablissementId) && (!aptitude || avecClasse.contains(e))) e
   };
   final eleves = [
     for (final e in jeu.eleves)
@@ -491,7 +560,7 @@ Perimetre perimetre(JeuStatistiques jeu, FiltreStatistiques f) {
   final ids = {for (final e in eleves) e.id};
   final parEleve = <String, List<VisiteStat>>{};
   for (final v in jeu.visites) {
-    if (v.statut == StatutVisite.ebauche || !ids.contains(v.eleveId)) continue;
+    if (v.statut == StatutVisite.ebauche || v.type != f.typeVisite || !ids.contains(v.eleveId)) continue;
     if (v.date.isBefore(debut) || v.date.isAfter(fin)) continue;
     (parEleve[v.eleveId] ??= []).add(v);
   }
@@ -558,8 +627,9 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
           elevesParClasse[c.id] ?? const [], p)
   ];
 
-  // Conclusions et pathologies.
+  // Conclusions, décisions d'aptitude et pathologies.
   final conclusions = {for (final c in ConclusionVisite.values) c: 0};
+  final aptitudes = {for (final d in DecisionAptitude.values) d: 0};
   final cas = <String, List<EleveStat>>{};
   final trancheEleve = <String, TrancheAge>{};
   var avecPathologie = 0;
@@ -570,6 +640,7 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     nbVisites += visites.length;
     final derniere = visites.last;
     if (derniere.conclusion != null) conclusions[derniere.conclusion!] = conclusions[derniere.conclusion!]! + 1;
+    if (derniere.aptitude != null) aptitudes[derniere.aptitude!] = aptitudes[derniere.aptitude!]! + 1;
     trancheEleve[e.id] = TrancheAge.pour(e.dateNaissance, derniere.date);
     final pathos = {for (final v in visites) ...v.pathologieIds};
     if (pathos.isNotEmpty) avecPathologie++;
@@ -624,6 +695,23 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     }
   }
 
+  // Tranches d'âge et sexe : âge de chaque élève à la même date.
+  final aujourdhui = f.dateAge ?? DateTime.now().toUtc();
+  final jour = DateTime.utc(aujourdhui.year, aujourdhui.month, aujourdhui.day);
+  final dateAge = jour.isBefore(p.debut) ? p.debut : (jour.isAfter(p.fin) ? p.fin : jour);
+  final compte = {for (final t in TrancheAge.values) t: [0, 0, 0, 0]};
+  for (final e in p.eleves) {
+    final c = compte[TrancheAge.pour(e.dateNaissance, dateAge)]!;
+    final i = e.sexe == Sexe.masculin ? 0 : 1;
+    c[i]++;
+    if (p.examine(e.id)) c[i + 2]++;
+  }
+  final parTrancheAge = [
+    for (final t in TrancheAge.values)
+      if (t != TrancheAge.inconnu || compte[t]![0] + compte[t]![1] > 0)
+        LigneTrancheAge(t, compte[t]![0], compte[t]![1], compte[t]![2], compte[t]![3])
+  ];
+
   return Statistiques(
     filtre: f,
     nbEtablissements: p.etablissements.length,
@@ -635,8 +723,16 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     conclusions: conclusions,
     pathologies: pathologies,
     elevesAvecPathologie: avecPathologie,
-    inspections: syntheseInspections(jeu, p),
+    // Les inspections ne dépendent pas du type de visite.
+    inspections: syntheseInspections(
+        jeu,
+        f.typeVisite == TypeVisite.systematique
+            ? p
+            : perimetre(jeu, FiltreStatistiques(etablissementId: f.etablissementId, du: f.du, au: f.au))),
     evolution: evolution,
+    parTrancheAge: parTrancheAge,
+    dateAge: dateAge,
+    aptitudes: aptitudes,
   );
 }
 
@@ -726,4 +822,17 @@ List<LigneListeEleve> listeSuivis(JeuStatistiques jeu, FiltreStatistiques f, {Se
   final garder = conclusions ?? {ConclusionVisite.reference, ConclusionVisite.suivi};
   final p = perimetre(jeu, f);
   return _lignes(jeu, p, (e) => garder.contains(p.derniere(e.id)?.conclusion));
+}
+
+/// Visite d'aptitude : élèves de 3ème et de terminale examinés, avec la
+/// décision de leur dernière visite d'aptitude ([decisions] : seulement ces
+/// décisions).
+List<LigneListeEleve> listeAptitudes(JeuStatistiques jeu, FiltreStatistiques f, {Set<DecisionAptitude>? decisions}) {
+  final g = FiltreStatistiques(
+      etablissementId: f.etablissementId, classeId: f.classeId, sexe: f.sexe, du: f.du, au: f.au, typeVisite: TypeVisite.aptitude);
+  final p = perimetre(jeu, g);
+  return _lignes(jeu, p, (e) {
+    final d = p.derniere(e.id)?.aptitude;
+    return d != null && (decisions == null || decisions.contains(d));
+  });
 }

@@ -59,6 +59,56 @@ void main() {
     expect(refus?.codeHttp, 426);
     expect(refus?.message, contains('installez la dernière version'));
   });
+
+  test('visite d\'aptitude retenue pour un téléphone en protocole 2', () async {
+    final env = await Environnement.creer();
+    final id = await env.appairer('Version 1.5', [env.etabA]);
+    final m = env.horloge.maintenant();
+    Enregistrement visite(String type) => Enregistrement(
+        table: 'visite',
+        id: nouvelId(),
+        version: 1,
+        versionBase: 1,
+        createdAt: m,
+        updatedAt: m,
+        etablissementId: env.etabA,
+        donnees: {
+          'eleve_id': env.eleveA,
+          'agent_id': env.medecin.id,
+          'date_visite': '2026-11-10',
+          'statut': 'valide',
+          'type_visite': type,
+          if (type == 'aptitude') 'aptitude': 'apte',
+        });
+    final systematique = visite('systematique');
+    final aptitude = visite('aptitude');
+    await env.depot.transaction((tx) async {
+      await tx.ecrire(systematique);
+      await tx.ecrire(aptitude);
+    });
+    expect(ServiceSynchronisation.compatible(aptitude, 2), isFalse);
+    expect(ServiceSynchronisation.compatible(aptitude, protocoleSync), isTrue);
+    expect(ServiceSynchronisation.compatible(systematique, 2), isTrue);
+
+    final recus = <String>{};
+    var curseur = 0;
+    ErreurProtocole? refus;
+    for (var i = 0; i < 50; i++) {
+      try {
+        final r = await env.sync.preparerReception(id.appareilId, curseur, protocole: 2);
+        recus.addAll(r.changements.map((c) => c.enregistrement.id));
+        curseur = r.curseur;
+        if (!r.suite) break;
+      } on ErreurProtocole catch (e) {
+        refus = e;
+        break;
+      }
+    }
+    expect(recus, contains(systematique.id));
+    expect(recus, isNot(contains(aptitude.id)));
+    expect(refus?.codeHttp, 426);
+    expect(refus?.message, contains('visites médicales d\'aptitude'));
+  });
 }
 
 /// Raccourci de lecture.

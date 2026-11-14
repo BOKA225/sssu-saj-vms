@@ -86,6 +86,16 @@ class _PageStatistiquesState extends ConsumerState<PageStatistiques> with Single
             ]),
             largeur: 380,
             hauteur: 200),
+        if (s.typeVisite == TypeVisite.aptitude)
+          Panneau(
+              'Décisions d\'aptitude (dernière visite)',
+              camembert([
+                for (final (i, d) in DecisionAptitude.values.indexed)
+                  (d.libelle, s.aptitudes[d] ?? 0, [Colors.green.shade600, Colors.amber.shade700, Colors.orange.shade800,
+                    Colors.red.shade700][i])
+              ]),
+              largeur: 520,
+              hauteur: 200),
         Panneau(
             'Conclusions (dernière visite)',
             camembert([
@@ -104,6 +114,7 @@ class _PageStatistiquesState extends ConsumerState<PageStatistiques> with Single
           'Total', g.effectif, g.examines, pourcentage(g.tauxCouverture), g.examines == 0 ? '—' : '100 %'
         ]),
       ),
+      Panneau('Par tranche d\'âge et par sexe (âge au ${_date(s.dateAge)})', tableauTranches(s)),
       if (s.parEtablissement.length > 1)
         Panneau(
             'Par établissement',
