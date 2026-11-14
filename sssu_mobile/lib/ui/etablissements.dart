@@ -450,10 +450,42 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
     }
   }
 
-  Future<void> _ouvrir({String? visiteId}) async {
+  Future<void> _ouvrir({String? visiteId, TypeVisite type = TypeVisite.systematique}) async {
     await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => EcranVisite(eleveId: widget.eleveId, visiteId: visiteId)));
+        MaterialPageRoute(builder: (_) => EcranVisite(eleveId: widget.eleveId, visiteId: visiteId, type: type)));
     _charger();
+  }
+
+  /// Nouvelle visite : pour un élève de 3ème ou de terminale, choix entre la
+  /// visite systématique et la visite d'aptitude.
+  Future<void> _nouvelleVisite() async {
+    final classe = _eleve?.classeLibelle;
+    if (classe == null || !classeConcerneeParAptitude(classe)) return _ouvrir();
+    final type = await showDialog<TypeVisite>(
+      context: context,
+      builder: (d) => SimpleDialog(
+        title: const Text('Quelle visite ?'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text('Élève de $classe : classe concernée par la visite d\'aptitude.',
+                style: const TextStyle(fontSize: 13)),
+          ),
+          for (final t in TypeVisite.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(d, t),
+              child: ListTile(
+                leading: Icon(t == TypeVisite.aptitude ? Icons.directions_run : Icons.medical_services),
+                title: Text(t.libelle),
+                subtitle: Text(t == TypeVisite.aptitude
+                    ? 'Aptitude à la pratique de l\'EPS et aux examens (BEPC, BAC)'
+                    : 'Bilan de santé de tous les élèves'),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (type != null) await _ouvrir(type: type);
   }
 
   /// Modification de l'identité (nom, prénoms, sexe, date de naissance,
@@ -511,7 +543,7 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
       ]),
       floatingActionButton: e != null && session.droits.peut(Permission.visiteSaisir) && e.inscriptionId != null
           ? FloatingActionButton.extended(
-              onPressed: () => enCours.isEmpty ? _ouvrir() : _ouvrir(visiteId: enCours.first.id),
+              onPressed: () => enCours.isEmpty ? _nouvelleVisite() : _ouvrir(visiteId: enCours.first.id),
               icon: Icon(enCours.isEmpty ? Icons.medical_services : Icons.edit_note),
               label: Text(enCours.isEmpty ? 'Nouvelle visite' : 'Reprendre l\'ébauche'),
             )
@@ -536,10 +568,11 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
               for (final v in _visites)
                 Card(
                   child: ListTile(
-                    leading: const Icon(Icons.assignment),
-                    title: Text(formaterDateFr(lireDate(v.date))),
+                    leading: Icon(v.type == TypeVisite.aptitude ? Icons.directions_run : Icons.assignment),
+                    title: Text('${formaterDateFr(lireDate(v.date))} · ${v.type.libelle}'),
                     subtitle: Text([
                       v.libelleStatut,
+                      if (v.aptitude != null) v.aptitude!.libelle,
                       if (v.conclusion != null) ConclusionVisite.depuisCode(v.conclusion!).libelle,
                     ].join(' · ')),
                     onTap: () => _ouvrir(visiteId: v.id),

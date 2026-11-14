@@ -50,12 +50,47 @@ void main() {
     expect(criteres.map((l) => l.read<String>('id')), containsAll(['ancien', c.id]));
     final colonnes = await db.customSelect("SELECT name FROM pragma_table_info('inspection')").get();
     expect(colonnes.map((l) => l.read<String>('name')), contains('grille'));
-    expect((await db.customSelect('PRAGMA user_version').getSingle()).data.values.first, 2);
+    expect((await db.customSelect('PRAGMA user_version').getSingle()).data.values.first, 3);
     expect((await db.customSelect('PRAGMA foreign_keys').getSingle()).data.values.first, 1);
     // Les réponses référencent toujours la table des critères.
     final fk = await db.customSelect("SELECT \"table\" AS t FROM pragma_foreign_key_list('inspection_reponse')").get();
     expect(fk.map((l) => l.read<String>('t')), contains('critere_inspection'));
     await db.customSelect('SELECT COUNT(*) FROM critere_inspection WHERE rubrique = ?', variables: [Variable(c.rubrique.code)]).get();
+    await db.close();
+  });
+
+  test('base du téléphone en schéma 2 mise à jour en schéma 3 : visite d\'aptitude', () async {
+    final dossier = Directory.systemTemp.createTempSync('sssu_migration3');
+    addTearDown(() => dossier.deleteSync(recursive: true));
+    final fichier = File('${dossier.path}/base.db');
+    BaseLocale ouvrir() => BaseLocale(NativeDatabase(fichier, setup: (d) => d.execute('PRAGMA foreign_keys = ON;')));
+
+    // Base actuelle ramenée au schéma 2 : sans les colonnes de la visite d'aptitude.
+    var db = ouvrir();
+    await db.customSelect('SELECT 1').get();
+    await db.customStatement('PRAGMA foreign_keys = OFF');
+    for (final c in ['aptitude_restrictions', 'aptitude', 'type_visite']) {
+      await db.customStatement('ALTER TABLE visite DROP COLUMN $c');
+    }
+    await db.customStatement("INSERT INTO visite (id, created_at, updated_at, eleve_id, agent_id, date_visite, statut) "
+        "VALUES ('v1', 0, 0, 'e', 'a', '2026-10-01', 'valide')");
+    await db.customStatement('PRAGMA user_version = 2');
+    await db.close();
+
+    // Réouverture : colonnes ajoutées, visite existante systématique.
+    db = ouvrir();
+    final v = await db.customSelect("SELECT type_visite, aptitude FROM visite WHERE id = 'v1'").getSingle();
+    expect((v.read<String>('type_visite'), v.readNullable<String>('aptitude')), ('systematique', null));
+    expect((await db.customSelect('PRAGMA user_version').getSingle()).data.values.first, 3);
+    await db.customStatement('PRAGMA foreign_keys = OFF');
+    await db.customStatement("INSERT INTO visite (id, created_at, updated_at, eleve_id, agent_id, date_visite, statut, "
+        "type_visite, aptitude, aptitude_restrictions) VALUES ('v2', 0, 0, 'e', 'a', '2026-11-01', 'valide', 'aptitude', "
+        "'apte_partiel', 'Pas d''endurance')");
+    await expectLater(
+        db.customStatement("INSERT INTO visite (id, created_at, updated_at, eleve_id, agent_id, date_visite, statut, "
+            "type_visite) VALUES ('v3', 0, 0, 'e', 'a', '2026-11-01', 'valide', 'autre')"),
+        throwsA(anything),
+        reason: 'type de visite contrôlé');
     await db.close();
   });
 }

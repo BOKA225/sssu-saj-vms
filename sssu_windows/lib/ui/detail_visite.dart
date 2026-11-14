@@ -172,6 +172,7 @@ class _DetailVisiteState extends ConsumerState<DetailVisite> {
       ),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Bloc(titre: 'A. Identification', enfants: [
+          _ligne('Type de visite', TypeVisite.depuisCode(d['type_visite'] as String?).libelle),
           _ligne('Statut', libelleStatutVisite(statut)),
           _ligne('Élève', '${e['nom'] ?? ''} ${e['prenoms'] ?? ''} · ${e['matricule'] ?? 'sans matricule'}'),
           if (e['date_naissance'] != null)
@@ -207,6 +208,12 @@ class _DetailVisiteState extends ConsumerState<DetailVisite> {
           for (final p in _pathologies)
             _ligne(_libelles[p.donnees['pathologie_id']] ?? 'Pathologie', p.donnees['precision'] ?? ''),
         ]),
+        if (d['type_visite'] == TypeVisite.aptitude.code)
+          Bloc(titre: 'Décision d\'aptitude', enfants: [
+            _ligne('Décision',
+                d['aptitude'] == null ? null : DecisionAptitude.depuisCode(d['aptitude']! as String).libelle),
+            _ligne('Restrictions ou motif', d['aptitude_restrictions']),
+          ]),
         Bloc(titre: 'F. Conclusion', enfants: [
           _ligne('Conclusion', libelleConclusion(d['conclusion'] as String?)),
           _ligne('Diagnostic', d['diagnostic']),

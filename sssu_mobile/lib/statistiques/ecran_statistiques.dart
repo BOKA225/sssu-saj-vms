@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sssu_core/sssu_core.dart';
 
 import '../services.dart';
+import '../ui/etablissements.dart' show formaterDateFr;
 
 class EcranStatistiques extends ConsumerStatefulWidget {
   const EcranStatistiques({super.key});
@@ -19,6 +20,9 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
   bool _charge = false;
   String? _etab;
   Sexe? _sexe;
+
+  /// Visite systématique ou d'aptitude : statistiques séparées.
+  TypeVisite _type = TypeVisite.systematique;
 
   @override
   void initState() {
@@ -78,7 +82,8 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
           appBar: AppBar(title: const Text('Statistiques')),
           body: const Padding(padding: EdgeInsets.all(24), child: Text('Aucune année scolaire : synchronisez le téléphone.')));
     }
-    final s = calculerStatistiques(jeu, FiltreStatistiques(etablissementId: _etab, sexe: _sexe));
+    final s = calculerStatistiques(jeu, FiltreStatistiques(etablissementId: _etab, sexe: _sexe, typeVisite: _type));
+    final aptitude = _type == TypeVisite.aptitude;
     final g = s.generale;
     final pathos = s.pathologies.where((p) => p.cas > 0).toList()..sort((a, b) => b.cas.compareTo(a.cas));
     return Scaffold(
@@ -91,6 +96,19 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
             child: Text('Données présentes sur ce téléphone uniquement. Le tableau de bord complet du district est '
                 'sur le poste central.', style: TextStyle(fontSize: 12, color: Colors.black54)),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: SegmentedButton<TypeVisite>(
+              segments: [for (final t in TypeVisite.values) ButtonSegment(value: t, label: Text(t.court))],
+              selected: {_type},
+              onSelectionChanged: (v) => setState(() => _type = v.first),
+            ),
+          ),
+          if (aptitude)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
+              child: Text('Visite d\'aptitude : élèves de 3ème et de terminale.', style: TextStyle(fontSize: 12)),
+            ),
           Wrap(spacing: 8, children: [
             DropdownButton<String?>(
               value: _etab,
@@ -122,6 +140,26 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
           _section('Couverture par ${_etab == null && s.parEtablissement.length > 1 ? 'établissement' : 'classe'}', [
             for (final c in _etab == null && s.parEtablissement.length > 1 ? s.parEtablissement : s.parClasse)
               _barre(c.libelle, c.tauxCouverture, '${c.examines}/${c.effectif} · ${pourcentage(c.tauxCouverture)}'),
+          ]),
+          if (aptitude)
+            _section('Décisions d\'aptitude', [
+              for (final d in DecisionAptitude.values)
+                _barre(d.libelle, taux(s.aptitudes[d] ?? 0, g.examines), '${s.aptitudes[d] ?? 0}'),
+            ]),
+          _section('Par tranche d\'âge et par sexe', [
+            Text('Âge au ${formaterDateFr(s.dateAge)} · garçons / filles · examinés', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 4),
+            for (final l in s.parTrancheAge)
+              if (l.effectif > 0 || l.tranche != TrancheAge.inconnu)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [
+                    SizedBox(width: 110, child: Text(l.tranche.libelle)),
+                    Expanded(child: Text('${l.garcons} G · ${l.filles} F = ${l.effectif}')),
+                    Text('${l.examines} exam. (${pourcentage(l.tauxCouverture)})',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ]),
+                ),
           ]),
           _section('Conclusions des visites', [
             for (final c in ConclusionVisite.values)

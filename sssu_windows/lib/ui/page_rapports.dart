@@ -49,7 +49,9 @@ enum TypeRapport {
   inspections('Synthèse des inspections sanitaires', 'Établissements inspectés, niveaux, insuffisances, historique.', false),
   examines('Liste des élèves examinés', 'Liste nominative, avec la date de la dernière visite.', true),
   nonExamines('Liste des élèves non examinés', 'Liste nominative des élèves restant à voir.', true),
-  suivis('Élèves référés et à suivre', 'Diagnostic, structure de référence ou date de contrôle, contact.', true);
+  suivis('Élèves référés et à suivre', 'Diagnostic, structure de référence ou date de contrôle, contact.', true),
+  aptitudes('Décisions d\'aptitude (3ème et Tle)',
+      'Liste nominative des élèves vus en visite d\'aptitude : apte, aptitude partielle, inapte, avec les restrictions.', true);
 
   final String titre;
   final String description;
@@ -100,6 +102,7 @@ class _PageRapportsState extends ConsumerState<PageRapports> {
       TypeRapport.examines => rapportListeEleves(jeu, f, examines: true, entete: entete, acteur: _droits, genereLe: m),
       TypeRapport.nonExamines => rapportListeEleves(jeu, f, examines: false, entete: entete, acteur: _droits, genereLe: m),
       TypeRapport.suivis => rapportSuivis(jeu, f, entete: entete, acteur: _droits, genereLe: m),
+      TypeRapport.aptitudes => rapportAptitudes(jeu, f, entete: entete, acteur: _droits, genereLe: m),
     };
   }
 
@@ -155,7 +158,8 @@ class _PageRapportsState extends ConsumerState<PageRapports> {
                   BarreFiltres(_c,
                       classe: _type != TypeRapport.inspections,
                       sexe: _type != TypeRapport.inspections,
-                      periode: _type != TypeRapport.inspections),
+                      periode: _type != TypeRapport.inspections,
+                      type: _type != TypeRapport.inspections && _type != TypeRapport.aptitudes),
                   if (_type == TypeRapport.etablissement && _c.etablissementId == null)
                     const Text('Choisissez l\'établissement.', style: TextStyle(color: Colors.red)),
                   if (_type == TypeRapport.classe && _c.classeId == null)

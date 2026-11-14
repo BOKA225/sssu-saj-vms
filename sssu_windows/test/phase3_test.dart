@@ -5,6 +5,7 @@ import 'package:sssu_core/sssu_core.dart';
 import 'package:sssu_windows/donnees/depot_postgres.dart';
 import 'package:sssu_windows/donnees/migrations.dart';
 import 'package:sssu_windows/donnees/requetes_poste.dart';
+import 'package:sssu_windows/donnees/source_statistiques.dart';
 import 'package:sssu_windows/donnees/stockage_photos.dart';
 
 void main() {
@@ -71,6 +72,60 @@ void main() {
       expect(eleves.length, classes.first.effectif);
       expect(await r.eleves(a, texte: eleves.first.nom), isNotEmpty);
       expect(await r.inscriptions(eleves.first.id), isNotEmpty);
+    }, skip: ignorer);
+
+    test('visite d\'aptitude sur PostgreSQL : migration 050, type conservé, statistiques séparées', () async {
+      final a = (await r.anneeCourante())!;
+      LigneEleve? eleve;
+      String? etabId;
+      for (final e in await r.etablissements(a)) {
+        final classes = await r.classes(e.id, a);
+        if (classes.isEmpty || classes.first.effectif == 0) continue;
+        eleve = (await r.eleves(a, classeId: classes.first.id)).first;
+        etabId = e.id;
+        break;
+      }
+      final m = DateTime.now().toUtc();
+      final v = Enregistrement(
+          table: 'visite',
+          id: nouvelId(),
+          version: 1,
+          versionBase: 1,
+          createdAt: m,
+          updatedAt: m,
+          etablissementId: etabId,
+          donnees: {
+            'eleve_id': eleve!.id,
+            'agent_id': nouvelId(),
+            'date_visite': a.debut,
+            'statut': 'valide',
+            'type_visite': 'aptitude',
+            'aptitude': 'inapte_temporaire',
+            'aptitude_restrictions': 'Entorse de la cheville',
+          });
+      try {
+        await depot.transaction((tx) => tx.ecrire(v));
+        var relu = (await depot.transaction((tx) => tx.lire('visite', v.id)))!;
+        expect((relu.donnees['type_visite'], relu.donnees['aptitude'], relu.donnees['aptitude_restrictions']),
+            ('aptitude', 'inapte_temporaire', 'Entorse de la cheville'));
+        // Écriture sans le type (téléphone d'une version antérieure) : le type reste.
+        await depot.transaction((tx) => tx.ecrire(v.copier(
+            version: 2, donnees: {...v.donnees}..remove('type_visite'))));
+        relu = (await depot.transaction((tx) => tx.lire('visite', v.id)))!;
+        expect(relu.donnees['type_visite'], 'aptitude');
+        await expectLater(
+            depot.requete("UPDATE visite SET type_visite = 'autre' WHERE id = CAST(@id AS uuid)", {'id': v.id}),
+            throwsA(anything));
+        final jeu = await SourceStatistiquesPoste(depot).charger(a, identite: true);
+        final vs = jeu.visites.singleWhere((x) => x.id == v.id);
+        expect((vs.type, vs.aptitude, vs.aptitudeRestrictions),
+            (TypeVisite.aptitude, DecisionAptitude.inapteTemporaire, 'Entorse de la cheville'));
+        // La visite d'aptitude ne compte pas parmi les « examinés » des écrans.
+        final avant = jeu.visites.where((x) => x.type == TypeVisite.systematique).length;
+        expect(avant, lessThan(jeu.visites.length));
+      } finally {
+        await depot.requete('DELETE FROM visite WHERE id = CAST(@id AS uuid)', {'id': v.id});
+      }
     }, skip: ignorer);
 
     test('listes de classe d\'un établissement : toutes les classes, effectifs, ordre scolaire', () async {

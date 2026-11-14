@@ -28,6 +28,9 @@ class ControleurStatistiques extends ChangeNotifier {
   Sexe? sexe;
   DateTime? du;
   DateTime? au;
+
+  /// Visite systématique ou d'aptitude : statistiques séparées.
+  TypeVisite typeVisite = TypeVisite.systematique;
   Object? erreur;
   bool chargement = false;
   DateTime? misAJourLe;
@@ -37,8 +40,8 @@ class ControleurStatistiques extends ChangeNotifier {
 
   ControleurStatistiques(this.services, {this.identite = false});
 
-  FiltreStatistiques get filtre =>
-      FiltreStatistiques(etablissementId: etablissementId, classeId: classeId, sexe: sexe, du: du, au: au);
+  FiltreStatistiques get filtre => FiltreStatistiques(
+      etablissementId: etablissementId, classeId: classeId, sexe: sexe, du: du, au: au, typeVisite: typeVisite);
 
   Statistiques? get statistiques => jeu == null ? null : calculerStatistiques(jeu!, filtre);
 
@@ -94,7 +97,18 @@ class ControleurStatistiques extends ChangeNotifier {
     recharger();
   }
 
-  void changer({Object? etablissement = _rien, Object? classe = _rien, Object? sexe_ = _rien, Object? du_ = _rien, Object? au_ = _rien}) {
+  void changer(
+      {Object? etablissement = _rien,
+      Object? classe = _rien,
+      Object? sexe_ = _rien,
+      Object? du_ = _rien,
+      Object? au_ = _rien,
+      TypeVisite? type}) {
+    if (type != null) {
+      typeVisite = type;
+      // Visite d'aptitude : seulement les classes de 3ème et de terminale.
+      if (type == TypeVisite.aptitude && classeId != null && !(jeu?.classes[classeId]?.aptitude ?? false)) classeId = null;
+    }
     if (etablissement != _rien) {
       etablissementId = etablissement as String?;
       if (classeId != null && jeu?.classes[classeId]?.etablissementId != etablissementId) classeId = null;
@@ -116,13 +130,15 @@ class ControleurStatistiques extends ChangeNotifier {
 
 const Object _rien = Object();
 
-/// Barre de filtres. [classe], [sexe] et [periode] peuvent être masqués.
+/// Barre de filtres. [classe], [sexe], [periode] et [type] (de visite)
+/// peuvent être masqués.
 class BarreFiltres extends StatelessWidget {
   final ControleurStatistiques c;
   final bool classe;
   final bool sexe;
   final bool periode;
-  const BarreFiltres(this.c, {super.key, this.classe = true, this.sexe = true, this.periode = true});
+  final bool type;
+  const BarreFiltres(this.c, {super.key, this.classe = true, this.sexe = true, this.periode = true, this.type = true});
 
   Future<DateTime?> _date(BuildContext context, DateTime? initiale) async {
     final a = c.annee!;
@@ -142,12 +158,28 @@ class BarreFiltres extends StatelessWidget {
     final jeu = c.jeu;
     final classes = jeu == null
         ? const <ClasseStat>[]
-        : (jeu.classes.values.where((x) => c.etablissementId == null || x.etablissementId == c.etablissementId).toList()
+        : (jeu.classes.values
+            .where((x) =>
+                (c.etablissementId == null || x.etablissementId == c.etablissementId) &&
+                (c.typeVisite == TypeVisite.systematique || x.aptitude))
+            .toList()
           ..sort((a, b) {
             final e = (jeu.etablissements[a.etablissementId] ?? '').compareTo(jeu.etablissements[b.etablissementId] ?? '');
             return e != 0 ? e : (a.niveau ?? a.libelle).compareTo(b.niveau ?? b.libelle);
           }));
     return Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      if (type)
+        SegmentedButton<TypeVisite>(
+          segments: [
+            for (final t in TypeVisite.values)
+              ButtonSegment(
+                  value: t,
+                  label: Text(t == TypeVisite.aptitude ? 'Visite d\'aptitude (3ème, Tle)' : 'Visite systématique'),
+                  icon: Icon(t == TypeVisite.aptitude ? Icons.directions_run : Icons.medical_services)),
+          ],
+          selected: {c.typeVisite},
+          onSelectionChanged: (v) => c.changer(type: v.first),
+        ),
       DropdownButton<Annee>(
         value: c.annee,
         hint: const Text('Année scolaire'),
@@ -276,11 +308,19 @@ List<Widget> cartesGenerales(Statistiques s) {
   return [
     CarteIndicateur('${s.nbEtablissements}', 'Établissements', icone: Icons.school),
     CarteIndicateur('${s.nbClasses}', 'Classes', icone: Icons.class_),
-    CarteIndicateur('${g.effectif}', 'Élèves', detail: '${g.garcons} garçons · ${g.filles} filles', icone: Icons.groups),
+    CarteIndicateur('${g.effectif}', s.typeVisite == TypeVisite.aptitude ? 'Élèves de 3ème et Tle' : 'Élèves',
+        detail: '${g.garcons} garçons · ${g.filles} filles', icone: Icons.groups),
     CarteIndicateur('${g.examines}', 'Élèves examinés',
         detail: '${g.garconsExamines} G · ${g.fillesExamines} F', icone: Icons.medical_services, couleur: Colors.green.shade700),
     CarteIndicateur('${g.nonExamines}', 'Non examinés', icone: Icons.pending_actions, couleur: Colors.orange.shade800),
-    CarteIndicateur('${s.nbVisites}', 'Visites médicales', icone: Icons.assignment),
+    CarteIndicateur('${s.nbVisites}', s.typeVisite == TypeVisite.aptitude ? 'Visites d\'aptitude' : 'Visites systématiques',
+        icone: Icons.assignment),
+    if (s.typeVisite == TypeVisite.aptitude)
+      CarteIndicateur('${s.aptitudes[DecisionAptitude.apte] ?? 0}', 'Aptes',
+          detail: '${s.aptitudes[DecisionAptitude.aptePartiel] ?? 0} aptitude(s) partielle(s) · '
+              '${(s.aptitudes[DecisionAptitude.inapteTemporaire] ?? 0) + (s.aptitudes[DecisionAptitude.inapteDefinitif] ?? 0)} inapte(s)',
+          icone: Icons.directions_run,
+          couleur: Colors.green.shade700),
     CarteIndicateur('${s.inspections.inspectes}/${s.inspections.etablissements}', 'Établissements inspectés',
         detail: 'Conformité moyenne ${pourcentage(s.inspections.tauxMoyen)}', icone: Icons.fact_check),
     CarteIndicateur(pourcentage(g.tauxCouverture), 'Taux de couverture',
@@ -506,6 +546,22 @@ Widget tableau(List<String> entetes, List<List<Object?>> lignes, {List<Object?>?
         ],
       ),
     );
+
+/// Élèves par tranche d'âge et par sexe : effectif, examinés, couverture.
+Widget tableauTranches(Statistiques s) {
+  int somme(int Function(LigneTrancheAge) f) => s.parTrancheAge.fold(0, (t, l) => t + f(l));
+  final g = somme((l) => l.garcons), fi = somme((l) => l.filles);
+  final gx = somme((l) => l.garconsExamines), fx = somme((l) => l.fillesExamines);
+  return tableau([
+    'Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés', 'Couverture'
+  ], [
+    for (final l in s.parTrancheAge)
+      [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
+        pourcentage(l.tauxCouverture)]
+  ], totaux: [
+    'Total', g, fi, g + fi, gx, fx, gx + fx, pourcentage(taux(gx + fx, g + fi))
+  ]);
+}
 
 List<Object?> ligneCouverture(Couverture c) =>
     [c.libelle, c.effectif, c.garcons, c.filles, c.examines, c.nonExamines, pourcentage(c.tauxCouverture)];

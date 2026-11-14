@@ -110,6 +110,20 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.6.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 17.1 | Téléphone : élève de CM2 → Nouvelle visite | Formulaire de visite systématique, sans question | |
+| 17.2 | Élève de 3ème (puis de Tle D, Tle G2) → Nouvelle visite | Choix « visite systématique » ou « visite d'aptitude » | |
+| 17.3 | Visite d'aptitude sans décision, puis « aptitude partielle » sans restrictions | Validation refusée avec le motif | |
+| 17.4 | Valider une visite d'aptitude, synchroniser | Poste : dossier et détail affichent le type et la décision | |
+| 17.5 | Poste : Statistiques → Visite d'aptitude | Effectif = élèves de 3ème et Tle ; décisions d'aptitude ; visites systématiques non comptées | |
+| 17.6 | Statistiques → Visite systématique | Les visites d'aptitude ne sont pas comptées | |
+| 17.7 | Couverture : tableau par tranche d'âge et par sexe | 0–4 … 50 ans et plus ; total = effectif | |
+| 17.8 | Rapports → Décisions d'aptitude (PDF) | Liste nominative avec décision et restrictions | |
+| 17.9 | Téléphone resté en 1.5 qui synchronise après une visite d'aptitude | Message « installez la dernière version », données du téléphone conservées | |
+
 ## Version 1.5.0
 
 | N° | Action | Résultat attendu | OK |
