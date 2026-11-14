@@ -177,6 +177,34 @@ ClasseConnue? rapprocherClasse(ClasseLue lue, String etablissementId, List<Class
   return null;
 }
 
+/// Rang scolaire d'une classe (PS, MS, GS, CP1… CM2, 6ème… Tle, puis BT,
+/// CAP, BEP, BTS) ; les libellés non reconnus viennent après.
+int rangClasse(String libelle) {
+  final n = lireClasse(libelle)?.niveau;
+  final i = n == null ? -1 : _niveaux.keys.toList().indexOf(n);
+  return i < 0 ? 1000 : i;
+}
+
+/// Ordre des classes d'un établissement : par niveau, puis par libellé en
+/// tenant compte des nombres (« 6ème 2 » avant « 6ème 10 »).
+int comparerClasses(String a, String b) {
+  final r = rangClasse(a).compareTo(rangClasse(b));
+  return r != 0 ? r : comparerNaturel(a, b);
+}
+
+/// Comparaison de textes où les nombres sont comparés par leur valeur.
+int comparerNaturel(String a, String b) {
+  final re = RegExp(r'\d+|\D+');
+  final x = re.allMatches(normaliserTexte(a)).map((m) => m[0]!).toList();
+  final y = re.allMatches(normaliserTexte(b)).map((m) => m[0]!).toList();
+  for (var i = 0; i < x.length && i < y.length; i++) {
+    final nx = int.tryParse(x[i]), ny = int.tryParse(y[i]);
+    final c = nx != null && ny != null ? nx.compareTo(ny) : x[i].compareTo(y[i]);
+    if (c != 0) return c;
+  }
+  return x.length.compareTo(y.length);
+}
+
 /// Niveau normalisé d'un libellé de classe (« 2nde G1 » → « 2NDE »), pour
 /// remplir le niveau d'une classe créée sans niveau.
 String? niveauDeClasse(String libelle) => lireClasse(libelle)?.niveau;

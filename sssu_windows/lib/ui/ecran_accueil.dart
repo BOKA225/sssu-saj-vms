@@ -18,6 +18,7 @@ import 'page_eleves.dart';
 import 'page_etablissements.dart';
 import 'page_import.dart';
 import 'page_journaux.dart';
+import 'page_listes_classe.dart';
 
 /// Poste central : tableau de bord, établissements, dossiers, importation,
 /// statistiques, inspections sanitaires, rapports, téléphones, comptes,
@@ -70,6 +71,7 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
       ),
       (const NavigationRailDestination(icon: Icon(Icons.school), label: Text('Établissements')), const PageEtablissements()),
       (const NavigationRailDestination(icon: Icon(Icons.folder_shared), label: Text('Élèves et dossiers')), const PageEleves()),
+      (const NavigationRailDestination(icon: Icon(Icons.list_alt), label: Text('Listes de classe')), const PageListesClasse()),
       if (session.droits.peut(Permission.importExecuter))
         (const NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('Importer une liste')), const PageImport()),
       if (session.droits.peut(Permission.statistiquesConsulter))
