@@ -86,6 +86,20 @@ void main() {
         break;
       }
       final m = DateTime.now().toUtc();
+      var agents = await depot.requete('SELECT id::text AS id FROM utilisateur LIMIT 1');
+      if (agents.isEmpty) {
+        final role = (await depot.requete('SELECT id::text AS id FROM role LIMIT 1')).first['id'] as String;
+        final u = Enregistrement(
+            table: 'utilisateur',
+            id: nouvelId(),
+            version: 1,
+            versionBase: 1,
+            createdAt: m,
+            updatedAt: m,
+            donnees: {'identifiant': 'apt-${nouvelId().substring(28)}', 'nom': 'AGENT APTITUDE', 'role_id': role});
+        await depot.transaction((tx) => tx.ecrire(u));
+        agents = [{'id': u.id}];
+      }
       final v = Enregistrement(
           table: 'visite',
           id: nouvelId(),
@@ -96,7 +110,7 @@ void main() {
           etablissementId: etabId,
           donnees: {
             'eleve_id': eleve!.id,
-            'agent_id': nouvelId(),
+            'agent_id': agents.first['id'],
             'date_visite': a.debut,
             'statut': 'valide',
             'type_visite': 'aptitude',
