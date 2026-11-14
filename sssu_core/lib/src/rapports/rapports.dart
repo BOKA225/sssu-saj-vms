@@ -42,7 +42,10 @@ String _date(DateTime? d) {
 
 /// Description lisible des filtres appliqués.
 String descriptionPerimetre(JeuStatistiques jeu, FiltreStatistiques f) {
-  final morceaux = <String>['Année scolaire ${jeu.annee.libelle}'];
+  final morceaux = <String>[
+    f.typeVisite == TypeVisite.aptitude ? 'Visite médicale d\'aptitude (3ème et Tle)' : 'Visite médicale systématique',
+    'Année scolaire ${jeu.annee.libelle}',
+  ];
   if (f.etablissementId != null) morceaux.add(jeu.etablissements[f.etablissementId] ?? 'établissement');
   if (f.classeId != null) morceaux.add('classe ${jeu.classes[f.classeId]?.libelle ?? ''}');
   if (f.sexe != null) morceaux.add(f.sexe == Sexe.masculin ? 'garçons' : 'filles');
@@ -65,6 +68,34 @@ BlocTableau _tableauCouverture(String titre, String premiereColonne, List<Couver
           ? null
           : ['Total', total.effectif, total.garcons, total.filles, total.examines, total.nonExamines,
               pourcentage(total.tauxCouverture)],
+    );
+
+/// Élèves par tranche d'âge et par sexe : effectif, examinés, couverture.
+BlocTableau tableauTranchesAge(Statistiques s, {String? titre}) {
+  int somme(int Function(LigneTrancheAge) f) => s.parTrancheAge.fold(0, (t, l) => t + f(l));
+  final g = somme((l) => l.garcons), fi = somme((l) => l.filles);
+  final gx = somme((l) => l.garconsExamines), fx = somme((l) => l.fillesExamines);
+  return BlocTableau(
+    titre: titre ?? 'Élèves par tranche d\'âge et par sexe (âge au ${_date(s.dateAge)})',
+    entetes: ['Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés', 'Couverture'],
+    largeurs: const [2.2, 1.2, 1.2, 1.2, 1.5, 1.5, 1.3, 1.4],
+    lignes: [
+      for (final l in s.parTrancheAge)
+        [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
+          pourcentage(l.tauxCouverture)]
+    ],
+    totaux: ['Total', g, fi, g + fi, gx, fx, gx + fx, pourcentage(taux(gx + fx, g + fi))],
+  );
+}
+
+/// Décisions des visites d'aptitude (dernière visite des élèves examinés).
+BlocTableau tableauAptitudes(Statistiques s) => BlocTableau(
+      entetes: ['Décision d\'aptitude', 'Élèves', 'Part des examinés'],
+      largeurs: const [6, 1.3, 1.8],
+      lignes: [
+        for (final d in DecisionAptitude.values)
+          [d.libelle, s.aptitudes[d] ?? 0, pourcentage(taux(s.aptitudes[d] ?? 0, s.generale.examines))]
+      ],
     );
 
 List<BlocRapport> _blocsPathologies(Statistiques s, JeuStatistiques jeu, {bool detail = true}) {
@@ -169,18 +200,21 @@ DocumentRapport rapportStatistique(
   if (portee == PorteeRapport.classe && f.classeId == null) throw const RapportRefuse('Choisir la classe du rapport.');
   final s = calculerStatistiques(jeu, f);
   final g = s.generale;
+  final aptitude = f.typeVisite == TypeVisite.aptitude;
+  var n = 0;
+  BlocTitre titre(String t) => BlocTitre('${++n}. $t');
   final blocs = <BlocRapport>[
-    const BlocTitre('1. Indicateurs généraux'),
+    titre('Indicateurs généraux'),
     BlocChamps([
       if (portee == PorteeRapport.annuel) ('Établissements', '${s.nbEtablissements}'),
       if (portee != PorteeRapport.classe) ('Classes', '${s.nbClasses}'),
-      ('Effectif total', '${g.effectif} (${g.garcons} garçons, ${g.filles} filles)'),
+      ('Effectif total${aptitude ? ' (3ème et Tle)' : ''}', '${g.effectif} (${g.garcons} garçons, ${g.filles} filles)'),
       ('Élèves examinés', '${g.examines} (${g.garconsExamines} garçons, ${g.fillesExamines} filles)'),
       ('Élèves non examinés', '${g.nonExamines}'),
       ('Visites médicales enregistrées', '${s.nbVisites}'),
       ('Taux de couverture', pourcentage(g.tauxCouverture)),
     ]),
-    const BlocTitre('2. Couverture par sexe'),
+    titre('Couverture par sexe'),
     BlocTableau(
       entetes: ['Sexe', 'Effectif', 'Examinés', 'Couverture', 'Part des examinés'],
       lignes: [
@@ -193,7 +227,13 @@ DocumentRapport rapportStatistique(
       _tableauCouverture('Couverture par établissement', 'Établissement', s.parEtablissement, total: g),
     if (portee != PorteeRapport.classe && s.parClasse.isNotEmpty)
       _tableauCouverture('Couverture par classe', 'Classe', s.parClasse, total: g),
-    const BlocTitre('3. Conclusions des visites'),
+    titre('Élèves par tranche d\'âge et par sexe'),
+    tableauTranchesAge(s, titre: 'Âge au ${_date(s.dateAge)}'),
+    if (aptitude) ...[
+      titre('Décisions d\'aptitude'),
+      tableauAptitudes(s),
+    ],
+    titre('Conclusions des visites'),
     BlocTableau(
       entetes: ['Conclusion (dernière visite)', 'Élèves', 'Part des examinés'],
       largeurs: const [6, 1.3, 1.8],
@@ -201,14 +241,14 @@ DocumentRapport rapportStatistique(
         for (final c in ConclusionVisite.values) [c.libelle, s.conclusions[c] ?? 0, pourcentage(taux(s.conclusions[c] ?? 0, g.examines))]
       ],
     ),
-    const BlocTitre('4. Profil des pathologies'),
+    titre('Profil des pathologies'),
     ..._blocsPathologies(s, jeu, detail: portee != PorteeRapport.classe),
     if (portee != PorteeRapport.classe) ...[
-      const BlocTitre('5. Inspections sanitaires'),
+      titre('Inspections sanitaires'),
       ..._blocsInspections(s.inspections, jeu),
     ],
     if (s.evolution.length > 1) ...[
-      BlocTitre(portee == PorteeRapport.classe ? '5. Évolution mensuelle' : '6. Évolution mensuelle'),
+      titre('Évolution mensuelle'),
       BlocTableau(
         entetes: ['Mois', 'Visites', 'Nouveaux examinés', 'Couverture cumulée'],
         lignes: [for (final e in s.evolution) [_mois(e.mois), e.visites, e.nouveauxExamines, pourcentage(e.couvertureCumulee)]],
@@ -217,7 +257,7 @@ DocumentRapport rapportStatistique(
     BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
   ];
   return DocumentRapport(
-    titre: portee.titre,
+    titre: aptitude ? '${portee.titre} – visites d\'aptitude' : portee.titre,
     sousTitre: descriptionPerimetre(jeu, f),
     entete: entete,
     blocs: blocs,
@@ -273,6 +313,7 @@ DocumentRapport rapportListeEleves(
   _exiger(acteur, Permission.rapportExporterNominatif, 'les listes nominatives');
   final l = listeEleves(jeu, f, examines: examines);
   final avecEtab = f.etablissementId == null && f.classeId == null;
+  final decision = examines && f.typeVisite == TypeVisite.aptitude;
   return DocumentRapport(
     titre: examines ? 'Liste des élèves examinés' : 'Liste des élèves non examinés',
     sousTitre: descriptionPerimetre(jeu, f),
@@ -282,8 +323,8 @@ DocumentRapport rapportListeEleves(
       BlocParagraphe('${l.length} élève(s).'),
       BlocTableau(
         entetes: ['N°', 'Matricule', 'Nom et prénoms', 'Sexe', 'Date de naissance', if (avecEtab) 'Établissement', 'Classe',
-          if (examines) 'Dernière visite'],
-        largeurs: [0.6, 1.6, 4, 0.8, 1.6, if (avecEtab) 3, 1.4, if (examines) 1.6],
+          if (examines) 'Dernière visite', if (decision) 'Décision d\'aptitude'],
+        largeurs: [0.6, 1.6, 4, 0.8, 1.6, if (avecEtab) 3, 1.4, if (examines) 1.6, if (decision) 2.2],
         lignes: [
           for (var i = 0; i < l.length; i++)
             [
@@ -295,9 +336,60 @@ DocumentRapport rapportListeEleves(
               if (avecEtab) l[i].etablissement,
               l[i].classe,
               if (examines) _date(l[i].derniereVisite?.date),
+              if (decision) l[i].derniereVisite?.aptitude?.libelle ?? '',
             ]
         ],
       ),
+    ],
+    genereLe: genereLe,
+  );
+}
+
+/// Liste nominative des décisions d'aptitude (3ème et Tle), à transmettre
+/// pour les examens : dernière visite d'aptitude de chaque élève examiné.
+DocumentRapport rapportAptitudes(
+  JeuStatistiques jeu,
+  FiltreStatistiques f, {
+  required EnteteRapport entete,
+  required Droits acteur,
+  required DateTime genereLe,
+}) {
+  _exiger(acteur, Permission.rapportExporterNominatif, 'les listes nominatives');
+  final g = FiltreStatistiques(
+      etablissementId: f.etablissementId, classeId: f.classeId, sexe: f.sexe, du: f.du, au: f.au, typeVisite: TypeVisite.aptitude);
+  final l = listeAptitudes(jeu, g);
+  final avecEtab = f.etablissementId == null && f.classeId == null;
+  final parDecision = {for (final d in DecisionAptitude.values) d: l.where((x) => x.derniereVisite?.aptitude == d).length};
+  return DocumentRapport(
+    titre: 'Décisions d\'aptitude (3ème et Tle)',
+    sousTitre: descriptionPerimetre(jeu, g),
+    entete: entete,
+    confidentiel: true,
+    paysage: true,
+    blocs: [
+      BlocParagraphe('${l.length} élève(s) examiné(s) : '
+          '${[for (final d in DecisionAptitude.values) '${parDecision[d]} ${d.libelle.toLowerCase()}'].join(', ')}.'),
+      BlocTableau(
+        entetes: ['N°', 'Matricule', 'Nom et prénoms', 'Sexe', 'Date de naissance', if (avecEtab) 'Établissement', 'Classe',
+          'Visite', 'Décision', 'Restrictions ou motif'],
+        largeurs: [0.6, 1.5, 3.6, 0.7, 1.5, if (avecEtab) 2.8, 1.3, 1.5, 2.4, 3.4],
+        lignes: [
+          for (var i = 0; i < l.length; i++)
+            [
+              i + 1,
+              l[i].eleve.matricule ?? '',
+              l[i].eleve.nomComplet,
+              l[i].eleve.sexe.code,
+              _date(l[i].eleve.dateNaissance),
+              if (avecEtab) l[i].etablissement,
+              l[i].classe,
+              _date(l[i].derniereVisite?.date),
+              l[i].derniereVisite?.aptitude?.libelle ?? '',
+              l[i].derniereVisite?.aptitudeRestrictions ?? '',
+            ]
+        ],
+      ),
+      BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
     ],
     genereLe: genereLe,
   );
@@ -449,9 +541,13 @@ DocumentRapport ficheVisite(
   final naissance = e['date_naissance'] == null ? null : lireDate(e['date_naissance']! as String);
   final age = naissance == null || naissance.isAfter(dateVisite) ? '' : calculerAge(naissance, dateVisite).toString();
   final conclusion = v['conclusion'] == null ? null : ConclusionVisite.depuisCode(v['conclusion']! as String);
+  final type = TypeVisite.depuisCode(v['type_visite'] as String?);
+  final decision = v['aptitude'] == null ? null : DecisionAptitude.depuisCode(v['aptitude']! as String);
   final ta = v['ta_sys'] == null ? '' : '${v['ta_sys']}/${v['ta_dia'] ?? '?'} mmHg';
   return DocumentRapport(
-    titre: 'Fiche individuelle de visite médicale',
+    titre: type == TypeVisite.aptitude
+        ? 'Fiche individuelle de visite médicale d\'aptitude'
+        : 'Fiche individuelle de visite médicale',
     sousTitre: 'Visite du ${_date(dateVisite)}',
     entete: entete,
     confidentiel: true,
@@ -469,6 +565,7 @@ DocumentRapport ficheVisite(
       ]),
       const BlocTitre('Visite'),
       BlocChamps([
+        ('Type de visite', type.libelle),
         ('Date', _date(dateVisite)),
         ('Agent', fv.agent ?? ''),
         ('Structure d\'origine', (v['structure_origine'] as String?) ?? ''),
@@ -517,6 +614,14 @@ DocumentRapport ficheVisite(
           largeurs: const [4, 5],
           lignes: [for (final (l, p) in fv.pathologies) [l, p ?? '']],
         ),
+      if (type == TypeVisite.aptitude) ...[
+        const BlocTitre('Décision d\'aptitude'),
+        BlocChamps([
+          ('Décision', decision?.libelle ?? ''),
+          if (decision != null && decision.aPreciser)
+            ('Restrictions ou motif', (v['aptitude_restrictions'] as String?) ?? ''),
+        ]),
+      ],
       const BlocTitre('Conclusion'),
       BlocChamps([
         ('Conclusion', conclusion?.libelle ?? ''),

@@ -4,6 +4,7 @@ library;
 
 import '../auth/permissions.dart';
 import '../commun/commun.dart';
+import '../modeles/enums.dart';
 import '../schema/registre.dart';
 import 'depot_serveur.dart';
 import 'diffusion.dart';
@@ -226,13 +227,15 @@ class ServiceSynchronisation {
         final tables = {for (final t in registre) if (t.receptionParTelephone) t.nom};
         var changements =
             await tx.changementsDepuis(curseur, tables: tables, etablissements: etablissements, limite: limite);
-        if (protocole < 2) {
-          final i = changements.indexWhere((c) => !compatibleProtocole1(c.enregistrement));
+        if (protocole < protocoleSync) {
+          final i = changements.indexWhere((c) => !compatible(c.enregistrement, protocole));
           if (i == 0) {
-            throw const ErreurProtocole(426, 'mise_a_jour_requise',
-                'Le poste central utilise la nouvelle grille d\'inspection (version 1.2) : installez la dernière version '
-                'de l\'application SSSU-SAJ VMS sur ce téléphone, puis synchronisez. Les données du téléphone sont '
-                'conservées et ont déjà été envoyées.');
+            final quoi = !compatibleProtocole1(changements.first.enregistrement)
+                ? 'la nouvelle grille d\'inspection (version 1.2)'
+                : 'les visites médicales d\'aptitude (version 1.6)';
+            throw ErreurProtocole(426, 'mise_a_jour_requise',
+                'Le poste central utilise $quoi : installez la dernière version de l\'application SSSU-SAJ VMS sur ce '
+                'téléphone, puis synchronisez. Les données du téléphone sont conservées et ont déjà été envoyées.');
           }
           if (i > 0) {
             changements = changements.sublist(0, i);
@@ -257,6 +260,16 @@ class ServiceSynchronisation {
           suite: changements.length >= limite,
         );
       });
+
+  /// Enregistrement qu'un téléphone de ce [protocole] sait recevoir sans perte :
+  /// protocole 1, critères de l'ancienne grille seulement ; protocoles 1 et 2,
+  /// pas de visite d'aptitude (il la prendrait pour une visite systématique et
+  /// effacerait sa décision en la modifiant).
+  static bool compatible(Enregistrement e, int protocole) {
+    if (protocole < 2 && !compatibleProtocole1(e)) return false;
+    if (protocole < 3 && e.table == 'visite' && e.donnees['type_visite'] == TypeVisite.aptitude.code) return false;
+    return true;
+  }
 
   /// Enregistrement que la base d'un téléphone antérieur à la version 1.2.0
   /// peut recevoir (critères de l'ancienne grille seulement).

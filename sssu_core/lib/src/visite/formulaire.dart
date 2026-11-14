@@ -35,6 +35,14 @@ class FormulaireVisite {
   String? structureOrigine;
   StatutVisite statut;
 
+  /// Visite systématique, ou d'aptitude (3ème et Tle).
+  TypeVisite type;
+
+  /// Décision d'une visite d'aptitude et, sauf « apte », restrictions ou
+  /// motif de l'inaptitude.
+  DecisionAptitude? aptitude;
+  String aptitudeRestrictions;
+
   double? poidsKg;
   double? tailleCm;
   int? taSys;
@@ -66,6 +74,9 @@ class FormulaireVisite {
     required this.dateVisite,
     this.structureOrigine,
     this.statut = StatutVisite.ebauche,
+    this.type = TypeVisite.systematique,
+    this.aptitude,
+    this.aptitudeRestrictions = '',
     this.poidsKg,
     this.tailleCm,
     this.taSys,
@@ -112,6 +123,9 @@ class FormulaireVisite {
         'date_visite': formaterDate(dateVisite),
         'structure_origine': _vide(structureOrigine),
         'statut': statut.code,
+        'type_visite': type.code,
+        'aptitude': type == TypeVisite.aptitude ? aptitude?.code : null,
+        'aptitude_restrictions': type == TypeVisite.aptitude ? _vide(aptitudeRestrictions) : null,
         'poids_kg': poidsKg,
         'taille_cm': tailleCm,
         'imc': imc,
@@ -137,6 +151,9 @@ class FormulaireVisite {
     dateVisite = lireDate(d['date_visite']! as String);
     structureOrigine = d['structure_origine'] as String?;
     statut = StatutVisite.depuisCode((d['statut'] as String?) ?? 'ebauche');
+    type = TypeVisite.depuisCode(d['type_visite'] as String?);
+    aptitude = d['aptitude'] == null ? null : DecisionAptitude.depuisCode(d['aptitude']! as String);
+    aptitudeRestrictions = s('aptitude_restrictions');
     poidsKg = (d['poids_kg'] as num?)?.toDouble();
     tailleCm = (d['taille_cm'] as num?)?.toDouble();
     taSys = (d['ta_sys'] as num?)?.toInt();
@@ -184,6 +201,12 @@ ControleVisite controlerVisite(FormulaireVisite f, {Set<String> pathologiesAPrec
   final jour = aujourdhui ?? DateTime.now().toUtc();
   if (f.dateVisite.isAfter(jour.add(const Duration(days: 1)))) erreurs.add('La date de la visite est dans le futur.');
   if (f.conclusion == null) erreurs.add('Choisir la conclusion de la visite.');
+  if (f.type == TypeVisite.aptitude) {
+    if (f.aptitude == null) erreurs.add('Choisir la décision d\'aptitude.');
+    if (f.aptitude != null && f.aptitude!.aPreciser && f.aptitudeRestrictions.trim().isEmpty) {
+      erreurs.add('Préciser les restrictions ou le motif de l\'inaptitude.');
+    }
+  }
   if (f.conclusion == ConclusionVisite.reference && f.structureReference.trim().isEmpty) {
     erreurs.add('Indiquer la structure de référence.');
   }

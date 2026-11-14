@@ -52,4 +52,5 @@ export 'src/sync/protocole.dart';
 export 'src/sync/resolution_conflits.dart';
 export 'src/sync/service_sync.dart';
 export 'src/sync/transport_http.dart';
+export 'src/visite/aptitude.dart';
 export 'src/visite/formulaire.dart';

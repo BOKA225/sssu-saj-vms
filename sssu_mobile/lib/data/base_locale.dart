@@ -13,8 +13,10 @@ class BaseLocale extends _$BaseLocale {
   @override
   /// 2 (version 1.2.0) : grille d'inspection nationale (rubriques B à J,
   /// colonne `inspection.grille`).
+  /// 3 (version 1.6.0) : visite d'aptitude (colonnes `visite.type_visite`,
+  /// `aptitude`, `aptitude_restrictions`).
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -27,6 +29,11 @@ class BaseLocale extends _$BaseLocale {
             if (de < 2) {
               await m.alterTable(TableMigration(critereInspection));
               await m.addColumn(inspection, inspection.grille);
+            }
+            if (de < 3) {
+              await m.addColumn(visite, visite.typeVisite);
+              await m.addColumn(visite, visite.aptitude);
+              await m.addColumn(visite, visite.aptitudeRestrictions);
             }
           });
           await customStatement('PRAGMA foreign_keys = ON');

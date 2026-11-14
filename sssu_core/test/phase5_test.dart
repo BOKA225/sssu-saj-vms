@@ -102,7 +102,7 @@ void main() {
       final s = calculerStatistiques(jeu);
       final p1 = s.pathologies.firstWhere((p) => p.id == 'P1');
       expect((p1.cas, p1.garcons, p1.filles, p1.prevalence), (2, 1, 1, 66.7));
-      expect(p1.parTranche, {TrancheAge.de6a9: 1, TrancheAge.de10a14: 1});
+      expect(p1.parTranche, {TrancheAge.de5a9: 1, TrancheAge.de10a14: 1});
       expect(p1.parEtablissement, {'E1': 1, 'E2': 1});
       final p2 = s.pathologies.firstWhere((p) => p.id == 'P2');
       expect((p2.cas, p2.prevalence), (1, 33.3));
@@ -147,10 +147,35 @@ void main() {
     });
 
     test('tranches d\'âge', () {
-      expect(TrancheAge.pour(DateTime.utc(2021, 1, 1), DateTime.utc(2026, 12, 31)), TrancheAge.moins6);
-      expect(TrancheAge.pour(DateTime.utc(2016, 11, 11), DateTime.utc(2026, 11, 10)), TrancheAge.de6a9);
-      expect(TrancheAge.pour(DateTime.utc(2001, 1, 1), DateTime.utc(2026, 1, 1)), TrancheAge.plus25);
+      expect(TrancheAge.pour(DateTime.utc(2022, 1, 2), DateTime.utc(2026, 12, 31)), TrancheAge.de0a4);
+      expect(TrancheAge.pour(DateTime.utc(2021, 1, 1), DateTime.utc(2026, 12, 31)), TrancheAge.de5a9);
+      expect(TrancheAge.pour(DateTime.utc(2016, 11, 11), DateTime.utc(2026, 11, 10)), TrancheAge.de5a9);
+      expect(TrancheAge.pour(DateTime.utc(2012, 1, 1), DateTime.utc(2026, 1, 1)), TrancheAge.de10a14);
+      expect(TrancheAge.pour(DateTime.utc(2001, 1, 1), DateTime.utc(2026, 1, 1)), TrancheAge.de25a49);
+      expect(TrancheAge.pour(DateTime.utc(1977, 1, 2), DateTime.utc(2026, 1, 1)), TrancheAge.de25a49);
+      expect(TrancheAge.pour(DateTime.utc(1976, 1, 1), DateTime.utc(2026, 1, 1)), TrancheAge.plus50);
       expect(TrancheAge.pour(null, DateTime.utc(2026)), TrancheAge.inconnu);
+      expect(TrancheAge.values.map((t) => t.libelle),
+          ['0–4 ans', '5–9 ans', '10–14 ans', '15–19 ans', '20–24 ans', '25–49 ans', '50 ans et plus', 'Âge inconnu']);
+    });
+
+    test('élèves par tranche d\'âge et par sexe (âge à une même date)', () {
+      final s = calculerStatistiques(jeu, FiltreStatistiques(dateAge: DateTime.utc(2026, 11, 25)));
+      expect(s.dateAge, DateTime.utc(2026, 11, 25));
+      expect([for (final l in s.parTrancheAge) (l.tranche, l.garcons, l.filles, l.garconsExamines, l.fillesExamines)], [
+        (TrancheAge.de0a4, 0, 0, 0, 0),
+        (TrancheAge.de5a9, 1, 2, 1, 1), // e1 (7 ans, examiné) ; e2 (8 ans, examinée), e3 (9 ans)
+        (TrancheAge.de10a14, 2, 0, 1, 0), // e4 (10 ans), e5 (14 ans, examiné)
+        (TrancheAge.de15a19, 0, 0, 0, 0),
+        (TrancheAge.de20a24, 0, 0, 0, 0),
+        (TrancheAge.de25a49, 0, 0, 0, 0),
+        (TrancheAge.plus50, 0, 0, 0, 0),
+        (TrancheAge.inconnu, 0, 1, 0, 0),
+      ]);
+      final total = s.parTrancheAge.fold<int>(0, (t, l) => t + l.effectif);
+      expect(total, s.generale.effectif);
+      // Date hors de l'année : ramenée dans la période.
+      expect(calculerStatistiques(jeu, FiltreStatistiques(dateAge: DateTime.utc(2030))).dateAge, DateTime.utc(2027, 7, 31));
     });
   });
 

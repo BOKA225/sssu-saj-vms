@@ -303,8 +303,10 @@ class ChangementRecu {
 /// Version du protocole de synchronisation, annoncée par le téléphone dans
 /// l'en-tête [enteteProtocole] de chaque requête. Les téléphones antérieurs à
 /// la version 1.2.0 n'envoient rien (protocole 1).
-/// - 2 : grille d'inspection nationale (rubriques B à J des critères).
-const protocoleSync = 2;
+/// - 2 : grille d'inspection nationale (rubriques B à J des critères) ;
+/// - 3 : visite médicale d'aptitude (colonnes `type_visite`, `aptitude`,
+///   `aptitude_restrictions` de la visite).
+const protocoleSync = 3;
 const enteteProtocole = 'x-sssu-protocole';
 
 class ReponseReception {

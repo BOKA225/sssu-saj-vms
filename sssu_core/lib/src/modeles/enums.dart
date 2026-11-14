@@ -77,6 +77,36 @@ enum ConclusionVisite {
   static ConclusionVisite depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
 }
 
+/// Type de visite médicale : la visite systématique concerne tous les élèves ;
+/// la visite d'aptitude, les classes d'examen (3ème et Tle). Leurs
+/// statistiques sont calculées séparément.
+enum TypeVisite {
+  systematique('systematique', 'Visite médicale systématique', 'Systématique'),
+  aptitude('aptitude', 'Visite médicale d\'aptitude', 'Aptitude');
+
+  final String code;
+  final String libelle;
+  final String court;
+  const TypeVisite(this.code, this.libelle, this.court);
+  static TypeVisite depuisCode(String? c) => c == null ? systematique : _depuisCode(values, c, (v) => v.code);
+}
+
+/// Décision d'une visite d'aptitude (pratique de l'EPS et examens).
+enum DecisionAptitude {
+  apte('apte', 'Apte'),
+  aptePartiel('apte_partiel', 'Aptitude partielle (avec restrictions)'),
+  inapteTemporaire('inapte_temporaire', 'Inapte temporairement'),
+  inapteDefinitif('inapte_definitif', 'Inapte définitivement');
+
+  final String code;
+  final String libelle;
+  const DecisionAptitude(this.code, this.libelle);
+  static DecisionAptitude depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
+
+  /// Les restrictions ou le motif doivent être précisés.
+  bool get aPreciser => this != apte;
+}
+
 enum ResultatInspection {
   conforme('conforme', 'Conforme'),
   partiel('partiel', 'Partiellement conforme'),
