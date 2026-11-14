@@ -153,6 +153,54 @@ class RequetesPoste {
     ];
   }
 
+  /// Listes de classe d'un établissement pour l'année : chaque classe (même
+  /// vide) avec ses élèves inscrits, classes dans l'ordre scolaire (CP1… CM2,
+  /// 6ème… Tle), élèves par nom.
+  Future<List<ListeDeClasse>> listesDeClasses(String etablissementId, Annee annee) async {
+    final classes = await depot.requete(
+      'SELECT CAST(id AS text) AS id, libelle, niveau FROM classe '
+      'WHERE etablissement_id = CAST(@etab AS uuid) AND annee_scolaire_id = CAST(@annee AS uuid) AND deleted_at IS NULL',
+      {'etab': etablissementId, 'annee': annee.id},
+    );
+    final eleves = await depot.requete(
+      'SELECT CAST(i.classe_id AS text) AS classe_id, CAST(el.id AS text) AS id, el.matricule, el.nom, el.prenoms, el.sexe, '
+      'el.date_naissance, el.telephone_contact, dv.date_visite AS derniere_visite, dv.statut AS statut_visite '
+      'FROM inscription i '
+      'JOIN classe c ON c.id = i.classe_id AND c.deleted_at IS NULL '
+      'JOIN eleve el ON el.id = i.eleve_id AND el.deleted_at IS NULL '
+      'LEFT JOIN LATERAL (SELECT v.date_visite, v.statut FROM visite v WHERE v.eleve_id = el.id AND v.deleted_at IS NULL '
+      'AND v.date_visite BETWEEN CAST(@debut AS date) AND CAST(@fin AS date) '
+      'ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) dv ON TRUE '
+      "WHERE c.etablissement_id = CAST(@etab AS uuid) AND i.annee_scolaire_id = CAST(@annee AS uuid) "
+      "AND i.deleted_at IS NULL AND i.statut = 'inscrit' "
+      'ORDER BY el.nom, el.prenoms',
+      {'etab': etablissementId, 'annee': annee.id, 'debut': annee.debut, 'fin': annee.fin},
+    );
+    final parClasse = <String, List<EleveListe>>{};
+    for (final l in eleves) {
+      (parClasse[l['classe_id'] as String] ??= []).add(EleveListe(
+        id: l['id'] as String,
+        matricule: _s(l['matricule']),
+        nom: l['nom'] as String,
+        prenoms: l['prenoms'] as String,
+        sexe: l['sexe'] as String,
+        dateNaissance: _dn(l['date_naissance']),
+        telephone: _s(l['telephone_contact']),
+        derniereVisite: _dn(l['derniere_visite']),
+        statutVisite: _s(l['statut_visite']),
+      ));
+    }
+    return [
+      for (final c in classes)
+        ListeDeClasse(
+          classeId: c['id'] as String,
+          libelle: c['libelle'] as String,
+          niveau: _s(c['niveau']),
+          eleves: parClasse[c['id']] ?? const [],
+        )
+    ]..sort((a, b) => comparerClasses(a.libelle, b.libelle));
+  }
+
   /// Toutes les classes de l'année (reconnaissance des listes importées).
   Future<List<ClasseConnue>> classesDeLAnnee(Annee annee) async => [
         for (final l in await depot.requete(

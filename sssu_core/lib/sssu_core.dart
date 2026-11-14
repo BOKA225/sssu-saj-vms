@@ -24,6 +24,7 @@ export 'src/import/tesseract.dart';
 export 'src/modeles/enums.dart';
 export 'src/modeles/modeles.dart';
 export 'src/rapports/document.dart';
+export 'src/rapports/listes_classe.dart';
 export 'src/rapports/rapports.dart';
 export 'src/rapports/rendu_excel.dart';
 export 'src/rapports/rendu_pdf.dart';

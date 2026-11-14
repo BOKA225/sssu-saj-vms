@@ -773,6 +773,19 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.5.0
+
+- **Poste central : menu « Listes de classe »** (`page_listes_classe.dart`) : par année et par établissement
+  (recherche par nom), classes dans l'ordre scolaire (`comparerClasses` : niveau puis libellé, nombres compris)
+  avec effectif garçons et filles, liste des élèves inscrits de la classe (âge, téléphone du parent, dernière
+  visite), ouverture du dossier, ajout d'un élève dans la classe.
+- Impression et exportation d'une classe ou de toutes les classes (`listes_classe.dart`) : PDF et Word (une
+  page par classe, `rapportListesDeClasse`), Excel d'une feuille par classe aux colonnes du modèle
+  d'importation, réimportable (`classeurListesDeClasse`). Identité seulement ; droit des listes nominatives ou
+  de gestion des dossiers (`peutExporterListesDeClasse`) ; export noté dans le journal d'audit.
+- Requête `RequetesPoste.listesDeClasses` : toutes les classes de l'établissement, même vides, et leurs élèves
+  inscrits.
+
 ## Version 1.4.0
 
 - **Enseignement général** : séries A1, A2, C et D (1ère, Tle), 2nde A et C proposées à la saisie

@@ -73,6 +73,24 @@ void main() {
       expect(await r.inscriptions(eleves.first.id), isNotEmpty);
     }, skip: ignorer);
 
+    test('listes de classe d\'un établissement : toutes les classes, effectifs, ordre scolaire', () async {
+      final a = (await r.anneeCourante())!;
+      for (final e in await r.etablissements(a)) {
+        final classes = await r.classes(e.id, a);
+        if (classes.isEmpty) continue;
+        final listes = await r.listesDeClasses(e.id, a);
+        expect(listes.map((l) => l.classeId).toSet(), classes.map((c) => c.id).toSet());
+        for (final c in classes) {
+          final l = listes.singleWhere((x) => x.classeId == c.id);
+          expect((l.eleves.length, l.garcons, l.filles), (c.effectif, c.garcons, c.filles), reason: c.libelle);
+        }
+        final libelles = listes.map((l) => l.libelle).toList();
+        expect(libelles, [...libelles]..sort(comparerClasses));
+        return;
+      }
+      fail('aucun établissement avec des classes');
+    }, skip: ignorer);
+
     test('création d\'établissement et de classe, rediffusion par établissement', () async {
       final a = (await r.anneeCourante())!;
       final e = await g.creerEtablissement(chef, {'nom': 'École PG', 'code': 'PG-${nouvelId().substring(30)}', 'type': 'primaire', 'statut': 'public'});

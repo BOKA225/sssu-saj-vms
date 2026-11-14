@@ -110,6 +110,17 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.5.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 16.1 | Menu « Listes de classe », taper une partie du nom d'un établissement | L'établissement est proposé ; ses classes s'affichent dans l'ordre scolaire avec l'effectif G/F | |
+| 16.2 | Cliquer une classe, puis un élève | Liste de la classe ; le dossier de l'élève s'ouvre | |
+| 16.3 | « Ajouter un élève » | Élève inscrit dans la classe affichée, effectif mis à jour | |
+| 16.4 | Imprimer / exporter → Toutes les classes → PDF | Une page par classe, classes vides signalées | |
+| 16.5 | Imprimer / exporter → Toutes les classes → Excel, puis réimporter le fichier | Une feuille par classe ; à la réimportation, les élèves sont reconnus comme déjà enregistrés | |
+| 16.6 | Compte agent de santé | Listes visibles ; pas d'« Imprimer / exporter » ni d'« Ajouter un élève » | |
+
 ## Version 1.4.0
 
 | N° | Action | Résultat attendu | OK |

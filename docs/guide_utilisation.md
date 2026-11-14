@@ -176,6 +176,16 @@ Les filtres portent sur l'année, l'établissement, la classe et le sexe. Les ch
     « 2nd G1 » et « 2nde G1 » désignent la même classe : un doublon est refusé.
 - **Élèves et dossiers**
   - Rechercher un élève. La recherche ignore les accents : « kone » trouve « KONÉ ».
+- **Listes de classe** (menu) : choisissez l'année et l'établissement (tapez une partie de son nom pour le
+  trouver). Les classes apparaissent dans l'ordre scolaire (CP1… CM2, 6ème… Tle, puis BT, CAP) avec leur effectif
+  (garçons, filles) ; cliquez une classe pour voir sa liste : matricule, nom et prénoms, sexe, date de naissance,
+  âge, téléphone du parent, dernière visite. Cliquez un élève pour ouvrir son dossier ; **« Ajouter un élève »**
+  l'inscrit directement dans la classe affichée.
+  - **Imprimer / exporter** : la classe affichée ou toutes les classes, en PDF (une page par classe, à
+    imprimer), en Word, ou en Excel. Le fichier Excel de toutes les classes contient une feuille par classe,
+    aux colonnes du modèle d'importation : il peut être complété puis réimporté.
+  - Les listes exportées ne contiennent que l'identité des élèves (aucune donnée médicale) ; chaque export est
+    noté dans le journal d'audit.
   - **Nouvel élève** : identité, établissement et classe de l'année. Un élève semblable déjà enregistré est
     signalé, avec la possibilité d'ouvrir son dossier plutôt que d'en créer un second.
   - Consulter son dossier. **Modifier** son identité (nom, prénoms, sexe, date de naissance, matricule,
