@@ -9,6 +9,7 @@ import '../modeles/enums.dart';
 import '../regles/age.dart';
 import '../regles/identite.dart';
 import 'champs.dart';
+import 'reconnaissance.dart';
 import 'tableau.dart';
 
 enum GraviteAnomalie { bloquante, avertissement }
@@ -268,11 +269,33 @@ String _majusculeInitiale(String s) => s
     .map((m) => m.split('-').map((p) => p.isEmpty ? p : p[0].toUpperCase() + p.substring(1).toLowerCase()).join('-'))
     .join(' ');
 
+/// Niveaux du préscolaire et du primaire : les élèves n'y ont en général pas
+/// de matricule.
+const niveauxSansMatricule = {'PS', 'MS', 'GS', 'CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'};
+
+/// Le matricule est-il attendu pour les élèves de cette classe ? Non au
+/// préscolaire ni au primaire (classe « CM1 A », niveau « CP2 », ou
+/// établissement préscolaire ou primaire) ; oui ailleurs, ou si la classe est
+/// inconnue.
+bool matriculeAttendu(String? classe, {String? niveau, String? typeEtablissement}) {
+  if (typeEtablissement == TypeEtablissement.prescolaire.code || typeEtablissement == TypeEtablissement.primaire.code) {
+    return false;
+  }
+  final c = classe?.trim();
+  if (c != null && c.isNotEmpty && RegExp(r'^(PS|MS|GS)[ \-]*[0-9A-Z]{0,2}$').hasMatch(c.toUpperCase())) return false;
+  final n = (c == null || c.isEmpty ? null : lireClasse(c)?.niveau) ??
+      (niveau == null || niveau.trim().isEmpty ? null : lireClasse(niveau)?.niveau ?? niveau.trim().toUpperCase());
+  return n == null || !niveauxSansMatricule.contains(n);
+}
+
 /// (Re)calcule les anomalies et les actions par défaut, après lecture ou
 /// après une correction de l'utilisateur.
 ///
 /// [existants] : élèves déjà présents sur le téléphone (avec leur `id`).
 /// [dateReference] : date de la visite ou du jour, pour la vraisemblance de l'âge.
+/// [classe], [niveauClasse], [typeEtablissement] : classe de destination (une
+/// ligne d'un fichier de plusieurs classes a la sienne) ; au préscolaire et au
+/// primaire, l'absence de matricule n'est pas signalée (`matriculeAttendu`).
 void controlerLignes(
   List<LigneImport> lignes, {
   List<IdentiteEleve> existants = const [],
@@ -280,6 +303,9 @@ void controlerLignes(
   RegExp? formatMatricule,
   int ageMin = 2,
   int ageMax = 40,
+  String? classe,
+  String? niveauClasse,
+  String? typeEtablissement,
 }) {
   final candidats = [for (final l in lignes) l.identite];
   final doublons = detecterDoublons(candidats, existants);
@@ -318,7 +344,9 @@ void controlerLignes(
       }
     }
     if (l.matricule == null) {
-      a.add(const AnomalieImport(ChampListe.matricule, GraviteAnomalie.avertissement, 'Matricule manquant.'));
+      final attendu = matriculeAttendu(l.groupe, typeEtablissement: typeEtablissement) &&
+          matriculeAttendu(classe, niveau: niveauClasse, typeEtablissement: typeEtablissement);
+      if (attendu) a.add(const AnomalieImport(ChampListe.matricule, GraviteAnomalie.avertissement, 'Matricule manquant.'));
     } else if (formatMatricule != null && !formatMatricule.hasMatch(l.matricule!)) {
       a.add(AnomalieImport(
           ChampListe.matricule, GraviteAnomalie.avertissement, 'Matricule au format inhabituel (${l.matricule}).'));

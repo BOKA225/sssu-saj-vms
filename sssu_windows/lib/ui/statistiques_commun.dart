@@ -106,7 +106,7 @@ class ControleurStatistiques extends ChangeNotifier {
       TypeVisite? type}) {
     if (type != null) {
       typeVisite = type;
-      // Visite d'aptitude : seulement les classes de 3ème et de terminale.
+      // Visite d'aptitude : seulement les classes de CM2, de 3ème et de terminale.
       if (type == TypeVisite.aptitude && classeId != null && !(jeu?.classes[classeId]?.aptitude ?? false)) classeId = null;
     }
     if (etablissement != _rien) {
@@ -174,7 +174,7 @@ class BarreFiltres extends StatelessWidget {
             for (final t in TypeVisite.values)
               ButtonSegment(
                   value: t,
-                  label: Text(t == TypeVisite.aptitude ? 'Visite d\'aptitude (3ème, Tle)' : 'Visite systématique'),
+                  label: Text(t == TypeVisite.aptitude ? 'Visite d\'aptitude (CM2, 3ème, Tle)' : 'Visite systématique'),
                   icon: Icon(t == TypeVisite.aptitude ? Icons.directions_run : Icons.medical_services)),
           ],
           selected: {c.typeVisite},
@@ -308,7 +308,7 @@ List<Widget> cartesGenerales(Statistiques s) {
   return [
     CarteIndicateur('${s.nbEtablissements}', 'Établissements', icone: Icons.school),
     CarteIndicateur('${s.nbClasses}', 'Classes', icone: Icons.class_),
-    CarteIndicateur('${g.effectif}', s.typeVisite == TypeVisite.aptitude ? 'Élèves de 3ème et Tle' : 'Élèves',
+    CarteIndicateur('${g.effectif}', s.typeVisite == TypeVisite.aptitude ? 'Élèves de CM2, 3ème et Tle' : 'Élèves',
         detail: '${g.garcons} garçons · ${g.filles} filles', icone: Icons.groups),
     CarteIndicateur('${g.examines}', 'Élèves examinés',
         detail: '${g.garconsExamines} G · ${g.fillesExamines} F', icone: Icons.medical_services, couleur: Colors.green.shade700),

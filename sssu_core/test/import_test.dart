@@ -209,6 +209,36 @@ void main() {
       expect(bilan(lignes).validable, isTrue);
     });
 
+    test('matricule facultatif au préscolaire et au primaire', () {
+      for (final c in ['CP1', 'CE2 B', 'CM1', 'CM2 A', 'Grande section', 'GS 2']) {
+        expect(matriculeAttendu(c), isFalse, reason: c);
+      }
+      for (final c in ['6ème 1', '3ème 2', 'Tle D', '2nde G1', null, '', 'Classe B']) {
+        expect(matriculeAttendu(c), isTrue, reason: '$c');
+      }
+      expect(matriculeAttendu('Classe B', niveau: 'CM2'), isFalse);
+      expect(matriculeAttendu('Classe B', typeEtablissement: 'primaire'), isFalse);
+      expect(matriculeAttendu('Classe B', typeEtablissement: 'secondaire'), isTrue);
+
+      List<LigneImport> lignes() => [
+            ligne(2, {ChampListe.nom: 'YAO', ChampListe.prenoms: 'Koffi', ChampListe.sexe: 'M', ChampListe.dateNaissance: '02/01/2015'}),
+          ];
+      final primaire = lignes();
+      controlerLignes(primaire, dateReference: ref, classe: 'CM1 A');
+      expect(primaire.single.anomalies, isEmpty);
+      expect(primaire.single.aVerifier, isFalse);
+      final etab = lignes();
+      controlerLignes(etab, dateReference: ref, classe: 'Classe B', typeEtablissement: 'primaire');
+      expect(etab.single.anomalies, isEmpty);
+      final college = lignes();
+      controlerLignes(college, dateReference: ref, classe: '6ème 1');
+      expect(college.single.anomalies.single.message, 'Matricule manquant.');
+      // Fichier de plusieurs classes : la classe de chaque ligne.
+      final fichier = lignes()..single.groupe = 'CE1 A';
+      controlerLignes(fichier, dateReference: ref);
+      expect(fichier.single.anomalies, isEmpty);
+    });
+
     test('doublons : élève déjà connu rattaché, doublon du fichier ignoré, choix de l\'utilisateur conservé', () {
       final lignes = [
         ligne(2, {ChampListe.matricule: '12345678A', ChampListe.nomPrenoms: 'KOUASSI Aya', ChampListe.sexe: 'F'}),

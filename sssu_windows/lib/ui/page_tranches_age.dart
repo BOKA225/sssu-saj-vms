@@ -106,7 +106,7 @@ class _PageTranchesAgeState extends ConsumerState<PageTranchesAge> {
             Text('Tranches d\'âge par établissement', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
             const Text('Élèves de chaque établissement par tranche d\'âge et par sexe. Les visites systématiques et les '
-                'visites d\'aptitude (3ème et Tle) sont comptées séparément. Cliquez sur un établissement pour voir '
+                'visites d\'aptitude (CM2, 3ème et Tle) sont comptées séparément. Cliquez sur un établissement pour voir '
                 'son détail. Les effectifs saisis à la main (classes sans liste d\'élèves) ne sont pas répartis par âge '
                 'et ne figurent pas ici.'),
             const SizedBox(height: 12),
@@ -135,7 +135,7 @@ class _PageTranchesAgeState extends ConsumerState<PageTranchesAge> {
     return [
       Wrap(children: [
         CarteIndicateur('${t.etablissements.length}', 'Établissements', icone: Icons.school),
-        CarteIndicateur('${e.effectif}', aptitude ? 'Élèves de 3ème et Tle' : 'Élèves inscrits',
+        CarteIndicateur('${e.effectif}', aptitude ? 'Élèves de CM2, 3ème et Tle' : 'Élèves inscrits',
             detail: '${e.garcons} garçons · ${e.filles} filles', icone: Icons.groups),
         CarteIndicateur('${e.examines}', 'Élèves examinés',
             detail: '${e.garconsExamines} G · ${e.fillesExamines} F',
@@ -171,7 +171,7 @@ class _PageTranchesAgeState extends ConsumerState<PageTranchesAge> {
       Panneau(
         '${_mesure.libelle} par tranche d\'âge et par sexe${aptitude ? ' (visite d\'aptitude)' : ''}',
         t.etablissements.isEmpty
-            ? Text(aptitude ? 'Aucun établissement n\'a de classe de 3ème ou de terminale.' : 'Aucun établissement.')
+            ? Text(aptitude ? 'Aucun établissement n\'a de classe de CM2, de 3ème ou de terminale.' : 'Aucun établissement.')
             : _tableau(t),
       ),
       Panneau('${un?.libelle ?? 'Ensemble des établissements'} : effectif, examinés et couverture par tranche d\'âge',

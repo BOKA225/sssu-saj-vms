@@ -332,7 +332,15 @@ class _PageImportState extends ConsumerState<PageImport> {
     });
   }
 
-  void _controler() => controlerLignes(_lignes, existants: _existants, dateReference: DateTime.now().toUtc());
+  void _controler() {
+    final classe = _classes.where((c) => c.id == _classe).firstOrNull;
+    controlerLignes(_lignes,
+        existants: _existants,
+        dateReference: DateTime.now().toUtc(),
+        classe: classe?.libelle,
+        niveauClasse: classe?.niveau,
+        typeEtablissement: _etabs.where((e) => e.id == _etab).firstOrNull?.donnees['type'] as String?);
+  }
 
   Future<void> _corriger(LigneImport l) async {
     final c = {

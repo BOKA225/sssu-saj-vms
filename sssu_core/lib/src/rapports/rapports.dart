@@ -44,7 +44,7 @@ String _date(DateTime? d) {
 /// Description lisible des filtres appliqués.
 String descriptionPerimetre(JeuStatistiques jeu, FiltreStatistiques f) {
   final morceaux = <String>[
-    f.typeVisite == TypeVisite.aptitude ? 'Visite médicale d\'aptitude (3ème et Tle)' : 'Visite médicale systématique',
+    f.typeVisite == TypeVisite.aptitude ? 'Visite médicale d\'aptitude ($classesAptitude)' : 'Visite médicale systématique',
     'Année scolaire ${jeu.annee.libelle}',
   ];
   if (f.etablissementId != null) morceaux.add(jeu.etablissements[f.etablissementId] ?? 'établissement');
@@ -248,7 +248,7 @@ DocumentRapport rapportStatistique(
     BlocChamps([
       if (portee == PorteeRapport.annuel) ('Établissements', '${s.nbEtablissements}'),
       if (portee != PorteeRapport.classe) ('Classes', '${s.nbClasses}'),
-      ('Effectif total${aptitude ? ' (3ème et Tle)' : ''}', '${g.effectif} (${g.garcons} garçons, ${g.filles} filles)'),
+      ('Effectif total${aptitude ? ' ($classesAptitude)' : ''}', '${g.effectif} (${g.garcons} garçons, ${g.filles} filles)'),
       ('Élèves examinés', '${g.examines} (${g.garconsExamines} garçons, ${g.fillesExamines} filles)'),
       ('Élèves non examinés', '${g.nonExamines}'),
       ('Visites médicales enregistrées', '${s.nbVisites}'),
@@ -375,7 +375,7 @@ DocumentRapport rapportTranchesAge(
     paysage: true,
     blocs: [
       BlocParagraphe('Âge des élèves au ${_date(t.dateAge)}. ${t.etablissements.length} établissement(s) ; '
-          '${e.effectif} élève(s)${aptitude ? ' de 3ème et de terminale' : ''} inscrit(s) '
+          '${e.effectif} élève(s)${aptitude ? ' de CM2, de 3ème et de terminale' : ''} inscrit(s) '
           '(${e.garcons} garçons, ${e.filles} filles) ; ${e.examines} examiné(s) '
           '(${e.garconsExamines} garçons, ${e.fillesExamines} filles), soit une couverture de ${pourcentage(e.tauxCouverture)}.'),
       const BlocTitre('1. Élèves inscrits'),
@@ -592,7 +592,7 @@ DocumentRapport rapportAptitudes(
   final avecEtab = f.etablissementId == null && f.classeId == null;
   final parDecision = {for (final d in DecisionAptitude.values) d: l.where((x) => x.derniereVisite?.aptitude == d).length};
   return DocumentRapport(
-    titre: 'Décisions d\'aptitude (3ème et Tle)',
+    titre: 'Décisions d\'aptitude ($classesAptitude)',
     sousTitre: descriptionPerimetre(jeu, g),
     entete: entete,
     confidentiel: true,

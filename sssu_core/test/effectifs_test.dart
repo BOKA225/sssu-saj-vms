@@ -31,7 +31,7 @@ void main() {
       ],
       classes: [
         {'id': 'C1', 'libelle': 'CM1', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'},
-        {'id': 'C2', 'libelle': 'CM2', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'},
+        {'id': 'C2', 'libelle': 'CM1', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'},
         {'id': 'C3', 'libelle': '6ème 1', 'etablissement_id': 'E2', 'annee_scolaire_id': 'A'},
         {'id': 'C4', 'libelle': '3ème 1', 'etablissement_id': 'E2', 'annee_scolaire_id': 'A'},
       ],
@@ -120,8 +120,10 @@ void main() {
         EffectifSaisi(env.classeA, garcons: 20, filles: 25, visitesGarcons: 18, visitesFilles: 20, aptitudeGarcons: 3),
       ]);
       var l = await lus();
-      expect(l.single.donnees['garcons'], 20);
-      expect(l.single.donnees['aptitude_garcons'], isNull, reason: 'CM2 : pas de visite d\'aptitude');
+      expect((l.single.donnees['garcons'], l.single.donnees['aptitude_garcons']), (20, 3), reason: 'CM2 : visite d\'aptitude');
+      await gestion.enregistrerEffectifs(admin, [EffectifSaisi(env.classeB, garcons: 10, filles: 9, aptitudeGarcons: 3)]);
+      final ce1 = await env.depot.transaction((tx) => tx.chercher('effectif_classe', {'classe_id': env.classeB}));
+      expect(ce1.single.donnees['aptitude_garcons'], isNull, reason: 'CE1 : pas de visite d\'aptitude');
       await gestion.enregistrerEffectifs(_droits(RoleCode.medecinChef), [EffectifSaisi(env.classeA, garcons: 21, filles: 25)]);
       l = await lus();
       expect((l.length, l.single.version, l.single.donnees['garcons'], l.single.donnees['visites_garcons']), (1, 2, 21, null));
