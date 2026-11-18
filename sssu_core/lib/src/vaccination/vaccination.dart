@@ -25,11 +25,16 @@ const ageMaxHpv = 14;
 /// Niveaux du préscolaire (codes de `lireClasse`).
 const niveauxPrescolaire = {'PS', 'MS', 'GS'};
 
+/// Libellé de classe abrégé : « GS », « PS 2 », « MS-A » (non retenus par
+/// `lireClasse`, ambigus dans les titres d'un fichier).
+final _abregePrescolaire = RegExp(r'^(PS|MS|GS)[ \-]*[0-9A-Z]{0,2}$');
+
 /// Classe du préscolaire (petite, moyenne, grande section), d'après son
 /// libellé, sinon son niveau ; toutes les classes d'un établissement
 /// préscolaire.
 bool classePrescolaire(String? libelle, {String? niveau, String? typeEtablissement}) {
   if (typeEtablissement == TypeEtablissement.prescolaire.code) return true;
+  if (libelle != null && _abregePrescolaire.hasMatch(libelle.trim().toUpperCase())) return true;
   final n = (libelle == null ? null : lireClasse(libelle)?.niveau) ??
       (niveau == null ? null : lireClasse(niveau)?.niveau ?? niveau.toUpperCase());
   return niveauxPrescolaire.contains(n);

@@ -28,7 +28,7 @@ void main() {
     });
 
     test('classes du préscolaire et filles concernées par le vaccin HPV', () {
-      for (final c in ['Petite section', 'Moyenne section A', 'Grande section 2', 'GS', 'PS1']) {
+      for (final c in ['Petite section', 'Moyenne section A', 'Grande section 2', 'GS', 'PS1', 'ms b', 'GS-2']) {
         expect(classePrescolaire(c), isTrue, reason: c);
       }
       for (final c in ['CP1', 'CM2 A', '6ème 1', 'Tle D']) {
