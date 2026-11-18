@@ -49,13 +49,13 @@ Le bouton **SYNCHRONISER MES DONNÉES** envoie vos saisies au poste central et r
 - **Modifier le dossier** d'un élève : dans son dossier, touchez le crayon en haut de l'écran. Les changements partent au poste central à la prochaine synchronisation.
 - **Vaccination d'un enfant du préscolaire** : dans son dossier, touchez **« Vaccination (PEV et hors PEV) »** pour compléter sa fiche en dehors d'une visite (mêmes informations que l'onglet « Vaccination » de la visite).
 - Ces deux actions sont réservées au médecin-chef, au médecin et à l'infirmier (pas à l'agent de santé).
-- **Importer une liste** : choisissez un fichier Excel, CSV ou PDF, ou photographiez une liste papier. L'application lit le texte, même sans réseau. **Vérifiez chaque ligne** avant de valider : rien n'est enregistré avant votre validation, et les doublons probables vous sont signalés. Un classeur Excel de **plusieurs classes** (une feuille par classe, ou une colonne « Classe ») s'importe classe par classe : choisissez la classe du fichier, validez, puis touchez **« Classe suivante du fichier »**. Le poste central, lui, importe toutes les classes en une fois.
+- **Importer une liste** : choisissez un fichier Excel, CSV ou PDF, ou photographiez une liste papier. L'application lit le texte, même sans réseau. **Vérifiez chaque ligne** avant de valider : rien n'est enregistré avant votre validation, et les doublons probables vous sont signalés. Un classeur Excel de **plusieurs classes** (une feuille par classe, ou une colonne « Classe ») s'importe classe par classe : choisissez la classe du fichier, validez, puis touchez **« Classe suivante du fichier »**. Le poste central, lui, importe toutes les classes en une fois. Le **matricule n'est pas obligatoire** : au préscolaire et au primaire (CP1 à CM2, ou établissement primaire), son absence n'est même pas signalée ; au secondaire, elle est signalée « à vérifier » sans bloquer l'importation.
 
 ### A4. Visite médicale
 
-1. Ouvrez l'élève, puis touchez « Nouvelle visite ». Pour un élève de **3ème** ou de **terminale** (enseignement général ou technique), l'application demande quelle visite faire :
+1. Ouvrez l'élève, puis touchez « Nouvelle visite ». Pour un élève de **CM2**, de **3ème** ou de **terminale** (enseignement général ou technique), l'application demande quelle visite faire :
    - **visite médicale systématique** : le bilan de santé de tous les élèves ;
-   - **visite médicale d'aptitude** : l'aptitude à la pratique de l'EPS et aux examens (BEPC, BAC).
+   - **visite médicale d'aptitude** : l'aptitude à la pratique de l'EPS et aux examens (CEPE et entrée en 6ème, BEPC, BAC).
 2. Remplissez les rubriques A à F : identification, antécédents, examen clinique, examen physique (l'IMC est calculé), dépistage, conclusion. Pour une visite d'aptitude, la rubrique F commence par la **décision d'aptitude** : apte, aptitude partielle (avec restrictions), inapte temporairement ou inapte définitivement. Sauf pour « apte », précisez les restrictions ou le motif et la durée de l'inaptitude.
    - **Enfant du préscolaire** (petite, moyenne ou grande section) : l'onglet **« Vaccination »** apparaît. D'après le carnet, cochez pour chaque vaccin du **PEV** et **hors PEV** (obligatoires, puis recommandés) **« Fait »** ou **« Non fait »** (touchez à nouveau pour effacer), et notez le parent ou tuteur, son téléphone, si le carnet a été présenté et les observations. **« Tous faits »** coche d'un coup tous les vaccins d'un groupe. L'état vaccinal s'affiche : **à jour** (tous les vaccins obligatoires faits), **incomplet** ou **non renseigné**.
    - **Fille de 9 à 14 ans** (visite systématique ; âge à la date de la visite) : l'onglet **« Vaccin HPV »** apparaît.
@@ -112,7 +112,7 @@ Le rapport à imprimer (grille remplie, signature et cachet du chef d'établisse
 
 ### A8. Statistiques
 
-Les statistiques sont réservées aux médecins et au Médecin-Chef. Elles ne portent que sur les données de **ce téléphone** : couverture, conclusions, pathologies, inspections, élèves par tranche d'âge et par sexe. Choisissez en haut **Systématique** ou **Aptitude** : les deux visites ont des statistiques séparées (la visite d'aptitude porte sur les élèves de 3ème et de terminale, avec leurs décisions d'aptitude). Pour la visite systématique, le **bilan du vaccin HPV** des filles de 9 à 14 ans s'affiche : déjà vaccinées, vaccinées lors de la visite, vaccin proposé et non fait (avec les motifs), couverture. Les statistiques complètes sont sur le poste central.
+Les statistiques sont réservées aux médecins et au Médecin-Chef. Elles ne portent que sur les données de **ce téléphone** : couverture, conclusions, pathologies, inspections, élèves par tranche d'âge et par sexe. Choisissez en haut **Systématique** ou **Aptitude** : les deux visites ont des statistiques séparées (la visite d'aptitude porte sur les élèves de CM2, de 3ème et de terminale, avec leurs décisions d'aptitude). Pour la visite systématique, le **bilan du vaccin HPV** des filles de 9 à 14 ans s'affiche : déjà vaccinées, vaccinées lors de la visite, vaccin proposé et non fait (avec les motifs), couverture. Les statistiques complètes sont sur le poste central.
 
 ### A9. Téléphone perdu ou volé
 
@@ -188,7 +188,7 @@ Les filtres portent sur le **type de visite** (systématique ou d'aptitude), l'a
   - **Effectifs par classe et par sexe** (administrateur, Médecin-Chef) : choisissez l'établissement, puis
     **« Effectifs par classe et par sexe (inscrits et visités) »**. Pour chaque classe **sans liste d'élèves**,
     saisissez les garçons et les filles inscrits, puis les garçons et les filles **visités** en visite
-    systématique, et pour les classes de 3ème et de terminale, en visite d'aptitude. Les statistiques et les
+    systématique, et pour les classes de CM2, de 3ème et de terminale, en visite d'aptitude. Les statistiques et les
     rapports en tiennent compte (effectif, examinés, couverture par sexe, par classe et par établissement) tant
     que la classe n'a pas de liste d'élèves ; dès qu'une liste est importée, ce sont ses chiffres qui comptent.
     Les effectifs saisis ne sont pas répartis par âge et n'entrent ni dans les conclusions ni dans les
@@ -303,7 +303,7 @@ La décision est transmise aux téléphones à leur synchronisation suivante.
     critères ★ non conformes de chaque établissement) ;
   - listes des élèves examinés et non examinés ;
   - élèves référés et à suivre ;
-  - **décisions d'aptitude (3ème et Tle)** : liste nominative des élèves vus, avec leur décision et les
+  - **décisions d'aptitude (CM2, 3ème et Tle)** : liste nominative des élèves vus, avec leur décision et les
     restrictions, à transmettre pour les examens ;
   - **vaccin HPV des filles de 9 à 14 ans** : filles de l'effectif et examinées, déjà vaccinées, vaccinées lors de
     la visite, vaccin proposé et non fait (motifs), couverture, par établissement. Le même bilan figure dans

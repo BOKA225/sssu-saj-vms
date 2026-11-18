@@ -1,21 +1,49 @@
 import 'package:sssu_core/sssu_core.dart';
 import 'package:test/test.dart';
 
-/// Visite médicale d'aptitude (3ème et Tle) : formulaire, statistiques
+/// Visite médicale d'aptitude (CM2, 3ème et Tle) : formulaire, statistiques
 /// séparées de la visite systématique, rapports.
 void main() {
   Droits droits(RoleCode r) => Droits(utilisateurId: 'u', role: r, permissions: matriceParDefaut[r]!);
   const entete = EnteteRapport(lignes: ['DISTRICT SANITAIRE'], nomMedecinChef: 'Dr KOFFI');
 
-  test('classes concernées : 3ème et terminale, général et technique', () {
-    for (final c in ['3ème 1', '3e B', 'Troisième', 'Tle D', 'Terminale A1', 'Tle G2', 'TLE F2-1']) {
+  test('classes concernées : CM2, 3ème et terminale, général et technique', () {
+    for (final c in ['CM2 A', 'CM2', 'cm2 b', '3ème 1', '3e B', 'Troisième', 'Tle D', 'Terminale A1', 'Tle G2', 'TLE F2-1']) {
       expect(classeConcerneeParAptitude(c), isTrue, reason: c);
     }
-    for (final c in ['CM2 A', '4ème 2', '1ère D', '2nde G1', 'BT 2', 'Groupe bleu']) {
+    expect(classeConcerneeParAptitude('Classe B', niveau: 'CM2'), isTrue);
+    for (final c in ['CM1 A', 'CE2', '4ème 2', '1ère D', '2nde G1', 'BT 2', 'Groupe bleu']) {
       expect(classeConcerneeParAptitude(c), isFalse, reason: c);
     }
     expect(classeConcerneeParAptitude('Classe d\'examen', niveau: 'TLE'), isTrue);
     expect(classeConcerneeParAptitude('Classe d\'examen', niveau: '3ème'), isTrue);
+  });
+
+  test('élèves de CM2 dans la population de la visite d\'aptitude', () {
+    final jeu = JeuStatistiques.depuisLignes(
+      annee: AnneeStat('A', '2026-2027', DateTime.utc(2026, 9, 1), DateTime.utc(2027, 7, 31)),
+      etablissements: [
+        {'id': 'E1', 'nom': 'EPP Centre'},
+      ],
+      classes: [
+        {'id': 'C1', 'libelle': 'CM2 A', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'},
+        {'id': 'C2', 'libelle': 'CM1 A', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'},
+      ],
+      inscriptions: [
+        for (final (e, c) in [('e1', 'C1'), ('e2', 'C1'), ('e3', 'C2')]) {'eleve_id': e, 'classe_id': c, 'statut': 'inscrit'},
+      ],
+      eleves: [
+        for (final (e, s) in [('e1', 'M'), ('e2', 'F'), ('e3', 'F')]) {'id': e, 'sexe': s, 'date_naissance': '2015-01-01'},
+      ],
+      visites: [
+        {'id': 'a1', 'eleve_id': 'e1', 'date_visite': '2026-11-10', 'statut': 'valide', 'type_visite': 'aptitude', 'aptitude': 'apte'},
+      ],
+      visitePathologies: const [],
+      pathologies: const [],
+    );
+    final s = calculerStatistiques(jeu, const FiltreStatistiques(typeVisite: TypeVisite.aptitude));
+    expect((s.generale.effectif, s.generale.examines, s.aptitudes[DecisionAptitude.apte]), (2, 1, 1));
+    expect(s.parClasse.map((c) => c.libelle), ['CM2 A']);
   });
 
   group('Formulaire', () {
@@ -78,7 +106,7 @@ void main() {
           jeu, FiltreStatistiques(typeVisite: TypeVisite.aptitude, dateAge: DateTime.utc(2026, 11, 25)));
       expect(s.typeVisite, TypeVisite.aptitude);
       expect((s.generale.effectif, s.generale.examines, s.nbVisites), (4, 3, 3),
-          reason: 'élève de CM2 et sa visite d\'aptitude hors population');
+          reason: 'élève de CM1 et sa visite d\'aptitude hors population');
       expect(s.parEtablissement.map((e) => e.libelle), ['Collège Moderne'], reason: 'école primaire écartée');
       expect(s.parClasse.map((c) => c.libelle), unorderedEquals(['3ème 1', 'Tle D']));
       expect(s.aptitudes, {
@@ -108,7 +136,8 @@ void main() {
           genereLe: DateTime.utc(2026, 11, 25)), throwsA(isA<RapportRefuse>()));
       final d = rapportAptitudes(jeu, const FiltreStatistiques(),
           entete: entete, acteur: droits(RoleCode.medecin), genereLe: DateTime.utc(2026, 11, 25));
-      expect(d.sousTitre, startsWith('Visite médicale d\'aptitude (3ème et Tle) · Année scolaire 2026-2027'));
+      expect(d.sousTitre, startsWith('Visite médicale d\'aptitude (CM2, 3ème et Tle) · Année scolaire 2026-2027'));
+      expect(d.titre, 'Décisions d\'aptitude (CM2, 3ème et Tle)');
       expect((d.blocs.first as BlocParagraphe).texte, contains('1 apte'));
       final t = d.blocs[1] as BlocTableau;
       expect(t.lignes.map((x) => x[8]),
@@ -142,7 +171,7 @@ JeuStatistiques _jeu() {
     identite: true,
     etablissements: [l({'id': 'E1', 'nom': 'EPP Centre'}), l({'id': 'E2', 'nom': 'Collège Moderne'})],
     classes: [
-      l({'id': 'C1', 'libelle': 'CM2 A', 'niveau': 'CM2', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'}),
+      l({'id': 'C1', 'libelle': 'CM1 A', 'niveau': 'CM1', 'etablissement_id': 'E1', 'annee_scolaire_id': 'A'}),
       l({'id': 'C2', 'libelle': '3ème 1', 'niveau': '3EME', 'etablissement_id': 'E2', 'annee_scolaire_id': 'A'}),
       l({'id': 'C3', 'libelle': 'Tle D', 'etablissement_id': 'E2', 'annee_scolaire_id': 'A'}),
       l({'id': 'C4', 'libelle': '4ème 2', 'etablissement_id': 'E2', 'annee_scolaire_id': 'A'}),

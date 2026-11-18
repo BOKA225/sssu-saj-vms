@@ -107,7 +107,7 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
           if (aptitude)
             const Padding(
               padding: EdgeInsets.fromLTRB(8, 4, 8, 0),
-              child: Text('Visite d\'aptitude : élèves de 3ème et de terminale.', style: TextStyle(fontSize: 12)),
+              child: Text('Visite d\'aptitude : élèves de CM2, de 3ème et de terminale.', style: TextStyle(fontSize: 12)),
             ),
           Wrap(spacing: 8, children: [
             DropdownButton<String?>(

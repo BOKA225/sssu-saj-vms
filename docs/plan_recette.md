@@ -110,6 +110,16 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.10.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 21.1 | Téléphone : élève de CM2 → Nouvelle visite | Choix « visite systématique » ou « visite d'aptitude » | |
+| 21.2 | Élève de CM1 → Nouvelle visite | Visite systématique, sans question | |
+| 21.3 | Poste : Statistiques → Visite d'aptitude | Classes de CM2 comptées avec la 3ème et la Tle | |
+| 21.4 | Importer une liste de CE1 sans colonne Matricule (téléphone et poste) | Aucune ligne « Matricule manquant », import validable | |
+| 21.5 | Importer une liste de 6ème sans matricule | « Matricule manquant » à vérifier, import validable | |
+
 ## Version 1.9.0
 
 | N° | Action | Résultat attendu | OK |

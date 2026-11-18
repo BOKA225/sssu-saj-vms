@@ -718,7 +718,7 @@ class Perimetre {
 Perimetre perimetre(JeuStatistiques jeu, FiltreStatistiques f) {
   final debut = f.du != null && f.du!.isAfter(jeu.annee.debut) ? f.du! : jeu.annee.debut;
   final fin = f.au != null && f.au!.isBefore(jeu.annee.fin) ? f.au! : jeu.annee.fin;
-  // Visite d'aptitude : classes de 3ème et de terminale seulement, et les
+  // Visite d'aptitude : classes de CM2, de 3ème et de terminale seulement, et les
   // établissements qui en ont.
   final aptitude = f.typeVisite == TypeVisite.aptitude;
   final classes = <String>{

@@ -353,6 +353,10 @@ class _EcranImportState extends ConsumerState<EcranImport> {
         existants: _existants,
         dateReference: DateTime.now().toUtc(),
         formatMatricule: _formatMatricule,
+        // Préscolaire et primaire : pas de matricule attendu.
+        classe: _classe?.libelle,
+        niveauClasse: _classe?.niveau,
+        typeEtablissement: _etab?.type.code,
       );
 
   // ------------------------------------------------------------- correction

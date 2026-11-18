@@ -773,6 +773,17 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.10.0
+
+- **Visite d'aptitude au CM2** : `niveauxAptitude` = CM2, 3ème, Tle (`classesAptitude` pour les libellés) ; le
+  téléphone propose la visite d'aptitude aux élèves de CM2 ; statistiques, rapports et saisie des effectifs
+  visités en aptitude incluent le CM2.
+- **Matricule facultatif à l'importation au préscolaire et au primaire** : `matriculeAttendu` (classe, niveau
+  ou type d'établissement) ; `controlerLignes(classe:, niveauClasse:, typeEtablissement:)` ne signale plus
+  « Matricule manquant » pour ces classes (ligne de fichier de plusieurs classes : sa classe). Au secondaire,
+  l'absence reste un simple avertissement.
+- Téléphones et poste à mettre à jour (la visite d'aptitude au CM2 et le contrôle des listes sont dans les deux).
+
 ## Version 1.9.0
 
 - **Code d'établissement facultatif** : sans code, `ServiceGestion.creerEtablissement` attribue un code

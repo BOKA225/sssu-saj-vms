@@ -469,7 +469,7 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
     _charger();
   }
 
-  /// Nouvelle visite : pour un élève de 3ème ou de terminale, choix entre la
+  /// Nouvelle visite : pour un élève de CM2, de 3ème ou de terminale, choix entre la
   /// visite systématique et la visite d'aptitude.
   Future<void> _nouvelleVisite() async {
     final classe = _eleve?.classeLibelle;
@@ -491,7 +491,7 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
                 leading: Icon(t == TypeVisite.aptitude ? Icons.directions_run : Icons.medical_services),
                 title: Text(t.libelle),
                 subtitle: Text(t == TypeVisite.aptitude
-                    ? 'Aptitude à la pratique de l\'EPS et aux examens (BEPC, BAC)'
+                    ? 'Aptitude à la pratique de l\'EPS et aux examens (CEPE, BEPC, BAC)'
                     : 'Bilan de santé de tous les élèves'),
               ),
             ),

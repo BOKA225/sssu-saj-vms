@@ -55,7 +55,7 @@ enum TypeRapport {
   examines('Liste des élèves examinés', 'Liste nominative, avec la date de la dernière visite.', true),
   nonExamines('Liste des élèves non examinés', 'Liste nominative des élèves restant à voir.', true),
   suivis('Élèves référés et à suivre', 'Diagnostic, structure de référence ou date de contrôle, contact.', true),
-  aptitudes('Décisions d\'aptitude (3ème et Tle)',
+  aptitudes('Décisions d\'aptitude (CM2, 3ème et Tle)',
       'Liste nominative des élèves vus en visite d\'aptitude : apte, aptitude partielle, inapte, avec les restrictions.', true);
 
   final String titre;
