@@ -22,6 +22,7 @@ import '../statistiques/statistiques.dart';
 import '../sync/depot_serveur.dart';
 import '../sync/enregistrement.dart';
 import '../vaccination/vaccination.dart';
+import '../visite/aptitude.dart';
 import 'document.dart';
 
 class RapportRefuse implements Exception {
