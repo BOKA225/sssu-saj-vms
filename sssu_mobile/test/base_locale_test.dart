@@ -284,4 +284,88 @@ void main() {
     final r2 = await client.synchroniser();
     expect(r2.motifs, isEmpty);
   });
+  test('élève passé dans un autre établissement : un téléphone de l\'ancien établissement, réappairé, reçoit tout',
+      () async {
+    final serveur = DepotServeurMemoire();
+    await initialiserRoles(serveur, horloge: horloge);
+    final auth = ServiceAuthentification(
+        depot: DepotUtilisateursServeur(serveur, horloge: horloge),
+        hacheur: HacheurMotDePasse(parametres: ParametresArgon2.tests),
+        horloge: horloge);
+    final admin = await auth.creerPremierAdministrateur(identifiant: 'admin', nom: 'ADMIN', motDePasse: 'Admin-2026');
+    final droitsAdmin = await auth.droitsDe(admin);
+
+    final annee = nouvelId();
+    final etabA = nouvelId();
+    final etabB = nouvelId();
+    final classeA = nouvelId();
+    final classeB = nouvelId();
+    final eleve = nouvelId();
+    final ins = nouvelId();
+    Enregistrement n(String t, String id, Map<String, Object?> d, {String? portee}) => Enregistrement(
+        table: t,
+        id: id,
+        version: 1,
+        versionBase: 1,
+        createdAt: horloge.maintenant(),
+        updatedAt: horloge.maintenant(),
+        etablissementId: portee,
+        donnees: d);
+    await serveur.transaction((tx) async {
+      await tx.ecrire(n('annee_scolaire', annee,
+          {'libelle': '2026-2027', 'date_debut': '2026-09-14', 'date_fin': '2027-07-16', 'active': true}));
+      for (final (id, code) in [(etabA, 'A1'), (etabB, 'B1')]) {
+        await tx.ecrire(
+            n('etablissement', id, {'nom': 'École $code', 'code': code, 'type': 'primaire', 'statut': 'public'}, portee: id));
+      }
+      await tx.ecrire(n('classe', classeA, {'etablissement_id': etabA, 'annee_scolaire_id': annee, 'libelle': 'CM1 A'},
+          portee: etabA));
+      await tx.ecrire(n('classe', classeB, {'etablissement_id': etabB, 'annee_scolaire_id': annee, 'libelle': 'CM1 B'},
+          portee: etabB));
+      await tx.ecrire(n('eleve', eleve, {'nom': 'KOUASSI', 'prenoms': 'Aya', 'sexe': 'F', 'date_naissance': '2016-03-01'},
+          portee: etabA));
+      await tx.ecrire(n('inscription', ins,
+          {'eleve_id': eleve, 'classe_id': classeA, 'annee_scolaire_id': annee, 'statut': 'inscrit'},
+          portee: etabA));
+    });
+    // L'élève change d'établissement sur le poste : son inscription désigne
+    // désormais une classe de l'établissement B.
+    await ServiceGestion(depot: serveur, horloge: horloge).inscrireEleve(droitsAdmin, eleve, classeB);
+
+    // Téléphone de l'établissement A, appairé après coup : il reçoit tout depuis le début.
+    final sync = ServiceSynchronisation(depot: serveur, horloge: horloge);
+    final appairage = ServiceAppairage(depot: serveur, horloge: horloge);
+    final jetons = ServiceJetons(depot: serveur, horloge: horloge);
+    final qr = await appairage.preparer(
+        acteur: droitsAdmin, nomAppareil: 'Tel', etablissementIds: [etabA], urlServeur: 'x', empreinteCertificat: null);
+    final identite = await IdentiteAppareil.generer(qr.appareilId);
+    final transport = TransportDirect(sync, appairage, jetons);
+    await transport.appairer(
+        DemandeAppairage(appareilId: qr.appareilId, code: qr.code, clePublique: await identite.clePubliqueBase64()));
+    final depot = DepotLocalDrift(db, horloge: horloge, appareilId: qr.appareilId);
+    final client = ClientSynchronisation(depot: depot, transport: transport, identite: identite, horloge: horloge);
+
+    final r = await client.synchroniser();
+    expect(r.recus, greaterThan(0));
+    expect(await depot.lire('classe', classeA), isNotNull);
+    expect(await depot.lire('classe', classeB), isNull, reason: 'établissement non affecté au téléphone');
+    expect((await depot.lire('inscription', ins))!.donnees['classe_id'], classeB);
+
+    // Les clés étrangères restent contrôlées pour les saisies du téléphone.
+    expect((await db.customSelect('PRAGMA foreign_keys').getSingle()).data.values.single, 1);
+    await expectLater(
+        depot.creer('inscription',
+            {'eleve_id': nouvelId(), 'classe_id': classeA, 'annee_scolaire_id': annee, 'statut': 'inscrit'},
+            utilisateurId: admin.id, etablissementId: etabA),
+        throwsA(anything));
+    final nouveau = await depot.creer(
+        'eleve', {'nom': 'YAO', 'prenoms': 'Koffi', 'sexe': 'M', 'date_naissance': '2016-01-02'},
+        utilisateurId: admin.id, etablissementId: etabA);
+    await depot.creer('inscription',
+        {'eleve_id': nouveau.id, 'classe_id': classeA, 'annee_scolaire_id': annee, 'statut': 'inscrit'},
+        utilisateurId: admin.id, etablissementId: etabA);
+    final r2 = await client.synchroniser();
+    expect(r2.motifs, isEmpty);
+    expect(r2.acceptes, 2);
+  });
 }

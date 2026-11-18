@@ -110,6 +110,14 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.10.2
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 23.1 | Poste : inscrire un élève de l'établissement A dans une classe de l'établissement B | Élève et dossier rattachés à B | |
+| 23.2 | Téléphone affecté à A seulement, réappairé (ou nouveau) : première synchronisation | Synchronisation terminée, sans « FOREIGN KEY constraint failed » | |
+| 23.3 | Sur ce téléphone : ajouter un élève dans une classe de A, synchroniser | Élève et inscription reçus par le poste | |
+
 ## Version 1.10.1
 
 | N° | Action | Résultat attendu | OK |
