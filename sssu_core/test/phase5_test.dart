@@ -177,6 +177,43 @@ void main() {
       // Date hors de l'année : ramenée dans la période.
       expect(calculerStatistiques(jeu, FiltreStatistiques(dateAge: DateTime.utc(2030))).dateAge, DateTime.utc(2027, 7, 31));
     });
+    test('élèves par tranche d\'âge et par sexe, établissement par établissement', () {
+      final date = DateTime.utc(2026, 11, 25);
+      final t = tranchesParEtablissement(jeu, FiltreStatistiques(dateAge: date));
+      expect(t.dateAge, date);
+      expect(t.tranches, TrancheAge.values, reason: 'âge inconnu présenté : e6 n\'a pas de date de naissance');
+      expect(t.etablissements.map((r) => r.libelle), ['École A', 'École B']);
+      (int, int, int, int) l(RepartitionAges r, TrancheAge x) {
+        final y = r.lignes.firstWhere((z) => z.tranche == x);
+        return (y.garcons, y.filles, y.garconsExamines, y.fillesExamines);
+      }
+
+      final a = t.etablissements[0], b = t.etablissements[1];
+      expect(l(a, TrancheAge.de5a9), (1, 2, 1, 1)); // e1, e2 examinés ; e3 (ébauche) non
+      expect(l(a, TrancheAge.de10a14), (1, 0, 0, 0)); // e4 : visite de l'année précédente
+      expect(l(b, TrancheAge.de10a14), (1, 0, 1, 0)); // e5
+      expect(l(b, TrancheAge.inconnu), (0, 1, 0, 0)); // e6
+      expect(l(b, TrancheAge.de5a9), (0, 0, 0, 0));
+      expect((a.effectif, a.garcons, a.filles, a.examines, a.tauxCouverture), (4, 2, 2, 2, 50.0));
+      expect((b.effectif, b.examines), (2, 1));
+      // L'ensemble est la somme des établissements, identique au tableau des statistiques.
+      final s = calculerStatistiques(jeu, FiltreStatistiques(dateAge: date));
+      (TrancheAge, int, int, int, int) m(LigneTrancheAge x) =>
+          (x.tranche, x.garcons, x.filles, x.garconsExamines, x.fillesExamines);
+      expect(t.ensemble.lignes.map(m), s.parTrancheAge.map(m));
+      expect((t.ensemble.effectif, t.ensemble.examines), (6, 3));
+
+      // Un seul établissement : sans élève d'âge inconnu, sept tranches.
+      final seul = tranchesParEtablissement(jeu, FiltreStatistiques(etablissementId: 'E1', dateAge: date));
+      expect(seul.etablissements.single.libelle, 'École A');
+      expect(seul.tranches, hasLength(7));
+      expect(seul.etablissements.single.lignes, hasLength(7));
+      // Visite d'aptitude : aucune classe de 3ème ni de terminale dans ce jeu.
+      final apt = tranchesParEtablissement(jeu, const FiltreStatistiques(typeVisite: TypeVisite.aptitude));
+      expect(apt.etablissements, isEmpty);
+      expect(apt.ensemble.effectif, 0);
+      expect(TrancheAge.plus50.abrege, '50 ans et +');
+    });
   });
 
   group('Rapports', () {
@@ -238,6 +275,49 @@ void main() {
       expect(docs[1].confidentiel, isTrue);
       final tableau = docs[2].blocs.whereType<BlocTableau>().first;
       expect(tableau.lignes.single[1], 'KOUASSI Aya');
+    });
+
+    test('rapport des tranches d\'âge par établissement : une ligne par sexe, sous-totaux, rendus', () async {
+      // Les filtres de sexe et de classe ne s'appliquent pas : ce sont les lignes du rapport.
+      final d = rapportTranchesAge(
+          jeu, FiltreStatistiques(dateAge: DateTime.utc(2026, 11, 25), sexe: Sexe.feminin, classeId: 'C1'),
+          entete: entete, acteur: droits(RoleCode.admin), genereLe: genereLe);
+      expect(d.confidentiel, isFalse);
+      expect(d.sousTitre, isNot(contains('filles')));
+      final tableaux = d.blocs.whereType<BlocTableau>().toList();
+      final inscrits = tableaux[0], examines = tableaux[1];
+      expect(inscrits.entetes, ['Établissement', 'Sexe', '0–4 ans', '5–9 ans', '10–14 ans', '15–19 ans', '20–24 ans',
+        '25–49 ans', '50 ans et +', 'Âge inconnu', 'Total']);
+      expect(inscrits.lignes, hasLength(8), reason: 'deux établissements de trois lignes, puis l\'ensemble (garçons, filles)');
+      expect(inscrits.lignes[0], ['École A', 'Garçons', 0, 1, 1, 0, 0, 0, 0, 0, 2]);
+      expect(inscrits.lignes[1], ['', 'Filles', 0, 2, 0, 0, 0, 0, 0, 0, 2]);
+      expect(inscrits.lignes[2], ['', 'Total', 0, 3, 1, 0, 0, 0, 0, 0, 4]);
+      expect(inscrits.lignes[3], ['École B', 'Garçons', 0, 0, 1, 0, 0, 0, 0, 0, 1]);
+      expect(inscrits.lignes[6][0], 'Ensemble des établissements');
+      expect(inscrits.sousTotaux, {2, 5});
+      expect(inscrits.totaux, ['', 'Total', 0, 3, 2, 0, 0, 0, 0, 1, 6]);
+      expect(examines.lignes[0], ['École A', 'Garçons', 0, 1, 0, 0, 0, 0, 0, 0, 1]);
+      expect(examines.lignes[1], ['', 'Filles', 0, 1, 0, 0, 0, 0, 0, 0, 1]);
+      expect(examines.totaux!.last, 3);
+      expect(tableaux[2].totaux, ['Total', 3, 3, 6, 2, 1, 3, '50 %']);
+
+      expect(ascii.decode((await rendrePdf(d, polices)).sublist(0, 5)), '%PDF-');
+      expect(rendreWord(d), isNotEmpty);
+      final lignes = Excel.decodeBytes(rendreExcel(d)).tables['Rapport']!.rows;
+      final ecole = lignes.indexWhere((l) => l.isNotEmpty && l[0]?.value?.toString() == 'École A');
+      expect(lignes[ecole][1]!.value.toString(), 'Garçons');
+      expect((lignes[ecole + 2][10]!.value! as IntCellValue).value, 4);
+
+      // Un seul établissement : pas de lignes d'ensemble.
+      final un = rapportTranchesAge(jeu, const FiltreStatistiques(etablissementId: 'E2'),
+          entete: entete, acteur: droits(RoleCode.medecinChef), genereLe: genereLe);
+      final t = un.blocs.whereType<BlocTableau>().first;
+      expect(t.lignes, hasLength(3));
+      expect(t.totaux, isNull);
+      expect(
+          () => rapportTranchesAge(jeu, const FiltreStatistiques(),
+              entete: entete, acteur: droits(RoleCode.agent), genereLe: genereLe),
+          throwsA(isA<RapportRefuse>()));
     });
 
     test('en-tête lu dans les paramètres, par défaut si vide', () {

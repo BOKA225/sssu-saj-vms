@@ -65,11 +65,11 @@ List<int> rendreExcel(DocumentRapport d, {String nomFeuille = 'Rapport'}) {
           f.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: ligne - 1)).cellStyle = gras;
         }
         ligne++;
-      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux):
+      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux, :final sousTotaux):
         if (titre != null) ecrire([titre], style: gras);
         ecrire(entetes, style: entete);
-        for (final l in lignes) {
-          ecrire(l);
+        for (final (i, l) in lignes.indexed) {
+          ecrire(l, style: sousTotaux.contains(i) ? gras : null);
         }
         if (totaux != null) ecrire(totaux, style: total);
         ligne++;

@@ -65,7 +65,11 @@ class BlocTableau extends BlocRapport {
 
   /// Largeurs relatives des colonnes (facultatives).
   final List<double>? largeurs;
-  const BlocTableau({this.titre, required this.entetes, required this.lignes, this.totaux, this.largeurs});
+
+  /// Indices (dans [lignes]) des lignes de sous-total, mises en évidence.
+  final Set<int> sousTotaux;
+  const BlocTableau(
+      {this.titre, required this.entetes, required this.lignes, this.totaux, this.largeurs, this.sousTotaux = const {}});
 }
 
 class BlocImage extends BlocRapport {

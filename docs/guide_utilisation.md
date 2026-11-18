@@ -244,10 +244,23 @@ La décision est transmise aux téléphones à leur synchronisation suivante.
   - Évolution mensuelle.
 
   Les filtres portent sur le type de visite, l'année, l'établissement, la classe, le sexe et la période.
+- **Tranches d'âge par établissement** (menu) : les élèves de **chaque établissement** par tranche d'âge (0–4,
+  5–9, 10–14, 15–19, 20–24, 25–49 ans, 50 ans et plus) et par sexe, sur trois lignes : garçons, filles, total ;
+  l'ensemble des établissements à la fin.
+  - Choisissez ce que montre le tableau : **élèves inscrits**, **élèves examinés** ou **couverture** (part des
+    inscrits examinés, en %).
+  - Choisissez la visite (systématique ou d'aptitude), l'année, la période, et au besoin un établissement : un
+    clic sur un établissement du tableau l'affiche seul, avec son détail (effectif, examinés et couverture par
+    tranche).
+  - L'âge de chaque élève est calculé à la date indiquée au-dessus du tableau (aujourd'hui, ou la fin de l'année
+    scolaire si elle est terminée). « Âge inconnu » apparaît quand un élève n'a pas de date de naissance.
+  - **Exporter en PDF, Word ou Excel** : le rapport « Tranches d'âge et sexe par établissement » (élèves inscrits,
+    élèves examinés, couverture de l'ensemble), aussi disponible dans **Rapports**.
 - **Rapports**, en **PDF, Word ou Excel**, pour le type de visite choisi :
   - rapport annuel, par établissement, par classe (avec le tableau par tranche d'âge et par sexe, et pour la
     visite d'aptitude, les décisions d'aptitude) ;
   - pathologies ;
+  - tranches d'âge et sexe par établissement ;
   - synthèse des inspections (avec, pour la grille nationale, les scores par section, le classement et les
     critères ★ non conformes de chaque établissement) ;
   - listes des élèves examinés et non examinés ;

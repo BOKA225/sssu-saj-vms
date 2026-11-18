@@ -548,20 +548,19 @@ Widget tableau(List<String> entetes, List<List<Object?>> lignes, {List<Object?>?
     );
 
 /// Élèves par tranche d'âge et par sexe : effectif, examinés, couverture.
-Widget tableauTranches(Statistiques s) {
-  int somme(int Function(LigneTrancheAge) f) => s.parTrancheAge.fold(0, (t, l) => t + f(l));
-  final g = somme((l) => l.garcons), fi = somme((l) => l.filles);
-  final gx = somme((l) => l.garconsExamines), fx = somme((l) => l.fillesExamines);
-  return tableau([
-    'Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés', 'Couverture'
-  ], [
-    for (final l in s.parTrancheAge)
-      [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
-        pourcentage(l.tauxCouverture)]
-  ], totaux: [
-    'Total', g, fi, g + fi, gx, fx, gx + fx, pourcentage(taux(gx + fx, g + fi))
-  ]);
-}
+Widget tableauTranches(Statistiques s) => tableauRepartition(RepartitionAges(null, 'Ensemble', s.parTrancheAge));
+
+/// Une population par tranche d'âge et par sexe : effectif, examinés, couverture.
+Widget tableauRepartition(RepartitionAges r) => tableau([
+      'Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés', 'Couverture'
+    ], [
+      for (final l in r.lignes)
+        [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
+          pourcentage(l.tauxCouverture)]
+    ], totaux: [
+      'Total', r.garcons, r.filles, r.effectif, r.garconsExamines, r.fillesExamines, r.examines,
+      pourcentage(r.tauxCouverture)
+    ]);
 
 List<Object?> ligneCouverture(Couverture c) =>
     [c.libelle, c.effectif, c.garcons, c.filles, c.examines, c.nonExamines, pourcentage(c.tauxCouverture)];
