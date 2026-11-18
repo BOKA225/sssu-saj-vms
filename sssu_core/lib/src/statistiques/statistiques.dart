@@ -20,6 +20,13 @@
 /// Les deux types de visite sont comptés séparément (filtre `typeVisite`) :
 /// visite systématique, pour tous les élèves ; visite d'aptitude, dont la
 /// population est celle des classes de 3ème et de terminale.
+///
+/// Effectifs saisis : une classe sans liste d'élèves peut avoir des effectifs
+/// saisis à la main (garçons, filles, et élèves visités pour chaque type de
+/// visite). Ils comptent dans l'effectif, les examinés et la couverture (par
+/// sexe, établissement, classe), mais pas dans les tranches d'âge, les
+/// conclusions, les pathologies ni l'évolution, faute de données par élève ;
+/// ils ne dépendent pas de la période.
 library;
 
 import '../commun/commun.dart';
@@ -117,6 +124,85 @@ class VisiteStat {
   });
 }
 
+/// Effectifs saisis à la main pour une classe (table `effectif_classe`) :
+/// élèves inscrits et élèves visités (visite systématique, visite d'aptitude),
+/// par sexe. Une valeur absente n'est pas renseignée.
+class EffectifSaisi {
+  final String classeId;
+  final int? garcons;
+  final int? filles;
+  final int? visitesGarcons;
+  final int? visitesFilles;
+  final int? aptitudeGarcons;
+  final int? aptitudeFilles;
+  const EffectifSaisi(this.classeId,
+      {this.garcons, this.filles, this.visitesGarcons, this.visitesFilles, this.aptitudeGarcons, this.aptitudeFilles});
+
+  static int? _n(Object? v) => v == null ? null : (v is num ? v.toInt() : int.tryParse(v.toString()));
+
+  factory EffectifSaisi.depuisDonnees(Map<String, Object?> d) => EffectifSaisi(
+        d['classe_id'].toString(),
+        garcons: _n(d['garcons']),
+        filles: _n(d['filles']),
+        visitesGarcons: _n(d['visites_garcons']),
+        visitesFilles: _n(d['visites_filles']),
+        aptitudeGarcons: _n(d['aptitude_garcons']),
+        aptitudeFilles: _n(d['aptitude_filles']),
+      );
+
+  Map<String, Object?> versDonnees() => {
+        'classe_id': classeId,
+        'garcons': garcons,
+        'filles': filles,
+        'visites_garcons': visitesGarcons,
+        'visites_filles': visitesFilles,
+        'aptitude_garcons': aptitudeGarcons,
+        'aptitude_filles': aptitudeFilles,
+      };
+
+  int get effectif => (garcons ?? 0) + (filles ?? 0);
+
+  /// L'effectif est renseigné (au moins les garçons ou les filles).
+  bool get renseigne => garcons != null || filles != null;
+  bool get vide => versDonnees().entries.every((e) => e.key == 'classe_id' || e.value == null);
+
+  /// Élèves visités de ce sexe (`null` : les deux) pour ce type de visite.
+  int visites(TypeVisite type, {Sexe? sexe}) {
+    final (g, f) = type == TypeVisite.aptitude ? (aptitudeGarcons, aptitudeFilles) : (visitesGarcons, visitesFilles);
+    return switch (sexe) {
+      Sexe.masculin => g ?? 0,
+      Sexe.feminin => f ?? 0,
+      null => (g ?? 0) + (f ?? 0),
+    };
+  }
+
+  /// Erreurs de saisie : nombres négatifs ou trop grands, visités plus
+  /// nombreux que l'effectif, visités sans effectif.
+  List<String> erreurs({String classe = 'la classe'}) {
+    final e = <String>[];
+    for (final v in [garcons, filles, visitesGarcons, visitesFilles, aptitudeGarcons, aptitudeFilles]) {
+      if (v != null && (v < 0 || v > 9999)) {
+        e.add('$classe : les effectifs sont des nombres entre 0 et 9999.');
+        break;
+      }
+    }
+    if (!renseigne && [visitesGarcons, visitesFilles, aptitudeGarcons, aptitudeFilles].any((v) => v != null)) {
+      e.add('$classe : saisir l\'effectif (garçons et filles) avant les élèves visités.');
+    }
+    for (final (visites, effectif, sexe) in [
+      (visitesGarcons, garcons, 'garçons'),
+      (visitesFilles, filles, 'filles'),
+      (aptitudeGarcons, garcons, 'garçons'),
+      (aptitudeFilles, filles, 'filles'),
+    ]) {
+      if (visites != null && visites > (effectif ?? 0)) {
+        e.add('$classe : plus de $sexe visités ($visites) que de $sexe inscrits (${effectif ?? 0}).');
+      }
+    }
+    return e;
+  }
+}
+
 class InspectionStat {
   final String id;
   final String etablissementId;
@@ -162,6 +248,9 @@ class JeuStatistiques {
   final Map<String, String> criteres;
   final List<InspectionStat> inspections;
 
+  /// Effectifs saisis à la main (identifiant de la classe → effectifs).
+  final Map<String, EffectifSaisi> effectifsSaisis;
+
   const JeuStatistiques({
     required this.annee,
     required this.etablissements,
@@ -171,6 +260,7 @@ class JeuStatistiques {
     required this.pathologies,
     this.criteres = const {},
     this.inspections = const [],
+    this.effectifsSaisis = const {},
   });
 
   /// Construction à partir des lignes lues en base (une liste par table,
@@ -193,6 +283,7 @@ class JeuStatistiques {
     List<Map<String, Object?>> criteres = const [],
     List<Map<String, Object?>> inspections = const [],
     List<Map<String, Object?>> reponsesInspection = const [],
+    List<Map<String, Object?>> effectifsClasses = const [],
     bool identite = false,
   }) {
     String id(Map<String, Object?> l, [String cle = 'id']) => l[cle].toString();
@@ -281,6 +372,10 @@ class JeuStatistiques {
       pathologies: {for (final p in pathos) id(p): p['libelle']! as String},
       criteres: {for (final c in criteres) id(c): c['libelle']! as String},
       inspections: listeInspections,
+      effectifsSaisis: {
+        for (final e in effectifsClasses)
+          if (_actif(e) && classesParId.containsKey(id(e, 'classe_id'))) id(e, 'classe_id'): EffectifSaisi.depuisDonnees(e)
+      },
     );
   }
 }
@@ -560,6 +655,11 @@ class Statistiques {
 
   /// Vaccin HPV des filles de 9 à 14 ans (visite systématique).
   final BilanHpv hpv;
+
+  /// Part des effectifs saisis à la main (classes sans liste d'élèves),
+  /// comprise dans [generale], et nombre de ces classes.
+  final Couverture saisis;
+  final int nbClassesSaisies;
   const Statistiques({
     required this.filtre,
     required this.nbEtablissements,
@@ -577,9 +677,20 @@ class Statistiques {
     required this.dateAge,
     required this.aptitudes,
     required this.hpv,
+    this.saisis = const Couverture(
+        libelle: 'Effectifs saisis', effectif: 0, garcons: 0, filles: 0, examines: 0, garconsExamines: 0, fillesExamines: 0),
+    this.nbClassesSaisies = 0,
   });
 
   TypeVisite get typeVisite => filtre.typeVisite;
+
+  /// Élèves examinés des listes d'élèves (sans les effectifs saisis) :
+  /// population des conclusions et des pathologies.
+  int get examinesListes => generale.examines - saisis.examines;
+
+  /// Effectif des listes d'élèves (sans les effectifs saisis) : population des
+  /// tranches d'âge.
+  int get effectifListes => generale.effectif - saisis.effectif;
 }
 
 // ------------------------------------------------------------------- calcul
@@ -592,7 +703,13 @@ class Perimetre {
   final Set<String> classes;
   final DateTime debut;
   final DateTime fin;
-  const Perimetre(this.eleves, this.visitesParEleve, this.etablissements, this.classes, this.debut, this.fin);
+
+  /// Classes du périmètre sans liste d'élèves, avec des effectifs saisis.
+  final Map<String, EffectifSaisi> saisis;
+  final TypeVisite typeVisite;
+  final Sexe? sexe;
+  const Perimetre(this.eleves, this.visitesParEleve, this.etablissements, this.classes, this.debut, this.fin,
+      {this.saisis = const {}, this.typeVisite = TypeVisite.systematique, this.sexe});
 
   bool examine(String eleveId) => visitesParEleve.containsKey(eleveId);
   VisiteStat? derniere(String eleveId) => visitesParEleve[eleveId]?.last;
@@ -633,11 +750,32 @@ Perimetre perimetre(JeuStatistiques jeu, FiltreStatistiques f) {
   for (final l in parEleve.values) {
     l.sort((a, b) => a.date.compareTo(b.date));
   }
-  return Perimetre(eleves, parEleve, etabs, classes, debut, fin);
+  final avecListe = {for (final e in jeu.eleves) e.classeId};
+  final saisis = {
+    for (final c in classes)
+      if (!avecListe.contains(c) && (jeu.effectifsSaisis[c]?.renseigne ?? false)) c: jeu.effectifsSaisis[c]!
+  };
+  return Perimetre(eleves, parEleve, etabs, classes, debut, fin, saisis: saisis, typeVisite: f.typeVisite, sexe: f.sexe);
 }
 
-Couverture _couverture(String? id, String libelle, Iterable<EleveStat> eleves, Perimetre p) {
+/// Couverture des élèves des listes et des effectifs saisis des classes
+/// [classesSaisies] (classes de `p.saisis`).
+Couverture _couverture(String? id, String libelle, Iterable<EleveStat> eleves, Perimetre p,
+    {Iterable<String> classesSaisies = const []}) {
   var g = 0, fi = 0, ex = 0, gx = 0, fx = 0;
+  for (final c in classesSaisies) {
+    final s = p.saisis[c];
+    if (s == null) continue;
+    if (p.sexe != Sexe.feminin) {
+      g += s.garcons ?? 0;
+      gx += s.visites(p.typeVisite, sexe: Sexe.masculin);
+    }
+    if (p.sexe != Sexe.masculin) {
+      fi += s.filles ?? 0;
+      fx += s.visites(p.typeVisite, sexe: Sexe.feminin);
+    }
+  }
+  ex = gx + fx;
   for (final e in eleves) {
     final m = e.sexe == Sexe.masculin;
     if (m) {
@@ -667,7 +805,8 @@ Couverture _couverture(String? id, String libelle, Iterable<EleveStat> eleves, P
 
 Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = const FiltreStatistiques()]) {
   final p = perimetre(jeu, f);
-  final generale = _couverture(null, 'Ensemble', p.eleves, p);
+  final generale = _couverture(null, 'Ensemble', p.eleves, p, classesSaisies: p.saisis.keys);
+  final saisis = _couverture(null, 'Effectifs saisis', const [], p, classesSaisies: p.saisis.keys);
 
   final elevesParEtab = <String, List<EleveStat>>{};
   final elevesParClasse = <String, List<EleveStat>>{};
@@ -677,7 +816,8 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
   }
   final parEtab = [
     for (final id in jeu.etablissements.keys.where(p.etablissements.contains))
-      _couverture(id, jeu.etablissements[id]!, elevesParEtab[id] ?? const [], p)
+      _couverture(id, jeu.etablissements[id]!, elevesParEtab[id] ?? const [], p,
+          classesSaisies: p.saisis.keys.where((c) => jeu.classes[c]?.etablissementId == id))
   ];
   final classesTriees = p.classes.map((c) => jeu.classes[c]!).toList()
     ..sort((a, b) {
@@ -690,7 +830,8 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
   final parClasse = [
     for (final c in classesTriees)
       _couverture(c.id, plusieursEtabs ? '${jeu.etablissements[c.etablissementId] ?? ''} – ${c.libelle}' : c.libelle,
-          elevesParClasse[c.id] ?? const [], p)
+          elevesParClasse[c.id] ?? const [], p,
+          classesSaisies: [c.id])
   ];
 
   // Conclusions, décisions d'aptitude et pathologies.
@@ -735,7 +876,7 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
       parTranche: parTranche,
       parEtablissement: parE,
       parClasse: parC,
-      prevalence: taux(l.length, generale.examines),
+      prevalence: taux(l.length, generale.examines - saisis.examines),
     ));
   }
 
@@ -756,7 +897,8 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     while (!mois.isAfter(dernierMois)) {
       final m = _mois(mois);
       cumul += nouveauxParMois[m] ?? 0;
-      evolution.add(PointEvolution(m, visitesParMois[m] ?? 0, nouveauxParMois[m] ?? 0, taux(cumul, generale.effectif)));
+      evolution.add(PointEvolution(
+          m, visitesParMois[m] ?? 0, nouveauxParMois[m] ?? 0, taux(cumul, generale.effectif - saisis.effectif)));
       mois = DateTime.utc(mois.year, mois.month + 1);
     }
   }
@@ -788,6 +930,8 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     dateAge: dateAge,
     aptitudes: aptitudes,
     hpv: f.typeVisite == TypeVisite.systematique ? bilanHpv(jeu, p, dateAge) : BilanHpv.vide,
+    saisis: saisis,
+    nbClassesSaisies: p.saisis.length,
   );
 }
 

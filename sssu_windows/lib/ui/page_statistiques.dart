@@ -75,6 +75,15 @@ class _PageStatistiquesState extends ConsumerState<PageStatistiques> with Single
     final lignes = parEtab ? s.parEtablissement : s.parClasse;
     return _liste([
       Wrap(children: cartesGenerales(s)),
+      if (s.saisis.effectif > 0)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Text(
+              'Dont ${s.saisis.effectif} élève(s) inscrit(s) et ${s.saisis.examines} visité(s) de ${s.nbClassesSaisies} '
+              'classe(s) sans liste d\'élèves (effectifs saisis à la main) : comptés dans l\'effectif, les examinés et la '
+              'couverture, pas dans les tranches d\'âge, les conclusions ni les pathologies.',
+              style: const TextStyle(fontStyle: FontStyle.italic)),
+        ),
       Wrap(children: [
         Panneau('Couverture par ${parEtab ? 'établissement' : 'classe'}', histogrammeCouverture(lignes),
             largeur: 640, hauteur: 260),
@@ -134,9 +143,10 @@ class _PageStatistiquesState extends ConsumerState<PageStatistiques> with Single
     final jeu = _c.jeu!;
     return _liste([
       Wrap(children: [
-        CarteIndicateur('${s.generale.examines}', 'Élèves examinés'),
+        CarteIndicateur('${s.examinesListes}', 'Élèves examinés',
+            detail: s.saisis.examines > 0 ? 'des listes d\'élèves' : null),
         CarteIndicateur('${s.elevesAvecPathologie}', 'Porteurs d\'au moins une pathologie',
-            detail: pourcentage(taux(s.elevesAvecPathologie, s.generale.examines)), couleur: Colors.red.shade700),
+            detail: pourcentage(taux(s.elevesAvecPathologie, s.examinesListes)), couleur: Colors.red.shade700),
         CarteIndicateur('${avecCas.length}', 'Pathologies dépistées'),
       ]),
       Panneau(

@@ -8,6 +8,7 @@ import 'package:sssu_core/sssu_core.dart';
 import '../donnees/requetes_poste.dart';
 import '../services.dart';
 import 'commun.dart';
+import 'dialogue_effectifs.dart';
 import 'dialogue_etablissement.dart';
 import 'import_etablissements.dart';
 
@@ -162,6 +163,15 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
     await _charger();
   }
 
+  /// Effectifs saisis d'une classe sans liste d'élèves.
+  String _resumeSaisi(LigneClasse c) {
+    final s = c.saisi!;
+    return 'Effectif saisi : ${s.effectif} (${s.garcons ?? 0} G, ${s.filles ?? 0} F) · '
+        '${s.visites(TypeVisite.systematique)} visités (${s.visitesGarcons ?? 0} G, ${s.visitesFilles ?? 0} F)'
+        '${c.aptitude && (s.aptitudeGarcons != null || s.aptitudeFilles != null) ? ' · aptitude : ${s.visites(TypeVisite.aptitude)} '
+            '(${s.aptitudeGarcons ?? 0} G, ${s.aptitudeFilles ?? 0} F)' : ''}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final gerer = _droits.peut(Permission.etablissementGerer);
@@ -236,9 +246,13 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
                     DataCell(Text('${TypeEtablissement.depuisCode(e.donnees['type'] as String).libelle} · '
                         '${StatutEtablissement.depuisCode(e.donnees['statut'] as String).libelle}')),
                     DataCell(Text('${e.classes}')),
-                    DataCell(Text('${e.effectif}')),
-                    DataCell(Text('${e.examines}')),
-                    DataCell(Text(e.effectif == 0 ? '—' : '${(e.examines * 100 / e.effectif).round()} %')),
+                    DataCell(Tooltip(
+                        message: e.effectifSaisi == 0
+                            ? 'Élèves des listes'
+                            : '${e.effectif} élèves des listes + ${e.effectifSaisi} saisis (classes sans liste)',
+                        child: Text('${e.effectifTotal}${e.effectifSaisi == 0 ? '' : '*'}'))),
+                    DataCell(Text('${e.examinesTotal}')),
+                    DataCell(Text(e.effectifTotal == 0 ? '—' : '${(e.examinesTotal * 100 / e.effectifTotal).round()} %')),
                     DataCell(Text('${e.telephones}')),
                     DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                       if (gerer) IconButton(tooltip: 'Modifier', icon: const Icon(Icons.edit), onPressed: () => _editerEtablissement(e)),
@@ -262,13 +276,23 @@ class _PageEtablissementsState extends ConsumerState<PageEtablissements> {
                   if (gerer && _annee != null)
                     FilledButton.icon(onPressed: () => _editerClasse(null), icon: const Icon(Icons.add), label: const Text('Classe')),
                 ]),
+                if (gerer && _annee != null && _classes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      if (await saisirEffectifs(context, etablissement: _choisi!.nom, classes: _classes)) await _charger();
+                    },
+                    icon: const Icon(Icons.groups),
+                    label: const Text('Effectifs par classe et par sexe (inscrits et visités)'),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 if (_classes.isEmpty) const Text('Aucune classe pour cette année scolaire.'),
                 for (final c in _classes)
                   Card(
                     child: ListTile(
                       title: Text(c.libelle),
-                      subtitle: Text('${c.effectif} élèves (${c.garcons} G, ${c.filles} F) · ${c.examines} examinés'),
+                      subtitle: Text(c.effectifsSaisis ? _resumeSaisi(c) : '${c.effectif} élèves (${c.garcons} G, ${c.filles} F) · ${c.examines} examinés'),
                       trailing: !gerer
                           ? null
                           : Row(mainAxisSize: MainAxisSize.min, children: [

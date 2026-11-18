@@ -46,8 +46,10 @@ void main() {
             'AND c.deleted_at IS NULL AND el.deleted_at IS NULL',
             {'a': annee.id}))
         .single;
-    expect(s.generale.effectif, (r['effectif'] as num).toInt());
-    expect(s.generale.filles, (r['filles'] as num).toInt());
+    // Effectifs des listes d'élèves ; les effectifs saisis à la main s'y ajoutent.
+    expect(s.effectifListes, (r['effectif'] as num).toInt());
+    expect(s.generale.filles - s.saisis.filles, (r['filles'] as num).toInt());
+    expect(s.generale.effectif, s.effectifListes + s.saisis.effectif);
     expect(s.parEtablissement.map((e) => e.effectif).fold<int>(0, (a, b) => a + b), s.generale.effectif);
     expect(jeu.eleves.every((e) => e.nom == null), isTrue);
     final nominatif = await source.charger(annee, identite: true);
@@ -56,7 +58,15 @@ void main() {
   }, skip: ignorer);
 
   test('tranches d\'âge et sexe par établissement depuis PostgreSQL, cohérentes avec les comptages SQL', () async {
-    final jeu = await source.charger(annee);
+    // Listes d'élèves seulement : les effectifs saisis ne sont pas répartis par âge.
+    final complet = await source.charger(annee);
+    final jeu = JeuStatistiques(
+        annee: complet.annee,
+        etablissements: complet.etablissements,
+        classes: complet.classes,
+        eleves: complet.eleves,
+        visites: complet.visites,
+        pathologies: complet.pathologies);
     final s = calculerStatistiques(jeu);
     final t = tranchesParEtablissement(jeu);
     expect(t.etablissements.map((e) => (e.id, e.effectif, e.examines)),

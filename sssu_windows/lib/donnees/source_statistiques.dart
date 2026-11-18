@@ -65,6 +65,11 @@ class SourceStatistiquesPoste {
           'r.deleted_at FROM inspection_reponse r JOIN inspection i ON i.id = r.inspection_id '
           'WHERE i.annee_scolaire_id = CAST(@annee AS uuid)',
           p),
+      effectifsClasses: await q(
+          'SELECT CAST(ec.classe_id AS text) AS classe_id, ec.garcons, ec.filles, ec.visites_garcons, ec.visites_filles, '
+          'ec.aptitude_garcons, ec.aptitude_filles, ec.deleted_at FROM effectif_classe ec '
+          'JOIN classe c ON c.id = ec.classe_id WHERE c.annee_scolaire_id = CAST(@annee AS uuid)',
+          p),
     );
   }
 

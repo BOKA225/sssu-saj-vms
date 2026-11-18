@@ -183,6 +183,16 @@ Les filtres portent sur le **type de visite** (systématique ou d'aptitude), l'a
     2nde C, 1ère et Tle A1, A2, C, D) et **enseignement technique** (2nde G, 2nde G1, 1ère F3, Tle G2, BT 1,
     CAP 1…). Le niveau, s'il est laissé vide, est déduit du libellé.
     « 2nd G1 » et « 2nde G1 » désignent la même classe : un doublon est refusé.
+  - Le **code** d'un établissement est **facultatif** : laissé vide, un code provisoire est tiré du nom
+    (« EPP Kouassi 2 » → EPPKOU2) ; remplacez-le par le code officiel dès qu'il est connu.
+  - **Effectifs par classe et par sexe** (administrateur, Médecin-Chef) : choisissez l'établissement, puis
+    **« Effectifs par classe et par sexe (inscrits et visités) »**. Pour chaque classe **sans liste d'élèves**,
+    saisissez les garçons et les filles inscrits, puis les garçons et les filles **visités** en visite
+    systématique, et pour les classes de 3ème et de terminale, en visite d'aptitude. Les statistiques et les
+    rapports en tiennent compte (effectif, examinés, couverture par sexe, par classe et par établissement) tant
+    que la classe n'a pas de liste d'élèves ; dès qu'une liste est importée, ce sont ses chiffres qui comptent.
+    Les effectifs saisis ne sont pas répartis par âge et n'entrent ni dans les conclusions ni dans les
+    pathologies ; ils sont signalés par un astérisque dans la liste des établissements.
 - **Élèves et dossiers**
   - Rechercher un élève. La recherche ignore les accents : « kone » trouve « KONÉ ».
 - **Listes de classe** (menu) : choisissez l'année et l'établissement (tapez une partie de son nom pour le

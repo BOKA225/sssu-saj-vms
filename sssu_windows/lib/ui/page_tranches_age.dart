@@ -107,7 +107,8 @@ class _PageTranchesAgeState extends ConsumerState<PageTranchesAge> {
             const SizedBox(height: 4),
             const Text('Élèves de chaque établissement par tranche d\'âge et par sexe. Les visites systématiques et les '
                 'visites d\'aptitude (3ème et Tle) sont comptées séparément. Cliquez sur un établissement pour voir '
-                'son détail.'),
+                'son détail. Les effectifs saisis à la main (classes sans liste d\'élèves) ne sont pas répartis par âge '
+                'et ne figurent pas ici.'),
             const SizedBox(height: 12),
             BarreFiltres(_c, classe: false, sexe: false),
             const SizedBox(height: 12),

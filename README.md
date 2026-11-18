@@ -773,6 +773,22 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.9.0
+
+- **Code d'établissement facultatif** : sans code, `ServiceGestion.creerEtablissement` attribue un code
+  provisoire tiré du nom (`codePropose`, comme l'importation des établissements) ; un code effacé à la
+  modification est conservé. Le schéma ne change pas (code toujours unique et renseigné).
+- **Effectifs saisis par classe et par sexe** (table du poste `effectif_classe`, `070_effectifs_classe.sql`,
+  non envoyée aux téléphones) : garçons et filles inscrits, visités en visite systématique et, pour la 3ème et
+  la terminale, en visite d'aptitude (`EffectifSaisi`, `ServiceGestion.enregistrerEffectifs`, droit
+  `etablissement.gerer`) ; saisie depuis la page Établissements (`dialogue_effectifs.dart`).
+- Statistiques : pour une classe **sans liste d'élèves**, les effectifs saisis comptent dans l'effectif, les
+  examinés et la couverture (`Perimetre.saisis`, `Statistiques.saisis`, `nbClassesSaisies`) ; tranches d'âge,
+  conclusions, pathologies (prévalence) et évolution restent calculées sur les listes (`examinesListes`,
+  `effectifListes`) ; note dans les statistiques et le rapport annuel. Liste des établissements : effectif et
+  examinés avec les saisies (`effectifTotal`, `examinesTotal`).
+- Téléphone inchangé : seule l'installation du poste est à mettre à jour.
+
 ## Version 1.8.0
 
 - **Vaccination** (`sssu_core/lib/src/vaccination/vaccination.dart`) :
