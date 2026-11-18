@@ -110,6 +110,18 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.7.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 18.1 | Poste : menu « Tranches d'âge par établissement » (Médecin-Chef, médecin, administrateur) | Une ligne garçons, filles et total par établissement ; l'ensemble à la fin | |
+| 18.2 | Comparer le total d'un établissement avec sa liste de classe | Même effectif, mêmes garçons et filles | |
+| 18.3 | Choisir « Élèves examinés », puis « Couverture » | Nombres d'examinés, puis pourcentages ; total = statistiques de l'établissement | |
+| 18.4 | Choisir « Visite d'aptitude » | Seuls les établissements ayant des classes de 3ème ou de Tle, et leurs élèves de ces classes | |
+| 18.5 | Cliquer sur un établissement | L'établissement seul, et son détail par tranche | |
+| 18.6 | Exporter en PDF, Word et Excel | Fichiers lisibles ; sous-totaux en évidence ; nombres exploitables dans Excel | |
+| 18.7 | Élève sans date de naissance | Colonne « Âge inconnu » ; total inchangé | |
+
 ## Version 1.6.0
 
 | N° | Action | Résultat attendu | OK |

@@ -336,6 +336,13 @@ enum TrancheAge {
   final int max;
   const TrancheAge(this.libelle, this.min, this.max);
 
+  /// Libellé court, pour les en-têtes de colonnes.
+  String get abrege => switch (this) {
+        TrancheAge.plus50 => '50 ans et +',
+        TrancheAge.inconnu => 'Âge inconnu',
+        _ => libelle,
+      };
+
   static TrancheAge pour(DateTime? naissance, DateTime date) {
     if (naissance == null || naissance.isAfter(date)) return inconnu;
     final a = calculerAge(naissance, date).annees;
@@ -389,6 +396,51 @@ class LigneTrancheAge {
   int get effectif => garcons + filles;
   int get examines => garconsExamines + fillesExamines;
   double? get tauxCouverture => taux(examines, effectif);
+  double? get tauxGarcons => taux(garconsExamines, garcons);
+  double? get tauxFilles => taux(fillesExamines, filles);
+}
+
+/// Élèves d'une population (un établissement, ou l'ensemble) par tranche
+/// d'âge et par sexe : une ligne par tranche, dans l'ordre.
+class RepartitionAges {
+  final String? id;
+  final String libelle;
+  final List<LigneTrancheAge> lignes;
+  const RepartitionAges(this.id, this.libelle, this.lignes);
+
+  int _somme(int Function(LigneTrancheAge l) f) => lignes.fold(0, (s, l) => s + f(l));
+  int get garcons => _somme((l) => l.garcons);
+  int get filles => _somme((l) => l.filles);
+  int get garconsExamines => _somme((l) => l.garconsExamines);
+  int get fillesExamines => _somme((l) => l.fillesExamines);
+  int get effectif => garcons + filles;
+  int get examines => garconsExamines + fillesExamines;
+  double? get tauxCouverture => taux(examines, effectif);
+  double? get tauxGarcons => taux(garconsExamines, garcons);
+  double? get tauxFilles => taux(fillesExamines, filles);
+}
+
+/// Élèves par tranche d'âge et par sexe, établissement par établissement,
+/// avec l'âge de chaque élève à la même date ([dateAge]).
+class TranchesParEtablissement {
+  final FiltreStatistiques filtre;
+  final DateTime dateAge;
+
+  /// Tranches présentées : les sept tranches, et « âge inconnu » seulement si
+  /// un élève n'a pas de date de naissance utilisable.
+  final List<TrancheAge> tranches;
+
+  /// Établissements du périmètre (même ordre que les statistiques), y compris
+  /// ceux qui n'ont pas encore d'élèves.
+  final List<RepartitionAges> etablissements;
+  final RepartitionAges ensemble;
+  const TranchesParEtablissement({
+    required this.filtre,
+    required this.dateAge,
+    required this.tranches,
+    required this.etablissements,
+    required this.ensemble,
+  });
 }
 
 class LignePathologie {
@@ -696,21 +748,9 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
   }
 
   // Tranches d'âge et sexe : âge de chaque élève à la même date.
-  final aujourdhui = f.dateAge ?? DateTime.now().toUtc();
-  final jour = DateTime.utc(aujourdhui.year, aujourdhui.month, aujourdhui.day);
-  final dateAge = jour.isBefore(p.debut) ? p.debut : (jour.isAfter(p.fin) ? p.fin : jour);
-  final compte = {for (final t in TrancheAge.values) t: [0, 0, 0, 0]};
-  for (final e in p.eleves) {
-    final c = compte[TrancheAge.pour(e.dateNaissance, dateAge)]!;
-    final i = e.sexe == Sexe.masculin ? 0 : 1;
-    c[i]++;
-    if (p.examine(e.id)) c[i + 2]++;
-  }
-  final parTrancheAge = [
-    for (final t in TrancheAge.values)
-      if (t != TrancheAge.inconnu || compte[t]![0] + compte[t]![1] > 0)
-        LigneTrancheAge(t, compte[t]![0], compte[t]![1], compte[t]![2], compte[t]![3])
-  ];
+  final dateAge = _dateAge(f, p);
+  final compte = _compterTranches(p.eleves, p, dateAge);
+  final parTrancheAge = _lignesTranches(compte, _tranchesPresentees(compte));
 
   return Statistiques(
     filtre: f,
@@ -733,6 +773,61 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     parTrancheAge: parTrancheAge,
     dateAge: dateAge,
     aptitudes: aptitudes,
+  );
+}
+
+/// Date de calcul de l'âge : [FiltreStatistiques.dateAge] (aujourd'hui par
+/// défaut), ramenée dans la période.
+DateTime _dateAge(FiltreStatistiques f, Perimetre p) {
+  final aujourdhui = f.dateAge ?? DateTime.now().toUtc();
+  final jour = DateTime.utc(aujourdhui.year, aujourdhui.month, aujourdhui.day);
+  return jour.isBefore(p.debut) ? p.debut : (jour.isAfter(p.fin) ? p.fin : jour);
+}
+
+/// Par tranche : garçons, filles, garçons examinés, filles examinées.
+Map<TrancheAge, List<int>> _compterTranches(Iterable<EleveStat> eleves, Perimetre p, DateTime dateAge) {
+  final compte = {for (final t in TrancheAge.values) t: [0, 0, 0, 0]};
+  for (final e in eleves) {
+    final c = compte[TrancheAge.pour(e.dateNaissance, dateAge)]!;
+    final i = e.sexe == Sexe.masculin ? 0 : 1;
+    c[i]++;
+    if (p.examine(e.id)) c[i + 2]++;
+  }
+  return compte;
+}
+
+List<TrancheAge> _tranchesPresentees(Map<TrancheAge, List<int>> compte) => [
+      for (final t in TrancheAge.values)
+        if (t != TrancheAge.inconnu || compte[t]![0] + compte[t]![1] > 0) t
+    ];
+
+List<LigneTrancheAge> _lignesTranches(Map<TrancheAge, List<int>> compte, List<TrancheAge> tranches) => [
+      for (final t in tranches) LigneTrancheAge(t, compte[t]![0], compte[t]![1], compte[t]![2], compte[t]![3])
+    ];
+
+/// Élèves par tranche d'âge et par sexe de chaque établissement du périmètre
+/// (filtres d'établissement, de période et de type de visite) : effectif et
+/// examinés. Les filtres de classe et de sexe s'appliquent s'ils sont donnés.
+TranchesParEtablissement tranchesParEtablissement(JeuStatistiques jeu,
+    [FiltreStatistiques f = const FiltreStatistiques()]) {
+  final p = perimetre(jeu, f);
+  final dateAge = _dateAge(f, p);
+  final parEtab = <String, List<EleveStat>>{};
+  for (final e in p.eleves) {
+    (parEtab[e.etablissementId] ??= []).add(e);
+  }
+  final ensemble = _compterTranches(p.eleves, p, dateAge);
+  final tranches = _tranchesPresentees(ensemble);
+  return TranchesParEtablissement(
+    filtre: f,
+    dateAge: dateAge,
+    tranches: tranches,
+    etablissements: [
+      for (final id in jeu.etablissements.keys.where(p.etablissements.contains))
+        RepartitionAges(
+            id, jeu.etablissements[id]!, _lignesTranches(_compterTranches(parEtab[id] ?? const [], p, dateAge), tranches))
+    ],
+    ensemble: RepartitionAges(null, 'Ensemble des établissements', _lignesTranches(ensemble, tranches)),
   );
 }
 

@@ -24,6 +24,17 @@ pw.Font _police(List<int> octets) => pw.Font.ttf(ByteData.sublistView(Uint8List.
 
 const _bleu = PdfColor.fromInt(0xFF1F4E79);
 const _gris = PdfColor.fromInt(0xFFE8EEF4);
+const _sousTotal = PdfColor.fromInt(0xFFDCE6F2);
+const _total = PdfColor.fromInt(0xFFC5D5EA);
+
+/// Cellule d'une ligne de total ou de sous-total : fond plus soutenu.
+class _Accent {
+  final String texte;
+  final bool total;
+  const _Accent(this.texte, {this.total = false});
+  @override
+  String toString() => texte;
+}
 
 String _dateHeure(DateTime d) {
   final l = d.toLocal();
@@ -115,10 +126,11 @@ Future<List<int>> rendrePdf(DocumentRapport d, PolicesRapport polices) async {
               ]),
           ],
         )];
-      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux, :final largeurs):
-        final donnees = [
-          for (final l in lignes) [for (final c in l) texteCellule(c)],
-          if (totaux != null) [for (final c in totaux) texteCellule(c)],
+      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux, :final largeurs, :final sousTotaux):
+        final donnees = <List<Object>>[
+          for (final (i, l) in lignes.indexed)
+            [for (final c in l) sousTotaux.contains(i) ? _Accent(texteCellule(c)) : texteCellule(c)],
+          if (totaux != null) [for (final c in totaux) _Accent(texteCellule(c), total: true)],
         ];
         final numeriques = <int, pw.Alignment>{
           for (var i = 0; i < entetes.length; i++)
@@ -136,6 +148,8 @@ Future<List<int>> rendrePdf(DocumentRapport d, PolicesRapport polices) async {
           cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
           border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
           oddRowDecoration: const pw.BoxDecoration(color: _gris),
+          cellDecoration: (_, v, __) =>
+              v is _Accent ? pw.BoxDecoration(color: v.total ? _total : _sousTotal) : const pw.BoxDecoration(),
           columnWidths: largeurs == null
               ? null
               : {for (var i = 0; i < largeurs.length; i++) i: pw.FlexColumnWidth(largeurs[i])},

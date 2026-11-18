@@ -200,7 +200,7 @@ class _Redacteur {
                 '${_cellule(_para(_run(valeur.isEmpty ? '—' : valeur, taille: 9), apres: 0), l[1], bordures: false)}</w:tr>'
         ], bordures: false));
         corps.write(_para('', apres: 60));
-      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux, :final largeurs):
+      case BlocTableau(:final titre, :final entetes, :final lignes, :final totaux, :final largeurs, :final sousTotaux):
         if (titre != null) corps.write(_para(_run(titre, gras: true, taille: 10), avant: 100, apres: 40, garderAvecSuivant: true));
         if (lignes.isEmpty && totaux == null) {
           corps.write(_para(_run('Aucune donnée.', italique: true, taille: 9)));
@@ -211,17 +211,18 @@ class _Redacteur {
           for (var i = 0; i < entetes.length; i++)
             lignes.isNotEmpty && lignes.every((x) => i < x.length && (x[i] is num || x[i] == null))
         ];
-        String ligne(List<Object?> cellules, {bool entete = false, bool total = false, bool paire = false}) {
+        String ligne(List<Object?> cellules,
+            {bool entete = false, bool total = false, bool sousTotal = false, bool paire = false}) {
           final b = StringBuffer('<w:tr>');
           if (entete) b.write('<w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>');
           for (var i = 0; i < entetes.length; i++) {
             final v = i < cellules.length ? cellules[i] : null;
             final texte = entete ? '$v' : texteCellule(v);
             b.write(_cellule(
-                _para(_run(texte, gras: entete || total, taille: 8.5, couleur: entete ? 'FFFFFF' : null),
+                _para(_run(texte, gras: entete || total || sousTotal, taille: 8.5, couleur: entete ? 'FFFFFF' : null),
                     align: !entete && numerique[i] ? 'right' : 'left', apres: 0),
                 l[i],
-                fond: entete ? _bleu : (total ? 'D9E2F3' : (paire ? _gris : null))));
+                fond: entete ? _bleu : (total ? 'D9E2F3' : (sousTotal ? 'EAF0F8' : (paire ? _gris : null)))));
           }
           b.write('</w:tr>');
           return b.toString();
@@ -229,7 +230,7 @@ class _Redacteur {
 
         corps.write(_tableau(l, [
           ligne(entetes, entete: true),
-          for (final (i, x) in lignes.indexed) ligne(x, paire: i.isOdd),
+          for (final (i, x) in lignes.indexed) ligne(x, paire: i.isOdd, sousTotal: sousTotaux.contains(i)),
           if (totaux != null) ligne(totaux, total: true),
         ]));
         corps.write(_para('', apres: 80));

@@ -773,6 +773,20 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.7.0
+
+- **Tranches d'âge par établissement** (menu du poste central, droit `statistiques.consulter`,
+  `page_tranches_age.dart`) : élèves de chaque établissement par tranche d'âge (0–4 … 50 ans et plus) et par
+  sexe (lignes garçons, filles, total), puis l'ensemble ; mesure au choix : inscrits, examinés, couverture ;
+  filtres de type de visite, d'année, d'établissement et de période ; détail de l'établissement choisi.
+- Noyau : `tranchesParEtablissement` (`TranchesParEtablissement`, `RepartitionAges`), calcul des tranches mis en
+  commun avec `calculerStatistiques` (même date d'âge, même « âge inconnu ») ; `TrancheAge.abrege`.
+- Rapport `rapportTranchesAge` (PDF, Word, Excel ; non nominatif) : élèves inscrits, élèves examinés, couverture
+  de l'ensemble ; exportable depuis la page et depuis **Rapports**.
+- Tableaux des rapports : lignes de sous-total mises en évidence (`BlocTableau.sousTotaux`) ; ligne de total
+  ombrée dans les PDF.
+- Téléphone inchangé : seule l'installation du poste est à mettre à jour.
+
 ## Version 1.6.0
 
 - **Visite médicale d'aptitude** (classes de 3ème et de terminale, enseignement général et technique :

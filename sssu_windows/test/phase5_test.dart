@@ -55,6 +55,27 @@ void main() {
     expect(await source.repere(), greaterThan(0));
   }, skip: ignorer);
 
+  test('tranches d\'âge et sexe par établissement depuis PostgreSQL, cohérentes avec les comptages SQL', () async {
+    final jeu = await source.charger(annee);
+    final s = calculerStatistiques(jeu);
+    final t = tranchesParEtablissement(jeu);
+    expect(t.etablissements.map((e) => (e.id, e.effectif, e.examines)),
+        s.parEtablissement.map((e) => (e.id, e.effectif, e.examines)));
+    expect((t.ensemble.garcons, t.ensemble.filles), (s.generale.garcons, s.generale.filles));
+    final parEtab = {
+      for (final l in await depot.requete(
+          "SELECT c.etablissement_id::text AS e, COUNT(DISTINCT i.eleve_id) FILTER (WHERE el.sexe = 'F') AS filles "
+          'FROM inscription i JOIN classe c ON c.id = i.classe_id JOIN eleve el ON el.id = i.eleve_id '
+          "WHERE i.annee_scolaire_id = CAST(@a AS uuid) AND i.statut = 'inscrit' AND i.deleted_at IS NULL "
+          'AND c.deleted_at IS NULL AND el.deleted_at IS NULL GROUP BY c.etablissement_id',
+          {'a': annee.id}))
+        l['e'] as String: (l['filles'] as num).toInt()
+    };
+    for (final e in t.etablissements) {
+      expect(e.filles, parEtab[e.id] ?? 0, reason: e.libelle);
+    }
+  }, skip: ignorer);
+
   test('rapport annuel enregistré en PDF et en Excel, export tracé', () async {
     final dossier = await Directory.systemTemp.createTemp('sssu_p5w');
     final rapports = ServiceRapports(

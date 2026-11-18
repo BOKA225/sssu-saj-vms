@@ -13,6 +13,7 @@ import 'page_parametres.dart';
 import 'page_rapports.dart';
 import 'page_sauvegardes.dart';
 import 'page_statistiques.dart';
+import 'page_tranches_age.dart';
 import 'statistiques_commun.dart';
 import 'page_eleves.dart';
 import 'page_etablissements.dart';
@@ -76,6 +77,13 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
         (const NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('Importer une liste')), const PageImport()),
       if (session.droits.peut(Permission.statistiquesConsulter))
         (const NavigationRailDestination(icon: Icon(Icons.bar_chart), label: Text('Statistiques')), const PageStatistiques()),
+      if (session.droits.peut(Permission.statistiquesConsulter))
+        (
+          const NavigationRailDestination(
+              icon: Icon(Icons.stacked_bar_chart),
+              label: Text('Tranches d\'âge\npar établissement', textAlign: TextAlign.center)),
+          const PageTranchesAge()
+        ),
       if (session.droits.peut(Permission.inspectionRealiser) || session.droits.peut(Permission.statistiquesConsulter))
         (const NavigationRailDestination(icon: Icon(Icons.fact_check), label: Text('Inspections')), const PageInspections()),
       if (session.droits.peut(Permission.statistiquesConsulter))

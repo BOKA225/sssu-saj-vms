@@ -46,6 +46,8 @@ enum TypeRapport {
   etablissement('Rapport par établissement', 'Même contenu, pour l\'établissement choisi.', false),
   classe('Rapport par classe', 'Couverture, conclusions et pathologies de la classe choisie.', false),
   pathologies('Rapport statistique des pathologies', 'Cas, sexe, tranches d\'âge, établissements, classes, prévalence.', false),
+  tranchesAge('Tranches d\'âge et sexe par établissement',
+      'Élèves inscrits et examinés de chaque établissement par tranche d\'âge (0–4 ans … 50 ans et plus) et par sexe.', false),
   inspections('Synthèse des inspections sanitaires', 'Établissements inspectés, niveaux, insuffisances, historique.', false),
   examines('Liste des élèves examinés', 'Liste nominative, avec la date de la dernière visite.', true),
   nonExamines('Liste des élèves non examinés', 'Liste nominative des élèves restant à voir.', true),
@@ -97,6 +99,7 @@ class _PageRapportsState extends ConsumerState<PageRapports> {
       TypeRapport.classe =>
         rapportStatistique(jeu, f, portee: PorteeRapport.classe, entete: entete, acteur: _droits, genereLe: m),
       TypeRapport.pathologies => rapportPathologies(jeu, f, entete: entete, acteur: _droits, genereLe: m),
+      TypeRapport.tranchesAge => rapportTranchesAge(jeu, f, entete: entete, acteur: _droits, genereLe: m),
       TypeRapport.inspections => rapportHistoriqueInspections(jeu,
           etablissementId: f.etablissementId, entete: entete, acteur: _droits, genereLe: m),
       TypeRapport.examines => rapportListeEleves(jeu, f, examines: true, entete: entete, acteur: _droits, genereLe: m),
@@ -156,8 +159,8 @@ class _PageRapportsState extends ConsumerState<PageRapports> {
                   Text('2. Périmètre', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   BarreFiltres(_c,
-                      classe: _type != TypeRapport.inspections,
-                      sexe: _type != TypeRapport.inspections,
+                      classe: _type != TypeRapport.inspections && _type != TypeRapport.tranchesAge,
+                      sexe: _type != TypeRapport.inspections && _type != TypeRapport.tranchesAge,
                       periode: _type != TypeRapport.inspections,
                       type: _type != TypeRapport.inspections && _type != TypeRapport.aptitudes),
                   if (_type == TypeRapport.etablissement && _c.etablissementId == null)

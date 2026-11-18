@@ -71,20 +71,58 @@ BlocTableau _tableauCouverture(String titre, String premiereColonne, List<Couver
     );
 
 /// Élèves par tranche d'âge et par sexe : effectif, examinés, couverture.
-BlocTableau tableauTranchesAge(Statistiques s, {String? titre}) {
-  int somme(int Function(LigneTrancheAge) f) => s.parTrancheAge.fold(0, (t, l) => t + f(l));
-  final g = somme((l) => l.garcons), fi = somme((l) => l.filles);
-  final gx = somme((l) => l.garconsExamines), fx = somme((l) => l.fillesExamines);
+BlocTableau tableauTranchesAge(Statistiques s, {String? titre}) => _tableauTranches(
+    RepartitionAges(null, 'Ensemble', s.parTrancheAge),
+    titre ?? 'Élèves par tranche d\'âge et par sexe (âge au ${_date(s.dateAge)})');
+
+BlocTableau _tableauTranches(RepartitionAges r, String? titre) => BlocTableau(
+      titre: titre,
+      entetes: ['Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés',
+        'Couverture'],
+      largeurs: const [2.2, 1.2, 1.2, 1.2, 1.5, 1.5, 1.3, 1.4],
+      lignes: [
+        for (final l in r.lignes)
+          [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
+            pourcentage(l.tauxCouverture)]
+      ],
+      totaux: ['Total', r.garcons, r.filles, r.effectif, r.garconsExamines, r.fillesExamines, r.examines,
+        pourcentage(r.tauxCouverture)],
+    );
+
+/// Élèves inscrits (ou examinés) de chaque établissement par tranche d'âge
+/// et par sexe : une ligne pour les garçons, une pour les filles, un
+/// sous-total par établissement, puis l'ensemble des établissements.
+BlocTableau tableauTranchesParEtablissement(TranchesParEtablissement t, {required bool examines, String? titre}) {
+  final lignes = <List<Object?>>[];
+  final sousTotaux = <int>{};
+  List<Object?> ligne(String etab, String sexe, RepartitionAges r, int Function(LigneTrancheAge l) n) {
+    final v = [for (final l in r.lignes) n(l)];
+    return [etab, sexe, ...v, v.fold<int>(0, (s, x) => s + x)];
+  }
+
+  int garcons(LigneTrancheAge l) => examines ? l.garconsExamines : l.garcons;
+  int filles(LigneTrancheAge l) => examines ? l.fillesExamines : l.filles;
+  int tous(LigneTrancheAge l) => garcons(l) + filles(l);
+  for (final r in t.etablissements) {
+    lignes
+      ..add(ligne(r.libelle, 'Garçons', r, garcons))
+      ..add(ligne('', 'Filles', r, filles));
+    sousTotaux.add(lignes.length);
+    lignes.add(ligne('', 'Total', r, tous));
+  }
+  final ensemble = t.etablissements.length > 1;
+  if (ensemble) {
+    lignes
+      ..add(ligne(t.ensemble.libelle, 'Garçons', t.ensemble, garcons))
+      ..add(ligne('', 'Filles', t.ensemble, filles));
+  }
   return BlocTableau(
-    titre: titre ?? 'Élèves par tranche d\'âge et par sexe (âge au ${_date(s.dateAge)})',
-    entetes: ['Tranche d\'âge', 'Garçons', 'Filles', 'Effectif', 'Garçons examinés', 'Filles examinées', 'Examinés', 'Couverture'],
-    largeurs: const [2.2, 1.2, 1.2, 1.2, 1.5, 1.5, 1.3, 1.4],
-    lignes: [
-      for (final l in s.parTrancheAge)
-        [l.tranche.libelle, l.garcons, l.filles, l.effectif, l.garconsExamines, l.fillesExamines, l.examines,
-          pourcentage(l.tauxCouverture)]
-    ],
-    totaux: ['Total', g, fi, g + fi, gx, fx, gx + fx, pourcentage(taux(gx + fx, g + fi))],
+    titre: titre,
+    entetes: ['Établissement', 'Sexe', for (final x in t.tranches) x.abrege, 'Total'],
+    largeurs: [3.6, 1.1, ...List.filled(t.tranches.length, 1.0), 1.0],
+    lignes: lignes,
+    sousTotaux: sousTotaux,
+    totaux: ensemble ? ligne('', 'Total', t.ensemble, tous) : null,
   );
 }
 
@@ -295,6 +333,47 @@ DocumentRapport rapportPathologies(
           'Prévalence : élèves chez qui la pathologie a été dépistée, rapportés aux élèves examinés du périmètre. '
           'Tranche d\'âge : âge à la date de la dernière visite.',
           italique: true),
+      BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
+    ],
+    genereLe: genereLe,
+  );
+}
+
+/// Élèves par tranche d'âge (0–4 … 50 ans et plus) et par sexe de chaque
+/// établissement : inscrits, examinés (visite systématique ou d'aptitude) et
+/// couverture de l'ensemble. Document statistique, non nominatif.
+DocumentRapport rapportTranchesAge(
+  JeuStatistiques jeu,
+  FiltreStatistiques f, {
+  required EnteteRapport entete,
+  required Droits acteur,
+  required DateTime genereLe,
+}) {
+  _exiger(acteur, Permission.statistiquesConsulter, 'les rapports statistiques');
+  // Les sexes et les classes sont des colonnes et des lignes du rapport.
+  final g = FiltreStatistiques(
+      etablissementId: f.etablissementId, du: f.du, au: f.au, typeVisite: f.typeVisite, dateAge: f.dateAge);
+  final t = tranchesParEtablissement(jeu, g);
+  final e = t.ensemble;
+  final aptitude = g.typeVisite == TypeVisite.aptitude;
+  return DocumentRapport(
+    titre: 'Élèves par tranche d\'âge et par sexe, par établissement${aptitude ? ' – visites d\'aptitude' : ''}',
+    sousTitre: descriptionPerimetre(jeu, g),
+    entete: entete,
+    paysage: true,
+    blocs: [
+      BlocParagraphe('Âge des élèves au ${_date(t.dateAge)}. ${t.etablissements.length} établissement(s) ; '
+          '${e.effectif} élève(s)${aptitude ? ' de 3ème et de terminale' : ''} inscrit(s) '
+          '(${e.garcons} garçons, ${e.filles} filles) ; ${e.examines} examiné(s) '
+          '(${e.garconsExamines} garçons, ${e.fillesExamines} filles), soit une couverture de ${pourcentage(e.tauxCouverture)}.'),
+      const BlocTitre('1. Élèves inscrits'),
+      tableauTranchesParEtablissement(t, examines: false),
+      BlocTitre('2. Élèves examinés (${aptitude ? 'visite d\'aptitude' : 'visite systématique'})'),
+      tableauTranchesParEtablissement(t, examines: true),
+      BlocTitre(t.etablissements.length == 1
+          ? '3. Couverture par tranche d\'âge et par sexe'
+          : '3. Couverture par tranche d\'âge et par sexe (ensemble des établissements)'),
+      _tableauTranches(e, null),
       BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
     ],
     genereLe: genereLe,
