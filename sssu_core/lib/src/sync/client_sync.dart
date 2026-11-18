@@ -8,6 +8,7 @@ import 'enregistrement.dart';
 import 'fichiers.dart';
 import 'identite_appareil.dart';
 import 'protocole.dart';
+import 'service_sync.dart' show ServiceSynchronisation;
 
 /// Fichier (photographie) à transmettre au poste central.
 class FichierLocal {
@@ -162,47 +163,68 @@ class ClientSynchronisation {
 
     // Envoi par lots.
     final dejaEnvoyes = <String>{};
-    while (true) {
-      final lot = (await depot.enAttente(limite: tailleLot))
-          .where((e) => !dejaEnvoyes.contains('${e.table}/${e.id}'))
-          .toList();
-      if (lot.isEmpty) break;
-      final reponse =
-          await transport.envoyer(jeton, DemandeEnvoi(enregistrements: lot, canal: canal, reprise: reprise));
-      final parCle = {for (final e in lot) '${e.table}/${e.id}': e};
-      for (final a in reponse.accuses) {
-        final envoye = parCle['${a.table}/${a.id}'];
-        if (envoye == null) continue;
-        dejaEnvoyes.add('${a.table}/${a.id}');
-        switch (a.statut) {
-          case StatutAccuse.accepte:
-            rapport.acceptes++;
-            await depot.marquerSynchronise(envoye, a.version!);
-          case StatutAccuse.dejaRecu:
-            rapport.dejaRecus++;
-            await depot.marquerSynchronise(envoye, a.version!);
-          case StatutAccuse.conflit:
-            rapport.conflits++;
-            rapport.motifs.add('${a.table} : ${a.motif}');
-            await depot.marquerConflit(envoye, a.motif ?? 'conflit');
-          case StatutAccuse.refuse when reprise && renvoyes.contains('${a.table}/${a.id}'):
-            // Copie déjà synchronisée avant la restauration, que le poste ne
-            // reprend pas : elle redevient « synchronisée » ; la réception
-            // complète qui suit apporte la version du poste, s'il en a une.
-            rapport.nonRepris++;
-            await depot.marquerSynchronise(envoye, envoye.versionBase);
-          case StatutAccuse.refuse:
-            rapport.refuses++;
-            rapport.motifs.add('${a.table} : ${a.motif}');
-            await depot.marquerConflit(envoye, a.motif ?? 'refus');
+    // Refus « référence absente » (élève inscrit dans une classe créée aussi
+    // sur le poste…) : la réception remplace la référence, et l'envoi repart.
+    final refusReference = <String, String>{};
+    Future<void> envoyerTout() async {
+      while (true) {
+        final lot = (await depot.enAttente(limite: tailleLot))
+            .where((e) => !dejaEnvoyes.contains('${e.table}/${e.id}'))
+            .toList();
+        if (lot.isEmpty) break;
+        final reponse =
+            await transport.envoyer(jeton, DemandeEnvoi(enregistrements: lot, canal: canal, reprise: reprise));
+        final parCle = {for (final e in lot) '${e.table}/${e.id}': e};
+        for (final a in reponse.accuses) {
+          final cle = '${a.table}/${a.id}';
+          final envoye = parCle[cle];
+          if (envoye == null) continue;
+          dejaEnvoyes.add(cle);
+          if (a.statut == StatutAccuse.accepte || a.statut == StatutAccuse.dejaRecu) {
+            final motif = refusReference.remove(cle);
+            if (motif != null) {
+              rapport.refuses--;
+              rapport.motifs.remove(motif);
+            }
+          }
+          switch (a.statut) {
+            case StatutAccuse.accepte:
+              rapport.acceptes++;
+              await depot.marquerSynchronise(envoye, a.version!);
+            case StatutAccuse.dejaRecu:
+              rapport.dejaRecus++;
+              await depot.marquerSynchronise(envoye, a.version!);
+            case StatutAccuse.conflit:
+              rapport.conflits++;
+              rapport.motifs.add('${a.table} : ${a.motif}');
+              await depot.marquerConflit(envoye, a.motif ?? 'conflit');
+            case StatutAccuse.refuse when (a.motif ?? '').startsWith('${ServiceSynchronisation.motifDoublon}:'):
+              // Déjà sur le poste sous un autre identifiant (classe créée des deux
+              // côtés) : le téléphone la remplace par celle du poste.
+              await depot.marquerConflit(envoye, a.motif!);
+            case StatutAccuse.refuse when reprise && renvoyes.contains('${a.table}/${a.id}'):
+              // Copie déjà synchronisée avant la restauration, que le poste ne
+              // reprend pas : elle redevient « synchronisée » ; la réception
+              // complète qui suit apporte la version du poste, s'il en a une.
+              rapport.nonRepris++;
+              await depot.marquerSynchronise(envoye, envoye.versionBase);
+            case StatutAccuse.refuse:
+              rapport.refuses++;
+              final motif = '${a.table} : ${a.motif}';
+              rapport.motifs.add(motif);
+              if ((a.motif ?? '').startsWith('reference_absente')) refusReference[cle] = motif;
+              await depot.marquerConflit(envoye, a.motif ?? 'refus');
+          }
+        }
+        rapport.envoyes += lot.length;
+        // Garde-fou : un lot sans aucun accusé exploitable arrête la boucle.
+        if (lot.every((e) => !dejaEnvoyes.contains('${e.table}/${e.id}'))) {
+          throw StateError('Le poste central n\'a renvoyé aucun accusé pour ce lot.');
         }
       }
-      rapport.envoyes += lot.length;
-      // Garde-fou : un lot sans aucun accusé exploitable arrête la boucle.
-      if (lot.every((e) => !dejaEnvoyes.contains('${e.table}/${e.id}'))) {
-        throw StateError('Le poste central n\'a renvoyé aucun accusé pour ce lot.');
-      }
     }
+
+    await envoyerTout();
 
     // Photographies : après leurs données, morceau par morceau, en reprenant
     // un transfert interrompu là où il s'était arrêté.
@@ -235,6 +257,11 @@ class ClientSynchronisation {
       rapport.recus += r.changements.length;
       curseur = r.curseur;
       if (!r.suite) break;
+    }
+    // Références remplacées à la réception : les lignes refusées repartent.
+    if (refusReference.isNotEmpty) {
+      dejaEnvoyes.removeAll(refusReference.keys);
+      await envoyerTout();
     }
     if (generation != null && generation != connue) await depot.definirGenerationServeur(generation);
     rapport.fin = horloge.maintenant();

@@ -312,8 +312,9 @@ String messageErreurSynchronisation(Object e) {
         'enregistrées sur le téléphone.';
   }
   if (texte.contains('constraint failed') || texte.contains('SqliteException')) {
-    return 'Les données reçues du poste central ne correspondent pas à cette version de l\'application : installez '
-        'la dernière version sur ce téléphone, puis synchronisez. Détail : $texte';
+    return 'Le téléphone n\'a pas pu enregistrer une donnée reçue du poste central. Vérifiez que le poste central et '
+        'ce téléphone ont tous deux la dernière version de SSSU-SAJ VMS, puis synchronisez de nouveau. Si le message '
+        'revient, transmettez ce détail à l\'administrateur : $texte';
   }
   if (e is StateError) return e.message;
   return 'Erreur pendant la synchronisation : $texte';

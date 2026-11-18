@@ -205,4 +205,83 @@ void main() {
     await client.synchroniser();
     expect((await authMobile.connecterParPin(agent.id, '482915')).reussie, isTrue);
   });
+  test('même classe créée sur le poste et sur le téléphone : la synchronisation passe, la classe du poste est gardée',
+      () async {
+    final serveur = DepotServeurMemoire();
+    await initialiserRoles(serveur, horloge: horloge);
+    final auth = ServiceAuthentification(
+        depot: DepotUtilisateursServeur(serveur, horloge: horloge),
+        hacheur: HacheurMotDePasse(parametres: ParametresArgon2.tests),
+        horloge: horloge);
+    final admin = await auth.creerPremierAdministrateur(identifiant: 'admin', nom: 'ADMIN', motDePasse: 'Admin-2026');
+    final droitsAdmin = await auth.droitsDe(admin);
+    final chef = await auth.creerUtilisateur(droitsAdmin,
+        identifiant: 'chef', nom: 'CHEF', role: RoleCode.medecinChef, motDePasseTemporaire: 'Temp-2026');
+
+    final etab = nouvelId();
+    final annee = nouvelId();
+    Enregistrement n(String t, String id, Map<String, Object?> d, {String? portee}) => Enregistrement(
+        table: t,
+        id: id,
+        version: 1,
+        versionBase: 1,
+        createdAt: horloge.maintenant(),
+        updatedAt: horloge.maintenant(),
+        etablissementId: portee,
+        donnees: d);
+    await serveur.transaction((tx) async {
+      await tx.ecrire(n('annee_scolaire', annee,
+          {'libelle': '2026-2027', 'date_debut': '2026-09-14', 'date_fin': '2027-07-16', 'active': true}));
+      await tx.ecrire(n('etablissement', etab, {'nom': 'École TEST', 'code': 'T1', 'type': 'primaire', 'statut': 'public'},
+          portee: etab));
+    });
+
+    final sync = ServiceSynchronisation(depot: serveur, horloge: horloge);
+    final appairage = ServiceAppairage(depot: serveur, horloge: horloge);
+    final jetons = ServiceJetons(depot: serveur, horloge: horloge);
+    final qr = await appairage.preparer(
+        acteur: droitsAdmin, nomAppareil: 'Tel', etablissementIds: [etab], urlServeur: 'x', empreinteCertificat: null);
+    final identite = await IdentiteAppareil.generer(qr.appareilId);
+    final transport = TransportDirect(sync, appairage, jetons);
+    await transport.appairer(
+        DemandeAppairage(appareilId: qr.appareilId, code: qr.code, clePublique: await identite.clePubliqueBase64()));
+    final depot = DepotLocalDrift(db, horloge: horloge, appareilId: qr.appareilId);
+    final client = ClientSynchronisation(depot: depot, transport: transport, identite: identite, horloge: horloge);
+    await client.synchroniser();
+
+    // La liste de la classe « CE1 A » est importée sur le poste…
+    final classePoste = nouvelId();
+    await serveur.transaction((tx) => tx.ecrire(n(
+        'classe', classePoste, {'etablissement_id': etab, 'annee_scolaire_id': annee, 'libelle': 'CE1 A', 'niveau': 'CE1'},
+        portee: etab)));
+    // … et sur le téléphone, avant qu'il ait synchronisé.
+    final classeTel = await depot.creer(
+        'classe', {'etablissement_id': etab, 'annee_scolaire_id': annee, 'libelle': 'CE1 A', 'niveau': 'CE1'},
+        utilisateurId: chef.id, etablissementId: etab);
+    final eleve = await depot.creer(
+        'eleve', {'nom': 'TANOH', 'prenoms': 'Marc', 'sexe': 'M', 'date_naissance': '2018-06-01'},
+        utilisateurId: chef.id, etablissementId: etab);
+    final ins = await depot.creer('inscription',
+        {'eleve_id': eleve.id, 'classe_id': classeTel.id, 'annee_scolaire_id': annee, 'statut': 'inscrit'},
+        utilisateurId: chef.id, etablissementId: etab);
+
+    final r = await client.synchroniser();
+    expect(r.motifs, isEmpty);
+    expect(r.refuses, 0);
+    // La classe du téléphone est remplacée par celle du poste…
+    expect(await depot.lire('classe', classeTel.id), isNull);
+    expect((await depot.lire('classe', classePoste))!.donnees['libelle'], 'CE1 A');
+    // … l'élève y est inscrit, des deux côtés.
+    expect((await depot.lire('inscription', ins.id))!.donnees['classe_id'], classePoste);
+    expect(await depot.etat('inscription', ins.id), EtatSync.synchronise);
+    expect(serveur.lireDirect('inscription', ins.id)!.donnees['classe_id'], classePoste);
+    expect(serveur.lireDirect('eleve', eleve.id), isNotNull);
+    expect(serveur.tousDirect('classe').length, 1);
+    expect(serveur.tousDirect('conflit'), isEmpty);
+    expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+
+    // Synchronisation suivante : rien de bloqué.
+    final r2 = await client.synchroniser();
+    expect(r2.motifs, isEmpty);
+  });
 }

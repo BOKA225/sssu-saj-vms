@@ -152,8 +152,59 @@ void main() {
         {'etablissement_id': env.etabA, 'annee_scolaire_id': env.anneeId, 'libelle': libelle, 'niveau': 'CE2'};
     expect((await envoyer([entrant('classe', classe('CE2 A'), auteur: env.agent1)])).single.motif, 'droits_insuffisants');
     expect((await envoyer([entrant('classe', classe('CE2 A'), auteur: env.chef)])).single.statut, StatutAccuse.accepte);
-    // Même libellé la même année dans le même établissement : conflit d'unicité.
-    expect((await envoyer([entrant('classe', classe('CE2 A'), auteur: env.chef)])).single.statut, StatutAccuse.conflit);
+    // Même libellé la même année dans le même établissement : la même classe,
+    // créée des deux côtés. Refusée sans conflit à régler, avec l'identifiant de
+    // celle du poste, que le téléphone reprend.
+    final doublon = (await envoyer([entrant('classe', classe('CE2 A'), auteur: env.chef)])).single;
+    expect(doublon.statut, StatutAccuse.refuse);
+    final gardee = env.depot.tousDirect('classe').singleWhere((c) => c.donnees['libelle'] == 'CE2 A');
+    expect(doublon.motif, '${ServiceSynchronisation.motifDoublon}:${gardee.id}');
+    expect(env.depot.tousDirect('conflit'), isEmpty);
+  });
+
+  test('classe créée sur le poste et sur le téléphone : élèves gardés, inscriptions en attente de la classe', () async {
+    // Même liste importée sur le téléphone : classe « CM2 A » (déjà sur le
+    // poste), un élève et son inscription dans la classe du téléphone.
+    final c = entrant('classe', {'etablissement_id': env.etabA, 'annee_scolaire_id': env.anneeId, 'libelle': 'CM2 A'},
+        auteur: env.chef);
+    final e = entrant('eleve', {'nom': 'TANOH', 'prenoms': 'Marc', 'sexe': 'M', 'date_naissance': '2015-06-01'},
+        auteur: env.chef);
+    final i = entrant('inscription',
+        {'eleve_id': e.id, 'classe_id': c.id, 'annee_scolaire_id': env.anneeId, 'statut': 'inscrit'},
+        auteur: env.chef);
+    final accuses = await envoyer([c, e, i]);
+    expect(accuses[0].motif, '${ServiceSynchronisation.motifDoublon}:${env.classeA}');
+    expect(accuses[1].statut, StatutAccuse.accepte);
+    expect(accuses[2].statut, StatutAccuse.refuse);
+    expect(accuses[2].motif, 'reference_absente : classe');
+    expect(env.depot.lireDirect('eleve', e.id), isNotNull, reason: 'le reste du lot est enregistré');
+    expect(env.depot.lireDirect('inscription', i.id), isNull);
+    expect(env.depot.tousDirect('conflit'), isEmpty);
+    // Le téléphone a repris la classe du poste : l'inscription repart et passe.
+    final reprise = (await envoyer([i.copier(donnees: {...i.donnees, 'classe_id': env.classeA})])).single;
+    expect(reprise.statut, StatutAccuse.accepte);
+  });
+
+  test('visite d\'un élève inconnu du poste : refusée, le reste du lot passe', () async {
+    final v = entrant('visite', {...visite(agent: env.agent1), 'eleve_id': nouvelId()}, auteur: env.agent1);
+    final ok = entrant('visite', visite(agent: env.agent1), auteur: env.agent1);
+    final accuses = await envoyer([v, ok]);
+    expect(accuses[0].motif, 'reference_absente : eleve');
+    expect(accuses[1].statut, StatutAccuse.accepte);
+  });
+
+  test('élève sans matricule déjà sur le poste (mêmes nom, prénoms, naissance) : accepté et signalé', () async {
+    final e = entrant('eleve', {'nom': 'KOUASSI', 'prenoms': 'Aya', 'sexe': 'F', 'date_naissance': '2015-04-12'},
+        auteur: env.medecin);
+    expect((await envoyer([e])).single.statut, StatutAccuse.accepte);
+    final conflit = env.depot.tousDirect('conflit').single;
+    expect(conflit.donnees['type'], TypesConflit.doublonEleve);
+    // Autre date de naissance : pas de signalement.
+    await envoyer([
+      entrant('eleve', {'nom': 'KOUASSI', 'prenoms': 'Aya', 'sexe': 'F', 'date_naissance': '2016-04-12'},
+          auteur: env.medecin)
+    ]);
+    expect(env.depot.tousDirect('conflit').length, 1);
   });
 
   test('journal de synchronisation alimenté', () async {

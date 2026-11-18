@@ -773,6 +773,28 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.10.1
+
+- **Synchronisation bloquée par une classe créée des deux côtés** (même liste importée sur le poste et sur un
+  téléphone avant sa synchronisation) : le téléphone ne pouvait pas enregistrer la classe reçue du poste
+  (« UNIQUE constraint failed » : même établissement, même année, même libellé) et affichait « Les données
+  reçues du poste central ne correspondent pas à cette version… » à chaque synchronisation. Corrections :
+  - poste (`ServiceSynchronisation`) : une classe en double envoyée par un téléphone est refusée sans conflit
+    à régler, avec l'identifiant de celle du poste (`doublon_de:<id>`, `tablesDoublonRemplace`) ; un
+    enregistrement qui désigne une ligne absente du poste (inscription dans la classe refusée…) est refusé
+    seul (`reference_absente`, `referencesEnvoi`) au lieu de faire échouer tout le lot ; une clé d'unicité
+    incomplète (valeur vide) n'est plus comparée ;
+  - téléphone (`DepotLocalDrift.appliquerDistant`) : un enregistrement reçu dont la clé d'unicité est celle
+    d'une ligne du téléphone pas encore acceptée par le poste la remplace ; les lignes qui la désignent
+    (inscriptions…) passent à celle du poste et repartent ;
+  - `ClientSynchronisation` : après la réception, les envois refusés faute de référence repartent dans la même
+    synchronisation.
+- Élève **sans matricule** envoyé par un téléphone alors que le poste a déjà un élève de mêmes nom, prénoms et
+  date de naissance : accepté et signalé en doublon d'élève (Conflits → fusion), comme avec un matricule.
+- Message d'erreur du téléphone : demande de vérifier la version du poste **et** du téléphone, puis de
+  transmettre le détail à l'administrateur si le message revient.
+- Poste et téléphones à mettre à jour.
+
 ## Version 1.10.0
 
 - **Visite d'aptitude au CM2** : `niveauxAptitude` = CM2, 3ème, Tle (`classesAptitude` pour les libellés) ; le

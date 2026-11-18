@@ -110,6 +110,15 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.10.1
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 22.1 | Poste : importer la liste d'une classe (ex. CE1 A) ; téléphone non synchronisé : importer la même liste (compte Médecin-Chef) | — | |
+| 22.2 | Synchroniser le téléphone | Synchronisation terminée, sans message d'erreur ; une seule classe CE1 A, sur le poste et sur le téléphone | |
+| 22.3 | Poste : Conflits | Les élèves importés des deux côtés signalés en doublons d'élève, à fusionner | |
+| 22.4 | Téléphone bloqué avant la mise à jour : installer 1.10.1 puis synchroniser | Synchronisation terminée ; les élèves de la classe du téléphone inscrits dans la classe du poste | |
+
 ## Version 1.10.0
 
 | N° | Action | Résultat attendu | OK |
