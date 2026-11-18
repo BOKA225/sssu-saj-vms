@@ -191,7 +191,8 @@ class _FicheDossierState extends ConsumerState<FicheDossier> {
                         : (v.statut == 'valide' ? Icons.verified : Icons.assignment)),
                     title: Text('${dateFr(v.date)} · ${v.type.libelle} · ${libelleStatutVisite(v.statut)}'),
                     subtitle: Text('${v.aptitude == null ? '' : '${v.aptitude!.libelle} · '}${libelleConclusion(v.conclusion)}'
-                        '${v.diagnostic == null ? '' : ' · ${v.diagnostic}'} · agent : ${v.agent}'
+                        '${v.diagnostic == null ? '' : ' · ${v.diagnostic}'}'
+                        '${v.hpv == null ? '' : ' · HPV : ${v.hpv!.libelle.toLowerCase()}'} · agent : ${v.agent}'
                         '${v.photos == 0 ? '' : ' · ${v.photos} photo(s)'}'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () async {

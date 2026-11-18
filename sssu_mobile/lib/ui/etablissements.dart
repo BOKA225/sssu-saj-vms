@@ -11,6 +11,7 @@ import '../eleves/dialogue_eleve.dart';
 import '../eleves/service_eleves.dart';
 import '../import/ecran_import.dart';
 import '../services.dart';
+import '../vaccination/editeur_vaccination.dart';
 import '../visite/ecran_visite.dart';
 import 'champ_classe.dart';
 
@@ -430,6 +431,9 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
   LigneEleve? _eleve;
   List<ResumeVisite> _visites = const [];
 
+  /// Enfant du préscolaire : état vaccinal.
+  EtatVaccinal? _etatVaccinal;
+
   @override
   void initState() {
     super.initState();
@@ -442,12 +446,21 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
     if (a == null) return;
     final e = await r.eleve(widget.eleveId, a);
     final v = await r.visitesDeEleve(widget.eleveId);
+    final etat = e == null || !e.prescolaire
+        ? null
+        : etatVaccinal(await r.suiviVaccinal(widget.eleveId), vaccinsPrescolaire(await r.vaccins()));
     if (mounted) {
       setState(() {
         _eleve = e;
         _visites = v;
+        _etatVaccinal = etat;
       });
     }
+  }
+
+  Future<void> _vaccination() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => EcranVaccination(eleveId: widget.eleveId)));
+    _charger();
   }
 
   Future<void> _ouvrir({String? visiteId, TypeVisite type = TypeVisite.systematique}) async {
@@ -562,6 +575,19 @@ class _EcranFicheEleveState extends ConsumerState<EcranFicheEleve> {
               Text(e.classeLibelle == null
                   ? 'Non inscrit cette année : importez la liste de sa classe pour l\'examiner.'
                   : '${e.etablissementNom} · ${e.classeLibelle}'),
+              if (_etatVaccinal != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: Icon(Icons.vaccines,
+                        color: _etatVaccinal == EtatVaccinal.aJour ? Colors.green.shade700 : Colors.orange.shade800),
+                    title: const Text('Vaccination (PEV et hors PEV)'),
+                    subtitle: Text('État vaccinal : ${_etatVaccinal!.libelle} · parent ou tuteur, carnet, vaccins'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: session.droits.peut(Permission.visiteSaisir) ? _vaccination : null,
+                  ),
+                ),
+              ],
               const Divider(height: 32),
               Text('Visites médicales', style: Theme.of(context).textTheme.titleMedium),
               if (_visites.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('Aucune visite enregistrée.')),

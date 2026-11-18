@@ -5,7 +5,7 @@ library;
 import 'package:drift/drift.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import 'base_locale.dart' hide Utilisateur, Eleve;
+import 'base_locale.dart' hide Utilisateur, Eleve, Vaccin, SuiviVaccinal;
 import 'conversion_sql.dart';
 
 class AnneeCourante {
@@ -73,11 +73,25 @@ class LigneEleve {
 
   /// Dernière visite systématique de l'année scolaire, s'il y en a une.
   final ResumeVisite? derniereVisite;
+  final String? classeNiveau;
+  final String? etablissementType;
 
   const LigneEleve(this.eleve, this.inscriptionId, this.classeId, this.classeLibelle, this.etablissementId,
-      this.etablissementNom, this.derniereVisite);
+      this.etablissementNom, this.derniereVisite, {this.classeNiveau, this.etablissementType});
 
   bool get examine => derniereVisite != null && derniereVisite!.statut != StatutVisite.ebauche;
+
+  /// Enfant du préscolaire (petite, moyenne ou grande section) : suivi vaccinal.
+  bool get prescolaire =>
+      classeId != null && classePrescolaire(classeLibelle, niveau: classeNiveau, typeEtablissement: etablissementType);
+}
+
+/// Vaccin HPV déjà noté pour une fille : lors d'une autre visite, ou dans son
+/// suivi vaccinal.
+class HpvAnterieur {
+  final DateTime? date;
+  final String source;
+  const HpvAnterieur(this.date, this.source);
 }
 
 class EbaucheVisite {
@@ -177,7 +191,7 @@ class Requetes {
   }
 
   static const _selectEleve = 'SELECT el.*, i.id AS inscription_id, c.id AS classe_id, c.libelle AS classe_libelle, '
-      'e.id AS etab_id, e.nom AS etab_nom, '
+      'c.niveau AS classe_niveau, e.id AS etab_id, e.nom AS etab_nom, e.type AS etab_type, '
       '(SELECT v.id FROM visite v WHERE v.eleve_id = el.id AND v.deleted_at IS NULL AND v.date_visite BETWEEN ? AND ? '
       "AND v.type_visite = 'systematique' ORDER BY v.date_visite DESC, v.updated_at DESC LIMIT 1) AS visite_id "
       'FROM eleve el '
@@ -201,6 +215,8 @@ class Requetes {
         l.readNullable<String>('etab_id'),
         l.readNullable<String>('etab_nom'),
         visiteId == null ? null : await resumeVisite(visiteId),
+        classeNiveau: l.readNullable<String>('classe_niveau'),
+        etablissementType: l.readNullable<String>('etab_type'),
       ));
     }
     return resultat;
@@ -283,6 +299,37 @@ class Requetes {
     ];
   }
 
+  /// Vaccins actifs de la liste (PEV et hors PEV), dans l'ordre d'affichage.
+  Future<List<Vaccin>> vaccins() async {
+    final r = await _q('SELECT * FROM vaccin WHERE deleted_at IS NULL AND actif = 1');
+    final spec = registreParNom['vaccin']!;
+    return [for (final l in r) Vaccin.depuis(lireLigne(spec, l.data))]..sort(Vaccin.comparer);
+  }
+
+  /// Suivi vaccinal de l'enfant, s'il existe.
+  Future<SuiviVaccinal?> suiviVaccinal(String eleveId) async {
+    final r = await _q('SELECT * FROM suivi_vaccinal WHERE eleve_id = ? AND deleted_at IS NULL', [eleveId]);
+    if (r.isEmpty) return null;
+    return SuiviVaccinal.depuisDonnees(lireLigne(registreParNom['suivi_vaccinal']!, r.first.data).donnees);
+  }
+
+  /// Vaccin HPV déjà fait, noté lors d'une autre visite ou dans le suivi
+  /// vaccinal (`null` : rien de noté).
+  Future<HpvAnterieur?> hpvAnterieur(String eleveId, {String? saufVisite}) async {
+    final r = await _q(
+        "SELECT date_visite FROM visite WHERE eleve_id = ? AND deleted_at IS NULL AND hpv IN ('deja_fait', 'fait') "
+        "AND id <> ? ORDER BY date_visite DESC LIMIT 1",
+        [eleveId, saufVisite ?? '']);
+    if (r.isNotEmpty) {
+      return HpvAnterieur(lireDate(r.first.read<String>('date_visite')), 'visite');
+    }
+    final s = await suiviVaccinal(eleveId);
+    if (s == null) return null;
+    final hpv = await _q("SELECT id FROM vaccin WHERE code = ? AND deleted_at IS NULL", [codeVaccinHpv]);
+    if (hpv.isEmpty || s.vaccins[hpv.first.read<String>('id')] != true) return null;
+    return HpvAnterieur(s.dateVerification, 'suivi');
+  }
+
   /// Identités de tous les élèves du téléphone (contrôle des doublons à l'importation).
   Future<List<IdentiteEleve>> identitesEleves() async {
     final r = await _q('SELECT id, matricule, nom, prenoms, date_naissance FROM eleve WHERE deleted_at IS NULL');
@@ -323,7 +370,7 @@ class Requetes {
       inscriptions: await _lignes('SELECT eleve_id, classe_id, statut, deleted_at FROM inscription '
           'WHERE annee_scolaire_id = ?', [a.id]),
       eleves: await _lignes('SELECT id, sexe, date_naissance, deleted_at FROM eleve'),
-      visites: await _lignes('SELECT id, eleve_id, date_visite, statut, type_visite, conclusion, aptitude, deleted_at '
+      visites: await _lignes('SELECT id, eleve_id, date_visite, statut, type_visite, conclusion, aptitude, hpv, hpv_motif, deleted_at '
           'FROM visite WHERE date_visite BETWEEN ? AND ?', [a.debut, a.fin]),
       visitePathologies: await _lignes('SELECT vp.visite_id, vp.pathologie_id, vp.deleted_at FROM visite_pathologie vp '
           'JOIN visite v ON v.id = vp.visite_id WHERE v.date_visite BETWEEN ? AND ?', [a.debut, a.fin]),

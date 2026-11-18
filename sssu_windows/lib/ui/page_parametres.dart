@@ -18,6 +18,7 @@ import 'package:sssu_core/sssu_core.dart';
 import '../services.dart';
 import 'commun.dart';
 import 'dialogue_etablissement.dart';
+import 'dialogue_vaccins.dart';
 import 'import_etablissements.dart';
 
 /// Logo réduit à 400 px au plus et réencodé en PNG (fond transparent conservé).
@@ -224,6 +225,17 @@ class _PageParametresState extends ConsumerState<PageParametres> {
         child: FilledButton.icon(onPressed: _enregistrer, icon: const Icon(Icons.save), label: const Text('Enregistrer')),
       ),
       const SizedBox(height: 24),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.vaccines),
+          title: const Text('Vaccins PEV et hors PEV'),
+          subtitle: const Text('Liste des vaccins obligatoires et recommandés du préscolaire, et vaccin HPV : '
+              'ajouter, modifier, désactiver. Envoyée aux téléphones à la synchronisation suivante.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => gererVaccins(context),
+        ),
+      ),
+      const SizedBox(height: 8),
       _carteEtablissements(),
     ]);
   }

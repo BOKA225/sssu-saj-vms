@@ -23,6 +23,9 @@ Future<void> reaffecterEleve(TransactionServeur tx, String eleveId, String etabl
   for (final a in await tx.chercher('antecedent', {'eleve_id': eleveId})) {
     await tx.ecrire(a.copier(etablissementId: etablissementId));
   }
+  for (final s in await tx.chercher('suivi_vaccinal', {'eleve_id': eleveId})) {
+    await tx.ecrire(s.copier(etablissementId: etablissementId));
+  }
 }
 
 /// Rediffuse toutes les données d'un établissement (établissement, classes,

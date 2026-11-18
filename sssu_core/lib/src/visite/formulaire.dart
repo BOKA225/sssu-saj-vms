@@ -43,6 +43,11 @@ class FormulaireVisite {
   DecisionAptitude? aptitude;
   String aptitudeRestrictions;
 
+  /// Vaccin HPV (visite systématique d'une fille de 9 à 14 ans) et, s'il est
+  /// proposé et non fait, son motif.
+  StatutHpv? hpv;
+  MotifHpv? hpvMotif;
+
   double? poidsKg;
   double? tailleCm;
   int? taSys;
@@ -77,6 +82,8 @@ class FormulaireVisite {
     this.type = TypeVisite.systematique,
     this.aptitude,
     this.aptitudeRestrictions = '',
+    this.hpv,
+    this.hpvMotif,
     this.poidsKg,
     this.tailleCm,
     this.taSys,
@@ -126,6 +133,8 @@ class FormulaireVisite {
         'type_visite': type.code,
         'aptitude': type == TypeVisite.aptitude ? aptitude?.code : null,
         'aptitude_restrictions': type == TypeVisite.aptitude ? _vide(aptitudeRestrictions) : null,
+        'hpv': type == TypeVisite.systematique ? hpv?.code : null,
+        'hpv_motif': type == TypeVisite.systematique && hpv == StatutHpv.nonFait ? hpvMotif?.code : null,
         'poids_kg': poidsKg,
         'taille_cm': tailleCm,
         'imc': imc,
@@ -154,6 +163,8 @@ class FormulaireVisite {
     type = TypeVisite.depuisCode(d['type_visite'] as String?);
     aptitude = d['aptitude'] == null ? null : DecisionAptitude.depuisCode(d['aptitude']! as String);
     aptitudeRestrictions = s('aptitude_restrictions');
+    hpv = d['hpv'] == null ? null : StatutHpv.depuisCode(d['hpv']! as String);
+    hpvMotif = d['hpv_motif'] == null ? null : MotifHpv.depuisCode(d['hpv_motif']! as String);
     poidsKg = (d['poids_kg'] as num?)?.toDouble();
     tailleCm = (d['taille_cm'] as num?)?.toDouble();
     taSys = (d['ta_sys'] as num?)?.toInt();
@@ -195,7 +206,10 @@ class ControleVisite {
 /// Contrôles avant « Valider et synchroniser ».
 /// [pathologiesAPreciser] : identifiants des pathologies dont la précision est
 /// obligatoire (« Autres pathologies », « Handicap »).
-ControleVisite controlerVisite(FormulaireVisite f, {Set<String> pathologiesAPreciser = const {}, DateTime? aujourdhui}) {
+/// [hpv] : le vaccin HPV est à vérifier (fille de 9 à 14 ans, visite
+/// systématique : voir `hpvConcerne`).
+ControleVisite controlerVisite(FormulaireVisite f,
+    {Set<String> pathologiesAPreciser = const {}, DateTime? aujourdhui, bool hpv = false}) {
   final erreurs = <String>[];
   final avert = <String>[];
   final jour = aujourdhui ?? DateTime.now().toUtc();
@@ -205,6 +219,18 @@ ControleVisite controlerVisite(FormulaireVisite f, {Set<String> pathologiesAPrec
     if (f.aptitude == null) erreurs.add('Choisir la décision d\'aptitude.');
     if (f.aptitude != null && f.aptitude!.aPreciser && f.aptitudeRestrictions.trim().isEmpty) {
       erreurs.add('Préciser les restrictions ou le motif de l\'inaptitude.');
+    }
+  }
+  if (hpv && f.type == TypeVisite.systematique) {
+    switch (f.hpv) {
+      case null:
+        erreurs.add('Vaccin HPV : indiquer si la fille est déjà vaccinée.');
+      case StatutHpv.aProposer:
+        erreurs.add('Vaccin HPV : proposer le vaccin et cocher « fait » ou « pas fait ».');
+      case StatutHpv.nonFait when f.hpvMotif == null:
+        erreurs.add('Vaccin HPV non fait : choisir le motif.');
+      default:
+        break;
     }
   }
   if (f.conclusion == ConclusionVisite.reference && f.structureReference.trim().isEmpty) {

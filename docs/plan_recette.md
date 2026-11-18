@@ -110,6 +110,23 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.8.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 19.1 | Poste : Paramètres → Vaccins PEV et hors PEV | Liste initiale (PEV, hors PEV) ; ajout et modification d'un vaccin | |
+| 19.2 | Synchroniser un téléphone, visite systématique d'un enfant de grande section | Onglet « Vaccination » avec les vaccins du poste, groupés PEV / hors PEV, obligatoires / recommandés | |
+| 19.3 | Cocher des vaccins, carnet, parent ; valider et synchroniser | Poste : menu Vaccination du préscolaire, ✓ / ✗ de l'enfant, état « incomplet » ou « à jour » | |
+| 19.4 | Poste : cliquer l'enfant, modifier un vaccin ; resynchroniser le téléphone | Le téléphone affiche la modification | |
+| 19.5 | Poste : Ajouter un enfant dans une classe de petite section | Enfant dans la liste, fiche de vaccination ouverte | |
+| 19.6 | Visite systématique d'une fille de 11 ans | Onglet « Vaccin HPV » ; validation refusée tant qu'il n'est pas renseigné | |
+| 19.7 | Répondre « Non », puis « Pas fait » sans motif | Onglet « Proposer le vaccin HPV » ; motif exigé | |
+| 19.8 | Nouvelle visite de la même fille après « Fait » | « Vaccin HPV déjà noté comme fait », « Oui » coché | |
+| 19.9 | Garçon de 11 ans, fille de 8 ou 15 ans, visite d'aptitude | Pas d'onglet HPV | |
+| 19.10 | Statistiques (visite systématique), Rapports → Vaccin HPV | Bilan des filles de 9 à 14 ans, motifs, par établissement | |
+| 19.11 | Exporter la liste du préscolaire en PDF et Excel | Liste « secret médical », ✓ / ✗, couverture par vaccin | |
+| 19.12 | Téléphone resté en 1.7 qui synchronise | Message « installez la dernière version », données conservées | |
+
 ## Version 1.7.0
 
 | N° | Action | Résultat attendu | OK |

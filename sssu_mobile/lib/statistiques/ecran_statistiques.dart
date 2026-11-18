@@ -161,6 +161,22 @@ class _EcranStatistiquesState extends ConsumerState<EcranStatistiques> {
                   ]),
                 ),
           ]),
+          if (!aptitude && s.hpv.ensemble.cibles > 0)
+            _section('Vaccin HPV des filles de 9 à 14 ans', [
+              Text('${s.hpv.ensemble.cibles} fille(s) de 9 à 14 ans · ${s.hpv.ensemble.examinees} examinée(s)',
+                  style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 4),
+              for (final (libelle, n) in [
+                ('Déjà vaccinées', s.hpv.ensemble.dejaVaccinees),
+                ('Vaccinées lors de la visite', s.hpv.ensemble.vaccineesVisite),
+                ('Proposé, non fait', s.hpv.ensemble.nonVaccinees),
+                ('Non renseigné', s.hpv.ensemble.nonRenseignees),
+              ])
+                _barre(libelle, taux(n, s.hpv.ensemble.examinees), '$n'),
+              Text('Couverture HPV des examinées : ${pourcentage(s.hpv.ensemble.couverture)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              for (final m in s.hpv.motifs.entries) Text('• ${m.key.libelle} : ${m.value}'),
+            ]),
           _section('Conclusions des visites', [
             for (final c in ConclusionVisite.values)
               _barre(c.libelle, taux(s.conclusions[c] ?? 0, g.examines), '${s.conclusions[c] ?? 0}'),

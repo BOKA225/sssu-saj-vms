@@ -78,8 +78,9 @@ class LigneVisite {
   final int photos;
   final TypeVisite type;
   final DecisionAptitude? aptitude;
+  final StatutHpv? hpv;
   const LigneVisite(this.id, this.date, this.statut, this.conclusion, this.agent, this.diagnostic, this.photos,
-      {this.type = TypeVisite.systematique, this.aptitude});
+      {this.type = TypeVisite.systematique, this.aptitude, this.hpv});
 }
 
 class LignePhoto {
@@ -285,7 +286,7 @@ class RequetesPoste {
 
   Future<List<LigneVisite>> visites(String eleveId) async => [
         for (final l in await depot.requete(
-          'SELECT v.id, v.date_visite, v.statut, v.conclusion, v.diagnostic, v.type_visite, v.aptitude, '
+          'SELECT v.id, v.date_visite, v.statut, v.conclusion, v.diagnostic, v.type_visite, v.aptitude, v.hpv, '
           "COALESCE(u.prenoms || ' ', '') || COALESCE(u.nom, '?') AS agent, "
           '(SELECT COUNT(*) FROM photo p WHERE p.visite_id = v.id AND p.deleted_at IS NULL) AS photos '
           'FROM visite v LEFT JOIN utilisateur u ON u.id = v.agent_id '
@@ -295,8 +296,75 @@ class RequetesPoste {
           LigneVisite(l['id'].toString(), _d(l['date_visite']), l['statut'] as String, _s(l['conclusion']),
               l['agent'] as String, _s(l['diagnostic']), _i(l['photos']),
               type: TypeVisite.depuisCode(_s(l['type_visite'])),
-              aptitude: l['aptitude'] == null ? null : DecisionAptitude.depuisCode(l['aptitude'] as String)),
+              aptitude: l['aptitude'] == null ? null : DecisionAptitude.depuisCode(l['aptitude'] as String),
+              hpv: l['hpv'] == null ? null : StatutHpv.depuisCode(l['hpv'] as String)),
       ];
+
+  /// Liste des vaccins (tous, ou les actifs), dans l'ordre d'affichage.
+  Future<List<Vaccin>> vaccins({bool actifs = false}) async => [
+        for (final l in await depot.requete('SELECT * FROM vaccin WHERE deleted_at IS NULL${actifs ? ' AND actif' : ''}'))
+          Vaccin.depuisDonnees(l['id'].toString(), l)
+      ]..sort(Vaccin.comparer);
+
+  /// Enfants du préscolaire inscrits cette année (petite, moyenne, grande
+  /// section, ou classes d'un établissement préscolaire), avec leur suivi
+  /// vaccinal, par établissement, classe et nom.
+  Future<List<EnfantVaccination>> enfantsPrescolaire(Annee annee, {String? etablissementId, String? classeId}) async {
+    final r = await depot.requete(
+      'SELECT el.id, el.matricule, el.nom, el.prenoms, el.sexe, el.date_naissance, el.telephone_contact, '
+      'c.id AS classe_id, c.libelle AS classe, c.niveau, e.id AS etab_id, e.nom AS etablissement, e.type AS etab_type, '
+      's.id AS suivi_id, s.parent_tuteur, s.parent_telephone, s.carnet_presente, s.vaccins, s.observations, '
+      's.date_verification '
+      'FROM inscription i JOIN classe c ON c.id = i.classe_id JOIN etablissement e ON e.id = c.etablissement_id '
+      'JOIN eleve el ON el.id = i.eleve_id '
+      'LEFT JOIN suivi_vaccinal s ON s.eleve_id = el.id AND s.deleted_at IS NULL '
+      "WHERE i.annee_scolaire_id = CAST(@annee AS uuid) AND i.deleted_at IS NULL AND i.statut = 'inscrit' "
+      'AND c.deleted_at IS NULL AND el.deleted_at IS NULL AND e.deleted_at IS NULL '
+      "${etablissementId == null ? '' : 'AND e.id = CAST(@etab AS uuid) '}"
+      "${classeId == null ? '' : 'AND c.id = CAST(@classe AS uuid) '}"
+      'ORDER BY e.nom, c.libelle, el.nom, el.prenoms',
+      {'annee': annee.id, if (etablissementId != null) 'etab': etablissementId, if (classeId != null) 'classe': classeId},
+    );
+    return [
+      for (final l in r)
+        if (classePrescolaire(l['classe'] as String, niveau: _s(l['niveau']), typeEtablissement: _s(l['etab_type'])))
+          EnfantVaccination(
+            eleveId: l['id'].toString(),
+            matricule: _s(l['matricule']),
+            nom: l['nom'] as String,
+            prenoms: l['prenoms'] as String,
+            sexe: Sexe.depuisCode(l['sexe'] as String),
+            dateNaissance: l['date_naissance'] == null ? null : lireDate(_d(l['date_naissance'])),
+            telephoneContact: _s(l['telephone_contact']),
+            etablissementId: l['etab_id'].toString(),
+            etablissement: l['etablissement'] as String,
+            classeId: l['classe_id'].toString(),
+            classe: l['classe'] as String,
+            suivi: l['suivi_id'] == null
+                ? null
+                : SuiviVaccinal.depuisDonnees({
+                    'eleve_id': l['id'].toString(),
+                    'parent_tuteur': _s(l['parent_tuteur']),
+                    'parent_telephone': _s(l['parent_telephone']),
+                    'carnet_presente': l['carnet_presente'],
+                    'vaccins': _s(l['vaccins']),
+                    'observations': _s(l['observations']),
+                    'date_verification': _dn(l['date_verification']),
+                  }),
+          )
+    ];
+  }
+
+  /// Suivi vaccinal d'un enfant, s'il existe.
+  Future<SuiviVaccinal?> suiviVaccinal(String eleveId) async {
+    final r = await depot.requete(
+        'SELECT CAST(eleve_id AS text) AS eleve_id, parent_tuteur, parent_telephone, carnet_presente, vaccins, '
+        'observations, date_verification FROM suivi_vaccinal WHERE eleve_id = CAST(@e AS uuid) AND deleted_at IS NULL',
+        {'e': eleveId});
+    if (r.isEmpty) return null;
+    final l = r.first;
+    return SuiviVaccinal.depuisDonnees({...l, 'date_verification': _dn(l['date_verification'])});
+  }
 
   /// Photographies de toutes les visites de l'élève (visites précédentes comprises).
   Future<List<LignePhoto>> photos(String eleveId) async => [

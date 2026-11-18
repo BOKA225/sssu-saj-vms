@@ -18,6 +18,7 @@ import '../regles/identite.dart';
 import '../sync/depot_serveur.dart';
 import '../sync/diffusion.dart';
 import '../sync/enregistrement.dart';
+import '../vaccination/vaccination.dart';
 
 class ResultatImportEtablissements {
   final int crees;
@@ -768,6 +769,85 @@ class ServiceGestion {
         if (actifs.length <= 1) throw const ErreurGestion('La grille doit garder au moins un critère actif.');
       }
       return _modifier(tx, await _lire(tx, 'critere_inspection', id), {'actif': actif}, a);
+    });
+  }
+
+  // ------------------------------------------------------------------ vaccins
+
+  Map<String, Object?> _controlerVaccin(Vaccin v) {
+    final l = v.libelle.trim();
+    if (l.isEmpty) throw const ErreurGestion('Nom du vaccin obligatoire.');
+    if (l.length > 120) throw const ErreurGestion('Nom du vaccin trop long (120 caractères au plus).');
+    final cible = v.cible?.trim();
+    return {
+      'libelle': l,
+      'programme': v.programme.code,
+      'statut': v.statut.code,
+      'cible': cible == null || cible.isEmpty ? null : cible,
+      'prescolaire': v.prescolaire,
+      'actif': v.actif,
+    };
+  }
+
+  /// Nouveau vaccin de la liste, PEV ou hors PEV (droit `parametres.modifier`),
+  /// envoyé aux téléphones. Sans code, il est tiré du nom (« FIEVRE_JAUNE »).
+  Future<Enregistrement> creerVaccin(Droits a, Vaccin v) async {
+    _exiger(a, Permission.parametresModifier);
+    final d = _controlerVaccin(v);
+    return depot.transaction((tx) async {
+      final existants = await tx.chercher('vaccin', {});
+      final libelle = (d['libelle']! as String).toLowerCase();
+      if (existants.any((x) => !x.supprime && (x.donnees['libelle'] as String).trim().toLowerCase() == libelle)) {
+        throw const ErreurGestion('Ce vaccin est déjà dans la liste.');
+      }
+      final codes = {for (final x in existants) x.donnees['code']};
+      var code = v.code.trim().toUpperCase();
+      if (code.isNotEmpty && codes.contains(code)) throw ErreurGestion('Le code $code est déjà celui d\'un autre vaccin.');
+      if (code.isEmpty) {
+        var base = _codeCritere(v.libelle).toUpperCase();
+        if (base.isEmpty) base = 'VACCIN';
+        if (base.length > 20) base = base.substring(0, 20);
+        code = base;
+        for (var n = 2; codes.contains(code); n++) {
+          code = '${base}_$n';
+        }
+      }
+      final ordreMax = existants.fold<int>(
+          0, (m, x) => ((x.donnees['ordre'] as num?)?.toInt() ?? 0) > m ? (x.donnees['ordre'] as num).toInt() : m);
+      return _creer(tx, 'vaccin', {...d, 'code': code, 'ordre': v.ordre > 0 ? v.ordre : ordreMax + 1}, a);
+    });
+  }
+
+  /// Modifie un vaccin (nom, programme, statut, cible, liste du préscolaire,
+  /// actif, ordre ; le code ne change pas). Les suivis déjà notés gardent
+  /// leurs réponses ; un vaccin désactivé n'est plus proposé.
+  Future<Enregistrement> modifierVaccin(Droits a, String id, Vaccin v) async {
+    _exiger(a, Permission.parametresModifier);
+    final d = _controlerVaccin(v);
+    return depot.transaction((tx) async {
+      final libelle = (d['libelle']! as String).toLowerCase();
+      final autres = (await tx.chercher('vaccin', {})).where((x) => x.id != id && !x.supprime);
+      if (autres.any((x) => (x.donnees['libelle'] as String).trim().toLowerCase() == libelle)) {
+        throw const ErreurGestion('Un autre vaccin porte déjà ce nom.');
+      }
+      return _modifier(tx, await _lire(tx, 'vaccin', id), {...d, if (v.ordre > 0) 'ordre': v.ordre}, a);
+    });
+  }
+
+  /// Enregistre le suivi vaccinal d'un enfant (droit `visite.saisir`) : une
+  /// fiche par enfant, à l'identifiant calculé (la même que celle des
+  /// téléphones). Sans date de vérification, celle du jour.
+  Future<Enregistrement> enregistrerSuiviVaccinal(Droits a, SuiviVaccinal s) async {
+    _exiger(a, Permission.visiteSaisir);
+    final donnees = s.versDonnees();
+    donnees['date_verification'] ??= formaterDate(horloge.maintenant());
+    return depot.transaction((tx) async {
+      final eleve = await _lire(tx, 'eleve', s.eleveId);
+      final existant = await tx.lire('suivi_vaccinal', s.id);
+      if (existant == null) {
+        return _creer(tx, 'suivi_vaccinal', donnees, a, etablissementId: eleve.etablissementId, id: s.id);
+      }
+      return _modifier(tx, existant, donnees, a, etablissementId: eleve.etablissementId);
     });
   }
 

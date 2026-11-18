@@ -115,6 +115,8 @@ class _PageStatistiquesState extends ConsumerState<PageStatistiques> with Single
         ]),
       ),
       Panneau('Par tranche d\'âge et par sexe (âge au ${_date(s.dateAge)})', tableauTranches(s)),
+      if (s.typeVisite == TypeVisite.systematique && s.hpv.ensemble.cibles > 0)
+        Panneau('Vaccin HPV des filles de 9 à 14 ans', tableauHpv(s.hpv)),
       if (s.parEtablissement.length > 1)
         Panneau(
             'Par établissement',

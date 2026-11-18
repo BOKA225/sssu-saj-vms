@@ -214,6 +214,11 @@ class _DetailVisiteState extends ConsumerState<DetailVisite> {
                 d['aptitude'] == null ? null : DecisionAptitude.depuisCode(d['aptitude']! as String).libelle),
             _ligne('Restrictions ou motif', d['aptitude_restrictions']),
           ]),
+        if (d['hpv'] != null)
+          Bloc(titre: 'Vaccin HPV (fille de 9 à 14 ans)', enfants: [
+            _ligne('Vaccin HPV', StatutHpv.depuisCode(d['hpv']! as String).libelle),
+            if (d['hpv_motif'] != null) _ligne('Motif', MotifHpv.depuisCode(d['hpv_motif']! as String).libelle),
+          ]),
         Bloc(titre: 'F. Conclusion', enfants: [
           _ligne('Conclusion', libelleConclusion(d['conclusion'] as String?)),
           _ligne('Diagnostic', d['diagnostic']),

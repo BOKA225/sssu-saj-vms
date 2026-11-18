@@ -160,6 +160,88 @@ void main() {
       fail('aucun établissement avec des classes');
     }, skip: ignorer);
 
+    test('vaccination sur PostgreSQL : migration 060, vaccins, suivi d\'un enfant du préscolaire, vaccin HPV', () async {
+      final a = (await r.anneeCourante())!;
+      final vaccins = await r.vaccins();
+      expect(vaccins.map((v) => v.code), containsAll(['BCG', 'PENTA', 'PCV13', 'RR', 'VAA', 'PALU', 'HPV', 'ROR', 'VARICELLE']));
+      expect(vaccins.firstWhere((v) => v.code == 'HPV').prescolaire, isFalse);
+      expect(vaccinsPrescolaire(vaccins).first.programme, ProgrammeVaccin.pev);
+      expect(vaccinsPrescolaire(vaccins).last.programme, ProgrammeVaccin.horsPev);
+      final diffuses = await depot.requete("SELECT COUNT(DISTINCT record_id) AS n FROM sync_changement WHERE table_name = 'vaccin'");
+      expect((diffuses.first['n'] as num).toInt(), greaterThanOrEqualTo(vaccins.length), reason: 'liste envoyée aux téléphones');
+      await expectLater(
+          depot.requete("UPDATE vaccin SET programme = 'autre' WHERE code = 'BCG'"), throwsA(anything));
+
+      // Enfant ajouté dans une classe d'un établissement préscolaire, puis sa fiche.
+      final e = await g.creerEtablissement(
+          chef, {'nom': 'Préscolaire PG', 'code': 'PS-${nouvelId().substring(30)}', 'type': 'prescolaire', 'statut': 'public'});
+      final c = await g.creerClasse(chef, etablissementId: e.id, anneeScolaireId: a.id, libelle: 'Moyenne section');
+      final enfant = await g.creerEleve(chef,
+          identite: {'nom': 'YAO', 'prenoms': 'Ange', 'sexe': 'M', 'date_naissance': '2022-02-02', 'telephone_contact': '0505'},
+          classeId: c.id);
+      var liste = await r.enfantsPrescolaire(a, etablissementId: e.id);
+      expect((liste.single.eleveId, liste.single.suivi, liste.single.classe), (enfant.id, null, 'Moyenne section'));
+      expect((await r.enfantsPrescolaire(a)).map((x) => x.eleveId), contains(enfant.id));
+      final bcg = vaccins.firstWhere((v) => v.code == 'BCG');
+      final rr = vaccins.firstWhere((v) => v.code == 'RR');
+      final s = SuiviVaccinal(eleveId: enfant.id, parentTuteur: 'YAO Koffi', carnetPresente: true, vaccins: {bcg.id: true});
+      expect((await g.enregistrerSuiviVaccinal(chef, s)).etablissementId, e.id);
+      await g.enregistrerSuiviVaccinal(chef, s
+        ..observations = 'Penta 3 en retard'
+        ..vaccins[rr.id] = false);
+      liste = await r.enfantsPrescolaire(a, etablissementId: e.id);
+      final lu = liste.single.suivi!;
+      expect((lu.parentTuteur, lu.carnetPresente, lu.observations), ('YAO Koffi', true, 'Penta 3 en retard'));
+      expect(lu.vaccins, {bcg.id: true, rr.id: false});
+      expect(etatVaccinal(lu, vaccinsPrescolaire(vaccins)), EtatVaccinal.incomplet);
+      expect((await r.suiviVaccinal(enfant.id))!.vaccins, {bcg.id: true, rr.id: false});
+      final relu = (await depot.transaction((tx) => tx.lire('suivi_vaccinal', idSuiviVaccinal(enfant.id))))!;
+      expect((relu.version, relu.etablissementId), (2, e.id));
+
+      // Vaccin ajouté sur le poste : dans la liste, diffusé.
+      final nouveau = await g.creerVaccin(
+          chef,
+          Vaccin(
+              id: '',
+              code: '',
+              libelle: 'Rage PG ${nouvelId().substring(30)}',
+              programme: ProgrammeVaccin.horsPev,
+              statut: StatutVaccin.recommande));
+      expect((await r.vaccins()).map((v) => v.id), contains(nouveau.id));
+
+      // Vaccin HPV noté dans une visite : conservé, lu par les statistiques.
+      final m = DateTime.now().toUtc();
+      final agents = await depot.requete('SELECT id::text AS id FROM utilisateur LIMIT 1');
+      final v = Enregistrement(
+          table: 'visite',
+          id: nouvelId(),
+          version: 1,
+          versionBase: 1,
+          createdAt: m,
+          updatedAt: m,
+          etablissementId: e.id,
+          donnees: {
+            'eleve_id': enfant.id,
+            'agent_id': agents.first['id'],
+            'date_visite': a.debut,
+            'statut': 'valide',
+            'type_visite': 'systematique',
+            'hpv': 'non_fait',
+            'hpv_motif': 'refus_parents',
+          });
+      try {
+        await depot.transaction((tx) => tx.ecrire(v));
+        final jeu = await SourceStatistiquesPoste(depot).charger(a);
+        final vs = jeu.visites.singleWhere((x) => x.id == v.id);
+        expect((vs.hpv, vs.hpvMotif), (StatutHpv.nonFait, MotifHpv.refusParents));
+        expect((await r.visites(enfant.id)).single.hpv, StatutHpv.nonFait);
+        await expectLater(
+            depot.requete("UPDATE visite SET hpv = 'peut_etre' WHERE id = CAST(@id AS uuid)", {'id': v.id}), throwsA(anything));
+      } finally {
+        await depot.requete('DELETE FROM visite WHERE id = CAST(@id AS uuid)', {'id': v.id});
+      }
+    }, skip: ignorer);
+
     test('création d\'établissement et de classe, rediffusion par établissement', () async {
       final a = (await r.anneeCourante())!;
       final e = await g.creerEtablissement(chef, {'nom': 'École PG', 'code': 'PG-${nouvelId().substring(30)}', 'type': 'primaire', 'statut': 'public'});
