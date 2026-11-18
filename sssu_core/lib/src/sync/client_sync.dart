@@ -42,8 +42,9 @@ abstract class DepotLocalSync {
   Future<void> definirCurseur(int curseur);
 
   /// Exécute [action] dans une transaction (une page de réception) : sur le
-  /// téléphone, les contrôles de clés étrangères y sont différés, si bien
-  /// qu'un enfant reçu avant son parent dans la même page est accepté.
+  /// téléphone, les clés étrangères n'y sont pas contrôlées (le poste central
+  /// garantit l'intégrité ; le téléphone ne reçoit qu'une partie des données,
+  /// et un enregistrement reçu peut désigner une ligne d'un autre établissement).
   Future<void> enTransaction(Future<void> Function() action);
 
   /// Photographies dont les données sont synchronisées mais dont le fichier

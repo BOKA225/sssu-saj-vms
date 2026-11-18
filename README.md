@@ -773,6 +773,17 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.10.2
+
+- **Première synchronisation d'un téléphone bloquée** (« FOREIGN KEY constraint failed », « Causing statement:
+  COMMIT TRANSACTION ») : le téléphone ne reçoit que les données de ses établissements ; un enregistrement reçu
+  peut désigner une ligne d'un autre établissement (élève passé dans un autre établissement : son ancienne
+  inscription, reçue par un téléphone réappairé de l'ancien établissement, désigne sa nouvelle classe ; dossiers
+  fusionnés…). La page de réception échouait entière. `DepotLocalDrift.enTransaction` ne contrôle plus les clés
+  étrangères pendant la réception (le poste central garantit l'intégrité de ses données) ; elles restent
+  contrôlées pour les saisies du téléphone ; les écrans lisent ces lignes par jointures externes.
+- Téléphones à mettre à jour (le poste central ne change pas ; sa mise à jour est facultative).
+
 ## Version 1.10.1
 
 - **Synchronisation bloquée par une classe créée des deux côtés** (même liste importée sur le poste et sur un

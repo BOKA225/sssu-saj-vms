@@ -376,7 +376,8 @@ class DepotLocalDrift implements DepotLocalSync {
 
     await collecter(_spec(table).nom, id);
     final chemins = <String>[];
-    await enTransaction(() async {
+    await db.transaction(() async {
+      await db.customStatement('PRAGMA defer_foreign_keys = ON');
       for (final (t, i) in aEffacer) {
         if (tablesAvecFichier.contains(t)) {
           final c = await _chemin(FichierLocal(t, i, ''));
@@ -416,11 +417,25 @@ class DepotLocalDrift implements DepotLocalSync {
     return resultat;
   }
 
+  /// Page de réception. Le poste central garantit l'intégrité de ses données,
+  /// mais le téléphone n'en reçoit qu'une partie (ses établissements) : un
+  /// enregistrement reçu peut désigner une ligne que ce téléphone ne reçoit
+  /// pas. Exemple : élève passé dans un autre établissement, dont l'ancienne
+  /// inscription désigne désormais une classe de cet autre établissement ; un
+  /// téléphone de l'ancien établissement, réappairé, la reçoit (« FOREIGN KEY
+  /// constraint failed » à la fin de la page, synchronisation bloquée). Les
+  /// clés étrangères ne sont donc pas contrôlées pendant la réception ; les
+  /// écrans lisent ces lignes par jointures externes. Le réglage se fait hors
+  /// transaction (sans effet dans une transaction).
   @override
-  Future<void> enTransaction(Future<void> Function() action) => db.transaction(() async {
-        await db.customStatement('PRAGMA defer_foreign_keys = ON');
-        await action();
-      });
+  Future<void> enTransaction(Future<void> Function() action) async {
+    await db.customStatement('PRAGMA foreign_keys = OFF');
+    try {
+      await db.transaction(action);
+    } finally {
+      await db.customStatement('PRAGMA foreign_keys = ON');
+    }
+  }
 
   @override
   Future<String?> generationServeur() => lireEtat('generation');
