@@ -31,7 +31,38 @@ const Map<String, Set<Permission>> permissionsEnvoi = {
   'journal_audit': {},
 };
 
+/// Références (clés étrangères du poste central) des enregistrements envoyés
+/// par les téléphones : table → colonne → table désignée.
+const Map<String, Map<String, String>> referencesEnvoi = {
+  'classe': {'etablissement_id': 'etablissement', 'annee_scolaire_id': 'annee_scolaire'},
+  'inscription': {'eleve_id': 'eleve', 'classe_id': 'classe', 'annee_scolaire_id': 'annee_scolaire'},
+  'visite': {'eleve_id': 'eleve', 'inscription_id': 'inscription', 'agent_id': 'utilisateur', 'validateur_id': 'utilisateur'},
+  'antecedent': {'visite_id': 'visite', 'eleve_id': 'eleve'},
+  'examen_appareil': {'visite_id': 'visite'},
+  'visite_pathologie': {'visite_id': 'visite', 'pathologie_id': 'pathologie'},
+  'consentement': {'eleve_id': 'eleve', 'visite_id': 'visite'},
+  'photo': {
+    'visite_id': 'visite',
+    'eleve_id': 'eleve',
+    'visite_pathologie_id': 'visite_pathologie',
+    'auteur_id': 'utilisateur',
+    'consentement_id': 'consentement',
+  },
+  'inspection': {'etablissement_id': 'etablissement', 'annee_scolaire_id': 'annee_scolaire', 'inspecteur_id': 'utilisateur'},
+  'inspection_reponse': {'inspection_id': 'inspection', 'critere_id': 'critere_inspection'},
+  'inspection_photo': {'inspection_reponse_id': 'inspection_reponse', 'auteur_id': 'utilisateur'},
+};
+
+/// Tables dont un doublon envoyé par un téléphone (même clé naturelle, autre
+/// identifiant) est la même chose créée des deux côtés : il est refusé sans
+/// conflit à régler, et le téléphone le remplace par l'enregistrement du poste.
+const tablesDoublonRemplace = {'classe'};
+
 class ServiceSynchronisation {
+  /// Motif du refus d'un doublon de [tablesDoublonRemplace], suivi de
+  /// « :identifiant » de l'enregistrement du poste.
+  static const motifDoublon = 'doublon_de';
+
   final DepotServeur depot;
   final Horloge horloge;
 
@@ -126,10 +157,22 @@ class ServiceSynchronisation {
         break;
     }
 
+    // Références : un enregistrement qui désigne une ligne absente du poste
+    // (classe refusée…) est refusé, sans faire échouer tout le lot.
+    for (final r in (referencesEnvoi[entrant.table] ?? const <String, String>{}).entries) {
+      final id = entrant.donnees[r.key];
+      if (id is String && await tx.lire(r.value, id) == null) return refus('reference_absente : ${r.value}');
+    }
+
     // Unicité (inscription unique par année, examen unique par appareil…).
     for (final cle in spec.clesNaturelles) {
-      final autres = await tx.chercher(entrant.table, {for (final c in cle) c: entrant.donnees[c]});
+      final valeurs = {for (final c in cle) c: entrant.donnees[c]};
+      if (valeurs.values.any((v) => v == null)) continue;
+      final autres = await tx.chercher(entrant.table, valeurs);
       if (autres.any((a) => a.id != entrant.id)) {
+        if (tablesDoublonRemplace.contains(entrant.table)) {
+          return refus('$motifDoublon:${autres.firstWhere((a) => a.id != entrant.id).id}');
+        }
         await _noterConflit(tx, TypesConflit.unicite, entrant, autres.firstWhere((a) => a.id != entrant.id), appareilId);
         return Accuse(
             table: entrant.table,
@@ -185,7 +228,15 @@ class ServiceSynchronisation {
   Future<void> _signalerDoublons(TransactionServeur tx, Enregistrement e, String appareilId) async {
     if (e.table == 'eleve' && e.donnees['matricule'] != null) {
       final memes = await tx.chercher('eleve', {'matricule': e.donnees['matricule']});
-      for (final autre in memes.where((a) => a.id != e.id)) {
+      for (final autre in memes.where((a) => a.id != e.id && !a.supprime)) {
+        await _noterConflit(tx, TypesConflit.doublonEleve, e, autre, appareilId);
+      }
+    } else if (e.table == 'eleve' && e.donnees['date_naissance'] != null) {
+      // Sans matricule (préscolaire, primaire) : mêmes nom, prénoms et date de
+      // naissance (liste importée à la fois sur le poste et sur un téléphone…).
+      final memes = await tx.chercher('eleve',
+          {'nom': e.donnees['nom'], 'prenoms': e.donnees['prenoms'], 'date_naissance': e.donnees['date_naissance']});
+      for (final autre in memes.where((a) => a.id != e.id && !a.supprime)) {
         await _noterConflit(tx, TypesConflit.doublonEleve, e, autre, appareilId);
       }
     }

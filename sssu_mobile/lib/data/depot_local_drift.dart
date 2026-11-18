@@ -218,6 +218,13 @@ class DepotLocalDrift implements DepotLocalSync {
   @override
   Future<void> marquerConflit(Enregistrement envoye, String motif) async {
     final s = _spec(envoye.table);
+    // Déjà enregistré sur le poste sous un autre identifiant (classe créée des
+    // deux côtés), et déjà reçu : la ligne du téléphone est remplacée tout de suite.
+    final doublon = RegExp('^${ServiceSynchronisation.motifDoublon}:([0-9a-f-]{36})\$').firstMatch(motif);
+    if (doublon != null && (await _select('SELECT 1 FROM ${s.nom} WHERE id = ?', [doublon.group(1)])).isNotEmpty) {
+      await db.transaction(() => _remplacerPar(s, envoye.id, doublon.group(1)!));
+      return;
+    }
     await db.customStatement("UPDATE ${s.nom} SET sync_status = 'conflit' WHERE id = ?", [envoye.id]);
     await ecrireEtat('motif_conflit:${s.nom}:${envoye.id}', motif);
   }
@@ -242,10 +249,65 @@ class DepotLocalDrift implements DepotLocalSync {
       if (etat == EtatSync.synchronise && e.version < base) return;
     }
     await db.transaction(() async {
+      await _remplacerDoublons(s, e);
       await _ecrire(e.copier(versionBase: e.version), EtatSync.synchronise, remplacerTout: false);
       if (resolutionConflit) await _effacerMotif(s.nom, e.id);
     });
   }
+
+  /// Enregistrement reçu du poste dont la clé naturelle (classe de même nom
+  /// dans le même établissement et la même année, inscription du même élève
+  /// la même année…) est déjà celle d'une ligne créée sur ce téléphone et pas
+  /// encore acceptée par le poste : c'est la même chose, créée des deux côtés
+  /// avant la synchronisation. La ligne du téléphone est remplacée par celle du
+  /// poste. Sans cela, la base du téléphone refuserait l'enregistrement reçu et
+  /// la synchronisation resterait bloquée.
+  Future<void> _remplacerDoublons(TableSpec s, Enregistrement e) async {
+    for (final cle in s.clesNaturelles) {
+      final valeurs = [for (final c in cle) versSqlite(s.colonne(c)!.type, e.donnees[c])];
+      if (valeurs.any((v) => v == null)) continue;
+      final doublons = await _select(
+          'SELECT id, sync_status FROM ${s.nom} WHERE ${cle.map((c) => '$c = ?').join(' AND ')} AND id <> ?',
+          [...valeurs, e.id]);
+      for (final d in doublons) {
+        if (d['sync_status'] == EtatSync.synchronise.code) continue;
+        await _remplacerPar(s, d['id']! as String, e.id);
+      }
+    }
+  }
+
+  /// Remplace la ligne [ancien] du téléphone par [nouveau] (celle du poste) :
+  /// les lignes qui la référencent (élèves inscrits dans la classe…) passent à
+  /// [nouveau] et repartent au prochain envoi si le poste les avait refusées ;
+  /// puis [ancien] est supprimée du téléphone.
+  Future<void> _remplacerPar(TableSpec s, String ancien, String nouveau) async {
+    // Contrôle des clés étrangères à la fin de la transaction : [nouveau] peut
+    // n'être écrit qu'après.
+    await db.customStatement('PRAGMA defer_foreign_keys = ON');
+    for (final (table, colonne) in await _references(s.nom)) {
+      await db.customStatement(
+          "DELETE FROM sync_etat WHERE cle IN (SELECT 'motif_conflit:$table:' || id FROM $table "
+          "WHERE $colonne = ? AND sync_status = 'conflit')",
+          [ancien]);
+      await db.customStatement(
+          "UPDATE $table SET $colonne = ?, sync_status = CASE WHEN sync_status = 'conflit' THEN 'en_attente' "
+          'ELSE sync_status END WHERE $colonne = ?',
+          [nouveau, ancien]);
+    }
+    await db.customStatement('DELETE FROM ${s.nom} WHERE id = ?', [ancien]);
+    await _effacerMotif(s.nom, ancien);
+  }
+
+  final _cacheReferences = <String, List<(String, String)>>{};
+
+  /// Colonnes (table, colonne) des clés étrangères qui désignent [table].
+  Future<List<(String, String)>> _references(String table) async => _cacheReferences[table] ??= [
+        for (final l in await _select(
+            "SELECT m.name AS t, f.\"from\" AS c FROM sqlite_master m, pragma_foreign_key_list(m.name) f "
+            "WHERE m.type = 'table' AND f.\"table\" = ?",
+            [table]))
+          (l['t']! as String, l['c']! as String)
+      ];
 
   // ------------------------------------------------------------- fichiers
 
