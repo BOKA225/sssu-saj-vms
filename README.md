@@ -773,6 +773,30 @@ Nouvelles dépendances : `pdf` et `excel` (paquet commun) ; `fl_chart` (poste).
   toute erreur s'affichait « Poste central injoignable ».
 - Remarques de l'analyseur corrigées ; CI : avertissements de l'analyseur publiés en annotations.
 
+## Version 1.8.0
+
+- **Vaccination** (`sssu_core/lib/src/vaccination/vaccination.dart`) :
+  - liste des vaccins `vaccin` (PEV ou hors PEV, obligatoire ou recommandé, cible, liste du préscolaire, actif),
+    initialisée par `060_vaccination.sql` (calendrier du PEV et vaccins recommandés hors PEV), modifiable sur le
+    poste (`ServiceGestion.creerVaccin`, `modifierVaccin` ; droit `parametres.modifier`) et envoyée aux téléphones ;
+  - suivi vaccinal `suivi_vaccinal` : une fiche par enfant à l'identifiant calculé (`idSuiviVaccinal`, UUID
+    version 5 : deux téléphones écrivent la même fiche), parent ou tuteur, téléphone, carnet présenté,
+    observations, vaccins en JSON (identifiant → fait / non fait) ; `etatVaccinal` (à jour, incomplet, non
+    renseigné, d'après les vaccins obligatoires), `couvertureVaccins` ;
+  - préscolaire : `classePrescolaire` (PS, MS, GS, ou établissement préscolaire).
+- **Téléphone** (schéma SQLite 4) : onglet « Vaccination » de la visite systématique d'un enfant du préscolaire
+  et écran de vaccination depuis son dossier (`lib/vaccination/`) ; onglet « Vaccin HPV » / « Proposer le vaccin
+  HPV » pour une fille de 9 à 14 ans (`hpvConcerne`) : déjà vaccinée, sinon fait ou pas fait et motif
+  (`visite.hpv`, `hpv_motif` ; contrôle `controlerVisite(hpv: true)`) ; vaccin HPV déjà noté repris
+  (`Requetes.hpvAnterieur`) ; bilan HPV dans les statistiques.
+- **Poste central** : menu « Vaccination du préscolaire » (`page_vaccination.dart`, droit `visite.saisir`) :
+  enfants et vaccins, état vaccinal, couverture par vaccin, fiche de l'enfant, ajout d'un enfant, export
+  (`rapportVaccinationPrescolaire`, nominatif) ; gestion des vaccins (`dialogue_vaccins.dart`, aussi dans
+  Paramètres) ; bilan HPV (`Statistiques.hpv`, `bilanHpv`) dans les statistiques, le rapport annuel et le
+  rapport « Vaccin HPV des filles de 9 à 14 ans » (`rapportHpv`) ; vaccin HPV dans le détail de la visite.
+- Protocole de synchronisation 4 : un téléphone en 1.7 ou avant reçoit tout jusqu'au premier vaccin, suivi
+  vaccinal ou visite avec le vaccin HPV, puis un message l'invitant à se mettre à jour.
+
 ## Version 1.7.0
 
 - **Tranches d'âge par établissement** (menu du poste central, droit `statistiques.consulter`,

@@ -231,6 +231,8 @@ CREATE TABLE visite (
   type_visite TEXT NOT NULL DEFAULT 'systematique' CHECK (type_visite IN ('systematique', 'aptitude')),
   aptitude TEXT CHECK (aptitude IS NULL OR aptitude IN ('apte', 'apte_partiel', 'inapte_temporaire', 'inapte_definitif')),
   aptitude_restrictions TEXT,
+  hpv TEXT CHECK (hpv IS NULL OR hpv IN ('deja_fait', 'a_proposer', 'fait', 'non_fait')),
+  hpv_motif TEXT CHECK (hpv_motif IS NULL OR hpv_motif IN ('refus_parents', 'refus_eleve', 'vaccin_indisponible', 'contre_indication', 'autre')),
   poids_kg REAL,
   taille_cm REAL,
   imc REAL,
@@ -327,6 +329,53 @@ CREATE TABLE visite_pathologie (
   precision TEXT,
   UNIQUE (visite_id, pathologie_id)
 ) AS VisitePathologieRow;
+
+-- Version 1.8.0 (schéma 4) : liste des vaccins (PEV et hors PEV) et suivi
+-- vaccinal des enfants (une fiche par enfant, vaccins en JSON).
+CREATE TABLE vaccin (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  code TEXT NOT NULL,
+  libelle TEXT NOT NULL,
+  programme TEXT NOT NULL CHECK (programme IN ('pev', 'hors_pev')),
+  statut TEXT NOT NULL CHECK (statut IN ('obligatoire', 'recommande')),
+  cible TEXT,
+  prescolaire BOOLEAN NOT NULL DEFAULT TRUE,
+  actif BOOLEAN NOT NULL DEFAULT TRUE,
+  ordre INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (code)
+) AS VaccinRow;
+
+CREATE TABLE suivi_vaccinal (
+  id TEXT NOT NULL PRIMARY KEY,
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  base_version INTEGER NOT NULL DEFAULT 0 CHECK (base_version >= 0),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  created_by TEXT,
+  updated_by TEXT,
+  device_id TEXT,
+  deleted_at DATETIME,
+  sync_status TEXT NOT NULL DEFAULT 'local' CHECK (sync_status IN ('local', 'en_attente', 'synchronise', 'conflit')),
+  portee_etablissement_id TEXT,
+  eleve_id TEXT NOT NULL,
+  parent_tuteur TEXT,
+  parent_telephone TEXT,
+  carnet_presente BOOLEAN,
+  vaccins TEXT,
+  observations TEXT,
+  date_verification TEXT,
+  UNIQUE (eleve_id)
+) AS SuiviVaccinalRow;
 
 CREATE TABLE consentement (
   id TEXT NOT NULL PRIMARY KEY,

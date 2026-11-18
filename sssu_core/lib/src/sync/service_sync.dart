@@ -230,9 +230,11 @@ class ServiceSynchronisation {
         if (protocole < protocoleSync) {
           final i = changements.indexWhere((c) => !compatible(c.enregistrement, protocole));
           if (i == 0) {
-            final quoi = !compatibleProtocole1(changements.first.enregistrement)
-                ? 'la nouvelle grille d\'inspection (version 1.2)'
-                : 'les visites médicales d\'aptitude (version 1.6)';
+            final quoi = switch (protocoleRequis(changements.first.enregistrement)) {
+              2 => 'la nouvelle grille d\'inspection (version 1.2)',
+              3 => 'les visites médicales d\'aptitude (version 1.6)',
+              _ => 'la vaccination : PEV, hors PEV et vaccin HPV (version 1.8)',
+            };
             throw ErreurProtocole(426, 'mise_a_jour_requise',
                 'Le poste central utilise $quoi : installez la dernière version de l\'application SSSU-SAJ VMS sur ce '
                 'téléphone, puis synchronisez. Les données du téléphone sont conservées et ont déjà été envoyées.');
@@ -264,11 +266,24 @@ class ServiceSynchronisation {
   /// Enregistrement qu'un téléphone de ce [protocole] sait recevoir sans perte :
   /// protocole 1, critères de l'ancienne grille seulement ; protocoles 1 et 2,
   /// pas de visite d'aptitude (il la prendrait pour une visite systématique et
-  /// effacerait sa décision en la modifiant).
+  /// effacerait sa décision en la modifiant) ; protocoles 1 à 3, ni vaccins, ni
+  /// suivi vaccinal, ni visite avec le vaccin HPV (il l'effacerait).
   static bool compatible(Enregistrement e, int protocole) {
     if (protocole < 2 && !compatibleProtocole1(e)) return false;
     if (protocole < 3 && e.table == 'visite' && e.donnees['type_visite'] == TypeVisite.aptitude.code) return false;
+    if (protocole < 4) {
+      if (e.table == 'vaccin' || e.table == 'suivi_vaccinal') return false;
+      if (e.table == 'visite' && e.donnees['hpv'] != null) return false;
+    }
     return true;
+  }
+
+  /// Plus petit protocole qui sait recevoir cet enregistrement.
+  static int protocoleRequis(Enregistrement e) {
+    for (var p = 1; p < protocoleSync; p++) {
+      if (compatible(e, p)) return p;
+    }
+    return protocoleSync;
   }
 
   /// Enregistrement que la base d'un téléphone antérieur à la version 1.2.0

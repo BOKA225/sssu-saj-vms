@@ -3,7 +3,7 @@
 /// synchronisation, comme ceux d'une importation.
 library;
 
-import '../data/base_locale.dart' hide Utilisateur, Eleve;
+import '../data/base_locale.dart' hide Utilisateur, Eleve, Vaccin, SuiviVaccinal;
 import '../data/depot_local_drift.dart';
 
 class ErreurDossier implements Exception {

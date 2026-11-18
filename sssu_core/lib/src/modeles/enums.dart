@@ -107,6 +107,59 @@ enum DecisionAptitude {
   bool get aPreciser => this != apte;
 }
 
+/// Programme d'un vaccin : Programme élargi de vaccination (gratuit), ou
+/// hors PEV.
+enum ProgrammeVaccin {
+  pev('pev', 'PEV'),
+  horsPev('hors_pev', 'Hors PEV');
+
+  final String code;
+  final String libelle;
+  const ProgrammeVaccin(this.code, this.libelle);
+  static ProgrammeVaccin depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
+}
+
+enum StatutVaccin {
+  obligatoire('obligatoire', 'Obligatoire', 'Obligatoires'),
+  recommande('recommande', 'Recommandé', 'Recommandés');
+
+  final String code;
+  final String libelle;
+  final String pluriel;
+  const StatutVaccin(this.code, this.libelle, this.pluriel);
+  static StatutVaccin depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
+}
+
+/// Vaccin HPV d'une fille de 9 à 14 ans lors de la visite systématique.
+enum StatutHpv {
+  dejaFait('deja_fait', 'Déjà vaccinée (avant la visite)'),
+  aProposer('a_proposer', 'Non vaccinée : vaccin à proposer'),
+  fait('fait', 'Vaccin HPV fait lors de la visite'),
+  nonFait('non_fait', 'Vaccin HPV proposé, non fait');
+
+  final String code;
+  final String libelle;
+  const StatutHpv(this.code, this.libelle);
+  static StatutHpv depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
+
+  /// Vaccinée, avant ou pendant la visite.
+  bool get vaccinee => this == dejaFait || this == fait;
+}
+
+/// Motif d'un vaccin HPV proposé et non fait.
+enum MotifHpv {
+  refusParents('refus_parents', 'Refus des parents'),
+  refusEleve('refus_eleve', 'Refus de l\'élève'),
+  vaccinIndisponible('vaccin_indisponible', 'Vaccin non disponible : orientée vers le centre de santé'),
+  contreIndication('contre_indication', 'Contre-indication (maladie, fièvre…)'),
+  autre('autre', 'Autre motif');
+
+  final String code;
+  final String libelle;
+  const MotifHpv(this.code, this.libelle);
+  static MotifHpv depuisCode(String c) => _depuisCode(values, c, (v) => v.code);
+}
+
 enum ResultatInspection {
   conforme('conforme', 'Conforme'),
   partiel('partiel', 'Partiellement conforme'),

@@ -14,6 +14,7 @@ import 'page_rapports.dart';
 import 'page_sauvegardes.dart';
 import 'page_statistiques.dart';
 import 'page_tranches_age.dart';
+import 'page_vaccination.dart';
 import 'statistiques_commun.dart';
 import 'page_eleves.dart';
 import 'page_etablissements.dart';
@@ -73,6 +74,12 @@ class _EcranAccueilState extends ConsumerState<EcranAccueil> {
       (const NavigationRailDestination(icon: Icon(Icons.school), label: Text('Établissements')), const PageEtablissements()),
       (const NavigationRailDestination(icon: Icon(Icons.folder_shared), label: Text('Élèves et dossiers')), const PageEleves()),
       (const NavigationRailDestination(icon: Icon(Icons.list_alt), label: Text('Listes de classe')), const PageListesClasse()),
+      if (session.droits.peut(Permission.visiteSaisir))
+        (
+          const NavigationRailDestination(
+              icon: Icon(Icons.vaccines), label: Text('Vaccination\ndu préscolaire', textAlign: TextAlign.center)),
+          const PageVaccination()
+        ),
       if (session.droits.peut(Permission.importExecuter))
         (const NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('Importer une liste')), const PageImport()),
       if (session.droits.peut(Permission.statistiquesConsulter))

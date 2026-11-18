@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import 'data/base_locale.dart' hide Utilisateur, Eleve;
+import 'data/base_locale.dart' hide Utilisateur, Eleve, Vaccin, SuiviVaccinal;
 import 'data/depot_local_drift.dart';
 import 'data/depot_utilisateurs_drift.dart';
 import 'data/ouverture.dart';

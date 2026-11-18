@@ -25,6 +25,7 @@ library;
 import '../commun/commun.dart';
 import '../modeles/enums.dart';
 import '../regles/age.dart';
+import '../vaccination/vaccination.dart' show ageMaxHpv, ageMinHpv;
 import '../visite/aptitude.dart';
 
 // ------------------------------------------------------------- données d'entrée
@@ -85,6 +86,11 @@ class VisiteStat {
 
   /// Décision d'une visite d'aptitude.
   final DecisionAptitude? aptitude;
+
+  /// Vaccin HPV (filles de 9 à 14 ans, visite systématique) et motif s'il
+  /// n'est pas fait.
+  final StatutHpv? hpv;
+  final MotifHpv? hpvMotif;
   final Set<String> pathologieIds;
 
   /// Détails pour les listes des élèves référés et à suivre, et des
@@ -101,6 +107,8 @@ class VisiteStat {
     this.type = TypeVisite.systematique,
     this.conclusion,
     this.aptitude,
+    this.hpv,
+    this.hpvMotif,
     this.pathologieIds = const {},
     this.diagnostic,
     this.structureReference,
@@ -228,6 +236,8 @@ class JeuStatistiques {
             type: TypeVisite.depuisCode(v['type_visite'] as String?),
             conclusion: v['conclusion'] == null ? null : ConclusionVisite.depuisCode(v['conclusion']! as String),
             aptitude: v['aptitude'] == null ? null : DecisionAptitude.depuisCode(v['aptitude']! as String),
+            hpv: v['hpv'] == null ? null : StatutHpv.depuisCode(v['hpv']! as String),
+            hpvMotif: v['hpv_motif'] == null ? null : MotifHpv.depuisCode(v['hpv_motif']! as String),
             pathologieIds: pathosParVisite[id(v)] ?? const {},
             diagnostic: identite ? v['diagnostic'] as String? : null,
             structureReference: identite ? v['structure_reference'] as String? : null,
@@ -547,6 +557,9 @@ class Statistiques {
 
   /// Visite d'aptitude : décision de la dernière visite des élèves examinés.
   final Map<DecisionAptitude, int> aptitudes;
+
+  /// Vaccin HPV des filles de 9 à 14 ans (visite systématique).
+  final BilanHpv hpv;
   const Statistiques({
     required this.filtre,
     required this.nbEtablissements,
@@ -563,6 +576,7 @@ class Statistiques {
     required this.parTrancheAge,
     required this.dateAge,
     required this.aptitudes,
+    required this.hpv,
   });
 
   TypeVisite get typeVisite => filtre.typeVisite;
@@ -773,6 +787,100 @@ Statistiques calculerStatistiques(JeuStatistiques jeu, [FiltreStatistiques f = c
     parTrancheAge: parTrancheAge,
     dateAge: dateAge,
     aptitudes: aptitudes,
+    hpv: f.typeVisite == TypeVisite.systematique ? bilanHpv(jeu, p, dateAge) : BilanHpv.vide,
+  );
+}
+
+/// Vaccin HPV d'une population de filles de 9 à 14 ans.
+class LigneHpv {
+  final String? id;
+  final String libelle;
+
+  /// Filles de 9 à 14 ans de l'effectif (âge à la date de leur visite, sinon
+  /// à la date de calcul de l'âge).
+  final int cibles;
+  final int examinees;
+  final int dejaVaccinees;
+  final int vaccineesVisite;
+  final int nonVaccinees;
+  const LigneHpv(this.id, this.libelle,
+      {this.cibles = 0, this.examinees = 0, this.dejaVaccinees = 0, this.vaccineesVisite = 0, this.nonVaccinees = 0});
+
+  int get vaccinees => dejaVaccinees + vaccineesVisite;
+
+  /// Vaccin proposé (fait ou non) aux filles non vaccinées.
+  int get proposees => vaccineesVisite + nonVaccinees;
+
+  /// Examinées dont le statut HPV n'a pas été noté (visites antérieures à la version 1.8…).
+  int get nonRenseignees => examinees - dejaVaccinees - vaccineesVisite - nonVaccinees;
+
+  /// Vaccinées (avant ou pendant la visite) / examinées × 100.
+  double? get couverture => taux(vaccinees, examinees);
+
+  /// Vaccinées / filles de 9 à 14 ans de l'effectif × 100.
+  double? get couvertureCible => taux(vaccinees, cibles);
+}
+
+class BilanHpv {
+  final LigneHpv ensemble;
+  final List<LigneHpv> parEtablissement;
+
+  /// Vaccin proposé et non fait : nombre de filles par motif.
+  final Map<MotifHpv, int> motifs;
+  const BilanHpv(this.ensemble, this.parEtablissement, this.motifs);
+
+  static const vide = BilanHpv(LigneHpv(null, 'Ensemble'), [], {});
+}
+
+/// Bilan HPV : filles de 9 à 14 ans de l'effectif ; pour les examinées, le
+/// meilleur statut noté lors de leurs visites systématiques de la période
+/// (vaccin fait lors d'une visite, déjà vaccinée, non fait).
+BilanHpv bilanHpv(JeuStatistiques jeu, Perimetre p, DateTime dateAge) {
+  const rang = {StatutHpv.fait: 3, StatutHpv.dejaFait: 2, StatutHpv.nonFait: 1};
+  final compte = <String?, List<int>>{}; // cibles, examinées, déjà, faites, non faites
+  final motifs = <MotifHpv, int>{};
+  for (final e in p.eleves) {
+    if (e.sexe != Sexe.feminin || e.dateNaissance == null) continue;
+    final visites = p.visitesParEleve[e.id];
+    final date = visites == null ? dateAge : visites.last.date;
+    if (e.dateNaissance!.isAfter(date)) continue;
+    final age = calculerAge(e.dateNaissance!, date).annees;
+    if (age < ageMinHpv || age > ageMaxHpv) continue;
+    VisiteStat? meilleure;
+    for (final v in visites ?? const <VisiteStat>[]) {
+      if ((rang[v.hpv] ?? 0) > (rang[meilleure?.hpv] ?? 0)) meilleure = v;
+    }
+    for (final cle in [null, e.etablissementId]) {
+      final c = compte[cle] ??= [0, 0, 0, 0, 0];
+      c[0]++;
+      if (visites == null) continue;
+      c[1]++;
+      switch (meilleure?.hpv) {
+        case StatutHpv.dejaFait:
+          c[2]++;
+        case StatutHpv.fait:
+          c[3]++;
+        case StatutHpv.nonFait:
+          c[4]++;
+        default:
+          break;
+      }
+    }
+    if (meilleure?.hpv == StatutHpv.nonFait) {
+      final m = meilleure!.hpvMotif ?? MotifHpv.autre;
+      motifs[m] = (motifs[m] ?? 0) + 1;
+    }
+  }
+  LigneHpv ligne(String? id, String libelle) {
+    final c = compte[id] ?? const [0, 0, 0, 0, 0];
+    return LigneHpv(id, libelle,
+        cibles: c[0], examinees: c[1], dejaVaccinees: c[2], vaccineesVisite: c[3], nonVaccinees: c[4]);
+  }
+
+  return BilanHpv(
+    ligne(null, 'Ensemble'),
+    [for (final id in jeu.etablissements.keys.where(p.etablissements.contains)) ligne(id, jeu.etablissements[id]!)],
+    {for (final m in MotifHpv.values) if (motifs.containsKey(m)) m: motifs[m]!},
   );
 }
 

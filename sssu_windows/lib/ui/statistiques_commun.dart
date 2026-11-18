@@ -566,3 +566,42 @@ List<Object?> ligneCouverture(Couverture c) =>
     [c.libelle, c.effectif, c.garcons, c.filles, c.examines, c.nonExamines, pourcentage(c.tauxCouverture)];
 
 const entetesCouverture = ['', 'Effectif', 'Garçons', 'Filles', 'Examinés', 'Non examinés', 'Couverture'];
+
+/// Bilan HPV : ensemble, motifs, et par établissement.
+Widget tableauHpv(BilanHpv b) {
+  final e = b.ensemble;
+  List<Object?> ligne(LigneHpv l) => [
+        l.libelle, l.cibles, l.examinees, l.dejaVaccinees, l.vaccineesVisite, l.nonVaccinees, l.nonRenseignees,
+        pourcentage(l.couverture)
+      ];
+  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Wrap(children: [
+      CarteIndicateur('${e.cibles}', 'Filles de 9 à 14 ans', detail: '${e.examinees} examinée(s)', icone: Icons.girl),
+      CarteIndicateur('${e.dejaVaccinees}', 'Déjà vaccinées', icone: Icons.verified, couleur: Colors.green.shade700),
+      CarteIndicateur('${e.vaccineesVisite}', 'Vaccinées à la visite',
+          detail: 'Vaccin proposé à ${e.proposees} fille(s)', icone: Icons.vaccines, couleur: Colors.green.shade700),
+      CarteIndicateur('${e.nonVaccinees}', 'Proposé, non fait', icone: Icons.block, couleur: Colors.orange.shade800),
+      CarteIndicateur(pourcentage(e.couverture), 'Couverture HPV',
+          detail: 'des filles examinées', icone: Icons.donut_large, couleur: Colors.blue.shade800),
+    ]),
+    if (e.nonRenseignees > 0)
+      Text('${e.nonRenseignees} fille(s) examinée(s) sans statut HPV noté.',
+          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+    if (b.motifs.isNotEmpty) ...[
+      const SizedBox(height: 8),
+      const Text('Motifs du vaccin non fait', style: TextStyle(fontWeight: FontWeight.bold)),
+      tableau(['Motif', 'Filles'], [for (final m in b.motifs.entries) [m.key.libelle, m.value]],
+          totaux: ['Total', e.nonVaccinees]),
+    ],
+    if (b.parEtablissement.where((l) => l.cibles > 0).length > 1) ...[
+      const SizedBox(height: 8),
+      tableau([
+        'Établissement', 'Filles 9–14 ans', 'Examinées', 'Déjà vaccinées', 'Vaccinées à la visite', 'Proposé, non fait',
+        'Non renseigné', 'Couverture'
+      ], [
+        for (final l in b.parEtablissement)
+          if (l.cibles > 0) ligne(l)
+      ], totaux: ligne(e)..[0] = 'Total'),
+    ],
+  ]);
+}

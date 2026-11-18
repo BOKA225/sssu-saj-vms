@@ -21,6 +21,7 @@ import '../regles/imc.dart';
 import '../statistiques/statistiques.dart';
 import '../sync/depot_serveur.dart';
 import '../sync/enregistrement.dart';
+import '../vaccination/vaccination.dart';
 import 'document.dart';
 
 class RapportRefuse implements Exception {
@@ -271,6 +272,10 @@ DocumentRapport rapportStatistique(
       titre('Décisions d\'aptitude'),
       tableauAptitudes(s),
     ],
+    if (!aptitude && s.hpv.ensemble.cibles > 0) ...[
+      titre('Vaccin HPV des filles de 9 à 14 ans'),
+      ...blocsHpv(s.hpv, parEtablissement: portee == PorteeRapport.annuel),
+    ],
     titre('Conclusions des visites'),
     BlocTableau(
       entetes: ['Conclusion (dernière visite)', 'Élèves', 'Part des examinés'],
@@ -374,6 +379,146 @@ DocumentRapport rapportTranchesAge(
           ? '3. Couverture par tranche d\'âge et par sexe'
           : '3. Couverture par tranche d\'âge et par sexe (ensemble des établissements)'),
       _tableauTranches(e, null),
+      BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
+    ],
+    genereLe: genereLe,
+  );
+}
+
+/// Bilan HPV : filles de 9 à 14 ans examinées, déjà vaccinées, vaccinées lors
+/// de la visite, non vaccinées (et motifs), couverture.
+List<BlocRapport> blocsHpv(BilanHpv b, {bool parEtablissement = true}) {
+  final e = b.ensemble;
+  List<Object?> ligne(LigneHpv l) => [
+        l.libelle, l.cibles, l.examinees, l.dejaVaccinees, l.vaccineesVisite, l.nonVaccinees, l.nonRenseignees,
+        pourcentage(l.couverture)
+      ];
+  const entetes = ['', 'Filles de 9 à 14 ans', 'Examinées', 'Déjà vaccinées', 'Vaccinées lors de la visite',
+    'Proposé, non fait', 'Non renseigné', 'Couverture HPV'];
+  return [
+    BlocChamps([
+      ('Filles de 9 à 14 ans de l\'effectif', '${e.cibles}'),
+      ('Examinées (visite systématique)', '${e.examinees}'),
+      ('Déjà vaccinées avant la visite', '${e.dejaVaccinees}'),
+      ('Vaccin proposé aux non vaccinées', '${e.proposees} : ${e.vaccineesVisite} fait(s), ${e.nonVaccinees} non fait(s)'),
+      ('Statut HPV non renseigné', '${e.nonRenseignees}'),
+      ('Couverture HPV des filles examinées', pourcentage(e.couverture)),
+      ('Couverture HPV des filles de 9 à 14 ans', pourcentage(e.couvertureCible)),
+    ]),
+    if (b.motifs.isNotEmpty)
+      BlocTableau(
+        titre: 'Vaccin proposé et non fait : motifs',
+        entetes: const ['Motif', 'Filles'],
+        largeurs: const [6, 1.3],
+        lignes: [for (final m in b.motifs.entries) [m.key.libelle, m.value]],
+        totaux: ['Total', e.nonVaccinees],
+      ),
+    if (parEtablissement && b.parEtablissement.length > 1)
+      BlocTableau(
+        titre: 'Par établissement',
+        entetes: [...entetes]..[0] = 'Établissement',
+        largeurs: const [3.4, 1.3, 1.2, 1.2, 1.4, 1.2, 1.2, 1.3],
+        lignes: [for (final l in b.parEtablissement) if (l.cibles > 0) ligne(l)],
+        totaux: ligne(e)..[0] = 'Total',
+      ),
+  ];
+}
+
+/// Rapport du vaccin HPV des filles de 9 à 14 ans (visite systématique).
+DocumentRapport rapportHpv(
+  JeuStatistiques jeu,
+  FiltreStatistiques f, {
+  required EnteteRapport entete,
+  required Droits acteur,
+  required DateTime genereLe,
+}) {
+  _exiger(acteur, Permission.statistiquesConsulter, 'les rapports statistiques');
+  final g = FiltreStatistiques(etablissementId: f.etablissementId, classeId: f.classeId, du: f.du, au: f.au, dateAge: f.dateAge);
+  final s = calculerStatistiques(jeu, g);
+  return DocumentRapport(
+    titre: 'Vaccin HPV des filles de 9 à 14 ans',
+    sousTitre: descriptionPerimetre(jeu, g),
+    entete: entete,
+    paysage: true,
+    blocs: [
+      const BlocParagraphe('Lors de la visite médicale systématique, le vaccin HPV est vérifié chez les filles de 9 à 14 ans '
+          '(âge à la date de la visite) et proposé à celles qui ne l\'ont pas reçu.'),
+      ...blocsHpv(s.hpv),
+      BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
+    ],
+    genereLe: genereLe,
+  );
+}
+
+/// Liste des enfants du préscolaire et de leurs vaccins (PEV et hors PEV,
+/// obligatoires et recommandés) : ✓ fait, ✗ non fait, vide non renseigné ;
+/// couverture de chaque vaccin. Liste nominative.
+DocumentRapport rapportVaccinationPrescolaire(
+  List<EnfantVaccination> enfants,
+  List<Vaccin> vaccins, {
+  required String perimetre,
+  required EnteteRapport entete,
+  required Droits acteur,
+  required DateTime genereLe,
+}) {
+  _exiger(acteur, Permission.rapportExporterNominatif, 'les listes nominatives');
+  final liste = vaccinsPrescolaire(vaccins);
+  final avecEtab = enfants.map((e) => e.etablissementId).toSet().length > 1;
+  final etats = repartitionEtats(enfants, liste);
+  String marque(bool? v) => switch (v) { true => '✓', false => '✗', null => '' };
+  final couverture = couvertureVaccins(enfants, liste);
+  return DocumentRapport(
+    titre: 'Vaccination des enfants du préscolaire',
+    sousTitre: perimetre,
+    entete: entete,
+    confidentiel: true,
+    paysage: true,
+    blocs: [
+      BlocParagraphe('${enfants.length} enfant(s) : '
+          '${[for (final e in EtatVaccinal.values) '${etats[e]} ${e.libelle.toLowerCase()}'].join(', ')} '
+          '(vaccins obligatoires). ✓ fait, ✗ non fait, case vide : non renseigné.'),
+      BlocTableau(
+        titre: 'Vaccins de la liste',
+        entetes: const ['Code', 'Vaccin', 'Programme', 'Statut', 'Âge ou cible'],
+        largeurs: const [1.4, 4.5, 1.3, 1.5, 3.5],
+        lignes: [for (final v in liste) [v.code, v.libelle, v.programme.libelle, v.statut.libelle, v.cible ?? '']],
+      ),
+      BlocTableau(
+        titre: 'Enfants',
+        entetes: ['N°', 'Nom et prénoms', 'Sexe', 'Né(e) le', if (avecEtab) 'Établissement', 'Classe', 'Parent ou tuteur',
+          'Carnet', for (final v in liste) v.code, 'État'],
+        largeurs: [0.5, 3.2, 0.6, 1.3, if (avecEtab) 2.2, 1.0, 2.4, 0.9, ...List.filled(liste.length, 0.75), 1.3],
+        lignes: [
+          for (var i = 0; i < enfants.length; i++)
+            [
+              i + 1,
+              enfants[i].nomComplet,
+              enfants[i].sexe.code,
+              _date(enfants[i].dateNaissance),
+              if (avecEtab) enfants[i].etablissement,
+              enfants[i].classe,
+              [
+                enfants[i].suivi?.parentTuteur ?? '',
+                (enfants[i].suivi?.parentTelephone ?? '').isNotEmpty
+                    ? enfants[i].suivi!.parentTelephone
+                    : (enfants[i].telephoneContact ?? ''),
+              ].where((x) => x.isNotEmpty).join(' – '),
+              switch (enfants[i].suivi?.carnetPresente) { true => 'Oui', false => 'Non', null => '' },
+              for (final v in liste) marque(enfants[i].vaccin(v.id)),
+              etatVaccinal(enfants[i].suivi, liste).libelle,
+            ]
+        ],
+      ),
+      BlocTableau(
+        titre: 'Couverture par vaccin',
+        entetes: const ['Vaccin', 'Programme', 'Statut', 'Faits', 'Non faits', 'Non renseignés', 'Couverture'],
+        largeurs: const [4.5, 1.3, 1.5, 1.0, 1.1, 1.4, 1.3],
+        lignes: [
+          for (final c in couverture)
+            [c.vaccin.libelle, c.vaccin.programme.libelle, c.vaccin.statut.libelle, c.faits, c.nonFaits, c.nonRenseignes,
+              pourcentage(c.tauxCouverture)]
+        ],
+      ),
       BlocSignature(fonction: 'Le Médecin-Chef', nom: entete.nomMedecinChef),
     ],
     genereLe: genereLe,

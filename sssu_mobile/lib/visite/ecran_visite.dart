@@ -1,6 +1,8 @@
 /// Formulaire de visite médicale (systématique ou d'aptitude), en rubriques :
 /// A Identification · B Antécédents · C Examen clinique · D Examen physique ·
-/// E Dépistage · F Conclusion (et décision d'aptitude) · Photos.
+/// E Dépistage · [Vaccination : enfant du préscolaire] · [Vaccin HPV : fille
+/// de 9 à 14 ans, visite systématique] · F Conclusion (et décision
+/// d'aptitude) · Photos.
 ///
 /// Sauvegarde automatique toutes les 30 secondes, à chaque changement de
 /// rubrique, à la mise en arrière-plan et à la sortie de l'écran.
@@ -17,6 +19,8 @@ import '../photo/section_photos.dart';
 import '../photo/service_photo.dart';
 import '../services.dart';
 import '../ui/etablissements.dart' show formaterDateFr;
+import '../vaccination/editeur_vaccination.dart';
+import '../vaccination/service_vaccination.dart';
 import 'depot_visite.dart';
 import 'table_oms.dart';
 
@@ -32,14 +36,22 @@ class EcranVisite extends ConsumerStatefulWidget {
   ConsumerState<EcranVisite> createState() => _EcranVisiteState();
 }
 
-class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
-  late final TabController _onglets = TabController(length: 7, vsync: this);
+class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingObserver, TickerProviderStateMixin {
+  TabController? _onglets;
   late final DepotVisite _depotVisite;
   late final ServicePhoto _photos;
   DossierVisite? _dossier;
   LigneEleve? _eleve;
   List<Pathologie> _pathologies = const [];
   TableImcOms? _tableOms;
+
+  /// Enfant du préscolaire : vaccins de la liste et suivi vaccinal.
+  List<Vaccin> _vaccins = const [];
+  SuiviVaccinal? _suivi;
+  bool _suiviModifie = false;
+
+  /// Vaccin HPV déjà noté (autre visite, suivi vaccinal).
+  HpvAnterieur? _hpvAnterieur;
   Timer? _minuterie;
   bool _modifie = false;
   bool _enregistrement = false;
@@ -55,9 +67,6 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
     _depotVisite = DepotVisite(s.base, s.depot);
     _photos = ServicePhoto(s.depot, s.fichiers);
     WidgetsBinding.instance.addObserver(this);
-    _onglets.addListener(() {
-      if (!_onglets.indexIsChanging) _sauver(silencieux: true);
-    });
     _minuterie = Timer.periodic(const Duration(seconds: 30), (_) => _sauver(silencieux: true));
     _charger();
   }
@@ -66,7 +75,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
   void dispose() {
     _minuterie?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _onglets.dispose();
+    _onglets?.dispose();
     super.dispose();
   }
 
@@ -91,13 +100,73 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
             date: DateTime.now().toUtc(),
             type: widget.type,
           );
+    final prescolaire = eleve?.prescolaire ?? false;
+    final vaccins = prescolaire ? vaccinsPrescolaire(await s.requetes.vaccins()) : const <Vaccin>[];
+    final suivi = !prescolaire
+        ? null
+        : await s.requetes.suiviVaccinal(widget.eleveId) ??
+            SuiviVaccinal(eleveId: widget.eleveId, parentTelephone: eleve?.eleve.telephoneContact ?? '');
+    final hpvAnterieur = await s.requetes.hpvAnterieur(widget.eleveId, saufVisite: widget.visiteId);
     if (!mounted) return;
     setState(() {
       _eleve = eleve;
       _pathologies = pathologies;
       _tableOms = table;
       _dossier = dossier;
+      _vaccins = vaccins;
+      _suivi = suivi;
+      _hpvAnterieur = hpvAnterieur;
+      // Vaccin HPV déjà noté : repris dans une nouvelle visite.
+      if (_hpvVisible && hpvAnterieur != null && dossier.formulaire.hpv == null && dossier.formulaire.modifiable) {
+        dossier.formulaire.hpv = StatutHpv.dejaFait;
+        _modifie = true;
+      }
+      _construireOnglets();
     });
+  }
+
+  /// Visite systématique d'une fille de 9 à 14 ans : onglet du vaccin HPV.
+  bool get _hpvVisible {
+    final e = _eleve?.eleve;
+    return e != null &&
+        _dossier != null &&
+        hpvConcerne(sexe: e.sexe, dateNaissance: e.dateNaissance, dateVisite: _f.dateVisite, type: _f.type);
+  }
+
+  /// Enfant du préscolaire : onglet de vaccination (PEV et hors PEV).
+  bool get _vaccinationVisible => _suivi != null && _f.type == TypeVisite.systematique;
+
+  List<(String, Widget Function())> get _rubriques => [
+        ('A. Identité', _identification),
+        ('B. Antécédents', _antecedents),
+        ('C. Clinique', _examenClinique),
+        ('D. Appareils', _examenPhysique),
+        ('E. Dépistage', _depistage),
+        if (_vaccinationVisible) ('Vaccination', _vaccination),
+        if (_hpvVisible)
+          (
+            switch (_f.hpv) {
+              StatutHpv.dejaFait => 'Vaccin HPV : fait',
+              null => 'Vaccin HPV',
+              _ => 'Proposer le vaccin HPV',
+            },
+            _vaccinHpv
+          ),
+        (_f.type == TypeVisite.aptitude ? 'F. Aptitude et conclusion' : 'F. Conclusion', _conclusion),
+        ('Photos', _rubriquePhotos),
+      ];
+
+  /// (Re)crée les onglets quand leur nombre change (date de visite modifiée…).
+  void _construireOnglets() {
+    final n = _rubriques.length;
+    final ancien = _onglets;
+    if (ancien != null && ancien.length == n) return;
+    final c = TabController(length: n, vsync: this, initialIndex: ancien == null ? 0 : (ancien.index < n ? ancien.index : n - 1));
+    c.addListener(() {
+      if (!c.indexIsChanging) _sauver(silencieux: true);
+    });
+    _onglets = c;
+    if (ancien != null) WidgetsBinding.instance.addPostFrameCallback((_) => ancien.dispose());
   }
 
   /// La visite peut-elle être modifiée par l'utilisateur connecté ?
@@ -124,6 +193,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
     _enregistrement = true;
     try {
       await _depotVisite.enregistrer(_dossier!, utilisateurId: _session.utilisateur.id, interpretation: _interpretation);
+      await _sauverSuivi();
       _modifie = false;
       final h = DateTime.now();
       _derniereSauvegarde = '${h.hour.toString().padLeft(2, '0')}:${h.minute.toString().padLeft(2, '0')}';
@@ -137,6 +207,16 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
     }
   }
 
+  /// Suivi vaccinal de l'enfant du préscolaire, s'il a changé.
+  Future<void> _sauverSuivi() async {
+    final s = _suivi;
+    if (s == null || !_suiviModifie) return;
+    s.dateVerification = _f.dateVisite;
+    await ServiceVaccination(ref.read(servicesProvider).depot)
+        .enregistrer(s, utilisateurId: _session.utilisateur.id, etablissementId: _eleve?.etablissementId);
+    _suiviModifie = false;
+  }
+
   void _message(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _enregistrerSous(StatutVisite statut) async {
@@ -148,7 +228,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
   Set<String> get _pathologiesAPreciser => {for (final p in _pathologies) if (p.precisionRequise) p.id};
 
   Future<void> _validerEtSynchroniser() async {
-    final c = controlerVisite(_f, pathologiesAPreciser: _pathologiesAPreciser);
+    final c = controlerVisite(_f, pathologiesAPreciser: _pathologiesAPreciser, hpv: _hpvVisible);
     if (!c.transmissible) {
       await showDialog<void>(
         context: context,
@@ -175,6 +255,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
       if (ok != true) return;
     }
     await _depotVisite.transmettre(_dossier!, utilisateurId: _session.utilisateur.id, interpretation: _interpretation);
+    await _sauverSuivi();
     _modifie = false;
     if (!mounted) return;
     setState(() {});
@@ -275,7 +356,12 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
             ? null
             : () async {
                 final d = await _choisirDate(_f.dateVisite, max: DateTime.now());
-                if (d != null) _changer(() => _f.dateVisite = DateTime.utc(d.year, d.month, d.day));
+                if (d != null) {
+                  _changer(() {
+                    _f.dateVisite = DateTime.utc(d.year, d.month, d.day);
+                    _construireOnglets();
+                  });
+                }
               },
       ),
       Text('Agent de santé : ${s.nomAffiche}${s.fonction == null ? '' : ' (${s.fonction})'}'),
@@ -391,6 +477,102 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
               _f.pathologies[p.id]!, (v) => _f.pathologies[p.id] = v),
       ]);
 
+  Widget _vaccination() => EditeurVaccination(
+        key: ValueKey('vaccination-${_f.id}'),
+        suivi: _suivi!,
+        vaccins: _vaccins,
+        modifiable: _modifiable,
+        onChange: () => setState(() {
+          _suiviModifie = true;
+          _modifie = true;
+        }),
+      );
+
+  Widget _vaccinHpv() {
+    final a = _hpvAnterieur;
+    final titre = Theme.of(context).textTheme.titleMedium;
+    final propose = _f.hpv == StatutHpv.aProposer || _f.hpv == StatutHpv.fait || _f.hpv == StatutHpv.nonFait;
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      const Text('Fille de 9 à 14 ans : vérifier si elle a reçu le vaccin contre le papillomavirus (HPV), qui prévient '
+          'le cancer du col de l\'utérus, et le lui proposer sinon.'),
+      if (a != null)
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.verified, color: Colors.green.shade700),
+            title: const Text('Vaccin HPV déjà noté comme fait'),
+            subtitle: Text(a.source == 'visite'
+                ? 'Lors de la visite du ${formaterDateFr(a.date!)}'
+                : 'Dans le suivi vaccinal${a.date == null ? '' : ' (vérifié le ${formaterDateFr(a.date!)})'}'),
+          ),
+        ),
+      const SizedBox(height: 12),
+      Text('1. Vérification', style: titre),
+      const Text('La fille a-t-elle déjà reçu le vaccin HPV (carnet de vaccination, déclaration) ?'),
+      RadioListTile<bool>(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Oui, déjà vaccinée'),
+        value: true,
+        groupValue: _f.hpv == null ? null : _f.hpv == StatutHpv.dejaFait,
+        onChanged: _modifiable
+            ? (_) => _changer(() {
+                  _f.hpv = StatutHpv.dejaFait;
+                  _f.hpvMotif = null;
+                })
+            : null,
+      ),
+      RadioListTile<bool>(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Non, pas encore vaccinée'),
+        value: false,
+        groupValue: _f.hpv == null ? null : _f.hpv == StatutHpv.dejaFait,
+        onChanged: _modifiable
+            ? (_) => _changer(() {
+                  if (!propose) _f.hpv = StatutHpv.aProposer;
+                })
+            : null,
+      ),
+      if (propose) ...[
+        const Divider(height: 28),
+        Text('2. Proposer le vaccin HPV', style: titre),
+        const Text('Expliquer le vaccin à la fille (et à ses parents), puis cocher :'),
+        RadioListTile<StatutHpv>(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Fait : vaccin HPV administré'),
+          value: StatutHpv.fait,
+          groupValue: _f.hpv == StatutHpv.aProposer ? null : _f.hpv,
+          onChanged: _modifiable
+              ? (_) => _changer(() {
+                    _f.hpv = StatutHpv.fait;
+                    _f.hpvMotif = null;
+                  })
+              : null,
+        ),
+        RadioListTile<StatutHpv>(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Pas fait'),
+          value: StatutHpv.nonFait,
+          groupValue: _f.hpv == StatutHpv.aProposer ? null : _f.hpv,
+          onChanged: _modifiable ? (_) => _changer(() => _f.hpv = StatutHpv.nonFait) : null,
+        ),
+        if (_f.hpv == StatutHpv.nonFait) ...[
+          const SizedBox(height: 8),
+          const Text('Motif (obligatoire) :'),
+          for (final m in MotifHpv.values)
+            RadioListTile<MotifHpv>(
+              contentPadding: const EdgeInsets.only(left: 16),
+              dense: true,
+              title: Text(m.libelle),
+              value: m,
+              groupValue: _f.hpvMotif,
+              onChanged: _modifiable ? (v) => _changer(() => _f.hpvMotif = v) : null,
+            ),
+          const Text('Précisions éventuelles : rubrique F, « Observations complémentaires ».',
+              style: TextStyle(fontSize: 12, color: Colors.black54)),
+        ],
+      ],
+    ]);
+  }
+
   Widget _conclusion() => ListView(padding: const EdgeInsets.all(16), children: [
         if (_f.type == TypeVisite.aptitude) ...[
           Text('Décision d\'aptitude', style: Theme.of(context).textTheme.titleMedium),
@@ -482,7 +664,9 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
-    if (_dossier == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final onglets = _onglets;
+    if (_dossier == null || onglets == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final rubriques = _rubriques;
     final droits = _session.droits;
     final statut = statutAffiche(_f.statut, _dossier!.etat);
     return PopScope(
@@ -496,19 +680,11 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
         appBar: AppBar(
           title: Text(_eleve?.eleve.nomComplet ?? 'Visite médicale'),
           bottom: TabBar(
-            controller: _onglets,
+            controller: onglets,
             isScrollable: true,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            tabs: [
-              const Tab(text: 'A. Identité'),
-              const Tab(text: 'B. Antécédents'),
-              const Tab(text: 'C. Clinique'),
-              const Tab(text: 'D. Appareils'),
-              const Tab(text: 'E. Dépistage'),
-              Tab(text: _f.type == TypeVisite.aptitude ? 'F. Aptitude et conclusion' : 'F. Conclusion'),
-              const Tab(text: 'Photos'),
-            ],
+            tabs: [for (final r in rubriques) Tab(text: r.$1)],
           ),
           actions: [
             if (_f.modifiable && _f.id != null && _modifiable)
@@ -525,15 +701,7 @@ class _EcranVisiteState extends ConsumerState<EcranVisite> with WidgetsBindingOb
                 '${_modifiable ? '' : ' · lecture seule'}'),
           ),
           Expanded(
-            child: TabBarView(controller: _onglets, children: [
-              _identification(),
-              _antecedents(),
-              _examenClinique(),
-              _examenPhysique(),
-              _depistage(),
-              _conclusion(),
-              _rubriquePhotos(),
-            ]),
+            child: TabBarView(controller: onglets, children: [for (final r in rubriques) r.$2()]),
           ),
         ]),
         bottomNavigationBar: !_modifiable

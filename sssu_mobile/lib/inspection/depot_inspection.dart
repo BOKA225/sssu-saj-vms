@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sssu_core/sssu_core.dart';
 
-import '../data/base_locale.dart' hide Utilisateur, Eleve;
+import '../data/base_locale.dart' hide Utilisateur, Eleve, Vaccin, SuiviVaccinal;
 import '../data/depot_local_drift.dart';
 import '../fichiers/stockage_chiffre.dart';
 import '../photo/service_photo.dart';

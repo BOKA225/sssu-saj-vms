@@ -15,8 +15,10 @@ class BaseLocale extends _$BaseLocale {
   /// colonne `inspection.grille`).
   /// 3 (version 1.6.0) : visite d'aptitude (colonnes `visite.type_visite`,
   /// `aptitude`, `aptitude_restrictions`).
+  /// 4 (version 1.8.0) : vaccination (tables `vaccin` et `suivi_vaccinal`,
+  /// colonnes `visite.hpv` et `hpv_motif`).
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -35,6 +37,14 @@ class BaseLocale extends _$BaseLocale {
                 await _ajouterColonne(m, visite, c);
               }
             }
+            if (de < 4) {
+              for (final c in [visite.hpv, visite.hpvMotif]) {
+                await _ajouterColonne(m, visite, c);
+              }
+              for (final t in <TableInfo>[vaccin, suiviVaccinal]) {
+                await _creerTable(m, t);
+              }
+            }
           });
           await customStatement('PRAGMA foreign_keys = ON');
         },
@@ -42,6 +52,13 @@ class BaseLocale extends _$BaseLocale {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// Crée une table si elle n'existe pas encore (migration rejouée).
+  Future<void> _creerTable(Migrator m, TableInfo table) async {
+    final existe = await customSelect("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        variables: [Variable(table.actualTableName)]).get();
+    if (existe.isEmpty) await m.createTable(table);
+  }
 
   /// Ajoute une colonne si elle n'existe pas encore (migration rejouée).
   Future<void> _ajouterColonne(Migrator m, TableInfo table, GeneratedColumn colonne) async {

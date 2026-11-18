@@ -6,7 +6,7 @@ library;
 import 'package:sssu_core/sssu_core.dart';
 
 import '../fichiers/stockage_chiffre.dart';
-import 'base_locale.dart' hide Utilisateur, Eleve;
+import 'base_locale.dart' hide Utilisateur, Eleve, Vaccin, SuiviVaccinal;
 import 'conversion_sql.dart';
 
 /// Colonnes propres au téléphone, jamais écrasées par une réception.

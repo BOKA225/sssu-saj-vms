@@ -46,7 +46,7 @@ class SourceStatistiquesPoste {
           p),
       visites: await q(
           'SELECT CAST(id AS text) AS id, CAST(eleve_id AS text) AS eleve_id, date_visite, statut, type_visite, conclusion, '
-          'aptitude, deleted_at${identite ? ', diagnostic, structure_reference, date_controle, aptitude_restrictions' : ''} '
+          'aptitude, hpv, hpv_motif, deleted_at${identite ? ', diagnostic, structure_reference, date_controle, aptitude_restrictions' : ''} '
           'FROM visite WHERE date_visite BETWEEN $periode',
           p),
       visitePathologies: await q(
