@@ -15,10 +15,12 @@ import '../import/etablissements.dart';
 import '../import/reconnaissance.dart';
 import '../modeles/enums.dart';
 import '../regles/identite.dart';
+import '../statistiques/statistiques.dart';
 import '../sync/depot_serveur.dart';
 import '../sync/diffusion.dart';
 import '../sync/enregistrement.dart';
 import '../vaccination/vaccination.dart';
+import '../visite/aptitude.dart';
 
 class ResultatImportEtablissements {
   final int crees;
@@ -209,17 +211,21 @@ class ServiceGestion {
       if (!_champsEtablissement.contains(k)) throw ErreurGestion('Champ inconnu : $k');
     }
     _requis(d, 'nom', 'Le nom');
-    _requis(d, 'code', 'Le code');
     TypeEtablissement.depuisCode(_requis(d, 'type', 'Le type'));
     StatutEtablissement.depuisCode(_requis(d, 'statut', 'Le statut'));
   }
 
+  /// Nouvel établissement. Le code est facultatif : sans code, un code
+  /// provisoire est tiré du nom (« EPPKOU2 »), modifiable ensuite.
   Future<Enregistrement> creerEtablissement(Droits a, Map<String, Object?> donnees) async {
     _exiger(a, Permission.etablissementGerer);
     _controlerEtablissement(donnees);
     return depot.transaction((tx) async {
-      final code = (donnees['code']! as String).trim().toUpperCase();
-      if ((await tx.chercher('etablissement', {'code': code})).isNotEmpty) {
+      var code = ((donnees['code'] as String?) ?? '').trim().toUpperCase();
+      if (code.isEmpty) {
+        final pris = {for (final e in await tx.chercher('etablissement', {})) '${e.donnees['code'] ?? ''}'.toUpperCase()};
+        code = codePropose(donnees['nom']! as String, pris);
+      } else if ((await tx.chercher('etablissement', {'code': code})).isNotEmpty) {
         throw const ErreurGestion('Un établissement porte déjà ce code.');
       }
       return _creer(tx, 'etablissement', {...donnees, 'code': code}, a);
@@ -266,10 +272,12 @@ class ServiceGestion {
     _exiger(a, Permission.etablissementGerer);
     return depot.transaction((tx) async {
       final e = await _lire(tx, 'etablissement', id);
+      final code = ((changements['code'] as String?) ?? '').trim().toUpperCase();
       final fusion = {
         for (final k in _champsEtablissement) k: e.donnees[k],
         ...changements,
-        if (changements['code'] != null) 'code': (changements['code']! as String).trim().toUpperCase(),
+        // Code effacé : l'établissement garde le sien.
+        'code': code.isEmpty ? e.donnees['code'] : code,
       };
       _controlerEtablissement(fusion);
       final memeCode = await tx.chercher('etablissement', {'code': fusion['code']});
@@ -848,6 +856,34 @@ class ServiceGestion {
         return _creer(tx, 'suivi_vaccinal', donnees, a, etablissementId: eleve.etablissementId, id: s.id);
       }
       return _modifier(tx, existant, donnees, a, etablissementId: eleve.etablissementId);
+    });
+  }
+
+  // ------------------------------------------------------- effectifs saisis
+
+  /// Enregistre les effectifs saisis à la main de classes (droit
+  /// `etablissement.gerer` : administrateur, Médecin-Chef) : inscrits et
+  /// élèves visités par sexe. Ils sont utilisés par les statistiques pour les
+  /// classes sans liste d'élèves. Une saisie vide efface les chiffres.
+  Future<void> enregistrerEffectifs(Droits a, List<EffectifSaisi> effectifs) async {
+    _exiger(a, Permission.etablissementGerer);
+    return depot.transaction((tx) async {
+      for (final s in effectifs) {
+        final c = await _lire(tx, 'classe', s.classeId);
+        final erreurs = s.erreurs(classe: c.donnees['libelle'] as String? ?? 'la classe');
+        if (erreurs.isNotEmpty) throw ErreurGestion(erreurs.first);
+        final aptitude = classeConcerneeParAptitude(c.donnees['libelle'] as String? ?? '', niveau: c.donnees['niveau'] as String?);
+        final donnees = {
+          ...s.versDonnees(),
+          if (!aptitude) ...{'aptitude_garcons': null, 'aptitude_filles': null},
+        };
+        final existant = (await tx.chercher('effectif_classe', {'classe_id': s.classeId})).where((x) => !x.supprime).firstOrNull;
+        if (existant == null) {
+          if (!s.vide) await _creer(tx, 'effectif_classe', donnees, a);
+        } else {
+          await _modifier(tx, existant, donnees, a);
+        }
+      }
     });
   }
 

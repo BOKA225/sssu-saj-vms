@@ -23,23 +23,46 @@ class Annee {
 class LigneEtablissement {
   final Map<String, dynamic> donnees;
   final int classes;
+
+  /// Élèves des listes d'élèves (inscrits, examinés en visite systématique).
   final int effectif;
   final int examines;
   final int telephones;
-  const LigneEtablissement(this.donnees, this.classes, this.effectif, this.examines, this.telephones);
+
+  /// Effectifs saisis à la main des classes sans liste d'élèves.
+  final int effectifSaisi;
+  final int examinesSaisis;
+  const LigneEtablissement(this.donnees, this.classes, this.effectif, this.examines, this.telephones,
+      {this.effectifSaisi = 0, this.examinesSaisis = 0});
   String get id => donnees['id'].toString();
   String get nom => donnees['nom'] as String;
+
+  /// Effectif et examinés des listes et des effectifs saisis (comme les statistiques).
+  int get effectifTotal => effectif + effectifSaisi;
+  int get examinesTotal => examines + examinesSaisis;
 }
 
 class LigneClasse {
   final String id;
   final String libelle;
   final String? niveau;
+
+  /// Élèves de la liste de la classe.
   final int effectif;
   final int garcons;
   final int filles;
   final int examines;
-  const LigneClasse(this.id, this.libelle, this.niveau, this.effectif, this.garcons, this.filles, this.examines);
+
+  /// Effectifs saisis à la main (utilisés si la classe n'a pas de liste).
+  final EffectifSaisi? saisi;
+  const LigneClasse(this.id, this.libelle, this.niveau, this.effectif, this.garcons, this.filles, this.examines,
+      {this.saisi});
+
+  /// Les effectifs saisis sont ceux de la classe (pas de liste d'élèves).
+  bool get effectifsSaisis => effectif == 0 && (saisi?.renseigne ?? false);
+
+  /// Classe d'examen (3ème, Tle) : élèves visités en visite d'aptitude.
+  bool get aptitude => classeConcerneeParAptitude(libelle, niveau: niveau);
 }
 
 class LigneEleve {
@@ -130,15 +153,39 @@ class RequetesPoste {
       "AND i.annee_scolaire_id = a.id AND i.deleted_at IS NULL AND i.statut = 'inscrit') AS effectif, "
       '(SELECT COUNT(*) FROM inscription i JOIN classe c ON c.id = i.classe_id WHERE c.etablissement_id = e.id '
       "AND i.annee_scolaire_id = a.id AND i.deleted_at IS NULL AND i.statut = 'inscrit' AND $_examine) AS examines, "
-      '(SELECT COUNT(*) FROM appareil_etablissement ae WHERE ae.etablissement_id = e.id AND ae.deleted_at IS NULL) AS telephones '
+      '(SELECT COUNT(*) FROM appareil_etablissement ae WHERE ae.etablissement_id = e.id AND ae.deleted_at IS NULL) AS telephones, '
+      '(SELECT COALESCE(SUM(COALESCE(ec.garcons, 0) + COALESCE(ec.filles, 0)), 0) FROM effectif_classe ec $_saisieSansListe) '
+      'AS effectif_saisi, '
+      '(SELECT COALESCE(SUM(COALESCE(ec.visites_garcons, 0) + COALESCE(ec.visites_filles, 0)), 0) FROM effectif_classe ec '
+      '$_saisieSansListe) AS examines_saisis '
       'FROM etablissement e CROSS JOIN annee_scolaire a '
       'WHERE e.deleted_at IS NULL AND a.id = CAST(@annee AS uuid) ORDER BY e.nom',
       {'annee': annee.id},
     );
     return [
-      for (final l in r) LigneEtablissement(l, _i(l['nb_classes']), _i(l['effectif']), _i(l['examines']), _i(l['telephones']))
+      for (final l in r)
+        LigneEtablissement(l, _i(l['nb_classes']), _i(l['effectif']), _i(l['examines']), _i(l['telephones']),
+            effectifSaisi: _i(l['effectif_saisi']), examinesSaisis: _i(l['examines_saisis']))
     ];
   }
+
+  /// Effectifs saisis des classes de l'établissement `e` sans liste d'élèves.
+  static const _saisieSansListe = 'JOIN classe c ON c.id = ec.classe_id WHERE c.etablissement_id = e.id '
+      'AND c.annee_scolaire_id = a.id AND c.deleted_at IS NULL AND ec.deleted_at IS NULL AND NOT EXISTS '
+      "(SELECT 1 FROM inscription i WHERE i.classe_id = c.id AND i.deleted_at IS NULL AND i.statut = 'inscrit')";
+
+  /// Effectifs saisis à la main des classes d'un établissement pour l'année
+  /// (identifiant de la classe → effectifs).
+  Future<Map<String, EffectifSaisi>> effectifsSaisis(String etablissementId, Annee annee) async => {
+        for (final l in await depot.requete(
+          'SELECT CAST(ec.classe_id AS text) AS classe_id, ec.garcons, ec.filles, ec.visites_garcons, ec.visites_filles, '
+          'ec.aptitude_garcons, ec.aptitude_filles FROM effectif_classe ec JOIN classe c ON c.id = ec.classe_id '
+          'WHERE c.etablissement_id = CAST(@etab AS uuid) AND c.annee_scolaire_id = CAST(@annee AS uuid) '
+          'AND c.deleted_at IS NULL AND ec.deleted_at IS NULL',
+          {'etab': etablissementId, 'annee': annee.id},
+        ))
+          l['classe_id'] as String: EffectifSaisi.depuisDonnees(l)
+      };
 
   Future<List<LigneClasse>> classes(String etablissementId, Annee annee) async {
     final r = await depot.requete(
@@ -152,10 +199,12 @@ class RequetesPoste {
       'GROUP BY c.id, c.libelle, c.niveau ORDER BY c.niveau, c.libelle',
       {'etab': etablissementId, 'annee': annee.id},
     );
+    final saisis = await effectifsSaisis(etablissementId, annee);
     return [
       for (final l in r)
         LigneClasse(l['id'].toString(), l['libelle'] as String, l['niveau'] as String?, _i(l['effectif']),
-            _i(l['garcons']), _i(l['filles']), _i(l['examines']))
+            _i(l['garcons']), _i(l['filles']), _i(l['examines']),
+            saisi: saisis[l['id'].toString()])
     ];
   }
 

@@ -242,6 +242,34 @@ void main() {
       }
     }, skip: ignorer);
 
+    test('effectifs saisis sur PostgreSQL (migration 070) et établissement sans code', () async {
+      final a = (await r.anneeCourante())!;
+      final admin = Droits(utilisateurId: nouvelId(), role: RoleCode.admin, permissions: matriceParDefaut[RoleCode.admin]!);
+      final e = await g.creerEtablissement(admin, {'nom': 'Collège sans code ${nouvelId().substring(30)}', 'type': 'secondaire',
+        'statut': 'public'});
+      expect((e.donnees['code'] as String).startsWith('COLSANCOD'), isTrue);
+      final sixieme = await g.creerClasse(admin, etablissementId: e.id, anneeScolaireId: a.id, libelle: '6ème 1');
+      final troisieme = await g.creerClasse(admin, etablissementId: e.id, anneeScolaireId: a.id, libelle: '3ème 2');
+      await g.enregistrerEffectifs(admin, [
+        EffectifSaisi(sixieme.id, garcons: 30, filles: 28, visitesGarcons: 25, visitesFilles: 20),
+        EffectifSaisi(troisieme.id, garcons: 22, filles: 24, visitesGarcons: 20, visitesFilles: 24, aptitudeGarcons: 18,
+            aptitudeFilles: 19),
+      ]);
+      final classes = {for (final c in await r.classes(e.id, a)) c.libelle: c};
+      expect((classes['6ème 1']!.effectifsSaisis, classes['6ème 1']!.saisi!.effectif, classes['3ème 2']!.aptitude),
+          (true, 58, true));
+      final etab = (await r.etablissements(a)).singleWhere((x) => x.id == e.id);
+      expect((etab.effectif, etab.effectifSaisi, etab.effectifTotal, etab.examinesTotal), (0, 104, 104, 89));
+      final jeu = await SourceStatistiquesPoste(depot).charger(a);
+      final s = calculerStatistiques(jeu, FiltreStatistiques(etablissementId: e.id));
+      expect((s.generale.effectif, s.generale.garcons, s.generale.examines, s.nbClassesSaisies), (104, 52, 89, 2));
+      final apt = calculerStatistiques(jeu, FiltreStatistiques(etablissementId: e.id, typeVisite: TypeVisite.aptitude));
+      expect((apt.generale.effectif, apt.generale.examines), (46, 37));
+      await expectLater(
+          depot.requete('UPDATE effectif_classe SET garcons = -1 WHERE classe_id = CAST(@c AS uuid)', {'c': sixieme.id}),
+          throwsA(anything));
+    }, skip: ignorer);
+
     test('création d\'établissement et de classe, rediffusion par établissement', () async {
       final a = (await r.anneeCourante())!;
       final e = await g.creerEtablissement(chef, {'nom': 'École PG', 'code': 'PG-${nouvelId().substring(30)}', 'type': 'primaire', 'statut': 'public'});

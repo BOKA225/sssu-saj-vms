@@ -110,6 +110,17 @@ Chaque ligne se coche (OK / KO). Une anomalie se décrit : étape, résultat obt
 | Décision | Mise en service / correction puis nouvelle recette |
 | Signatures | Médecin-Chef — Administrateur — Prestataire |
 
+## Version 1.9.0
+
+| N° | Action | Résultat attendu | OK |
+|----|--------|------------------|----|
+| 20.1 | Nouvel établissement sans code | Enregistré ; code provisoire annoncé, modifiable | |
+| 20.2 | Administrateur : Établissements → établissement → Effectifs par classe et par sexe | Grille des classes ; classes avec liste en lecture seule | |
+| 20.3 | Saisir 20 G / 25 F inscrits, 18 G / 20 F visités ; essayer 30 G visités | Enregistré ; puis refus « plus de garçons visités que de garçons inscrits » | |
+| 20.4 | Classe de 3ème : visités en visite d'aptitude | Colonnes « Aptitude » ; statistiques de la visite d'aptitude comptées | |
+| 20.5 | Statistiques, Rapports (annuel, établissement) | Effectif, examinés et couverture avec les saisies ; note « Dont … classes sans liste » | |
+| 20.6 | Importer la liste d'une classe qui avait des effectifs saisis | Les chiffres de la liste remplacent la saisie | |
+
 ## Version 1.8.0
 
 | N° | Action | Résultat attendu | OK |

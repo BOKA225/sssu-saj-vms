@@ -20,7 +20,7 @@ Future<bool> editerEtablissement(BuildContext context, WidgetRef ref, Map<String
   var statut = StatutEtablissement.depuisCode((d['statut'] as String?) ?? 'public');
   const libelles = {
     'nom': 'Nom de l\'établissement',
-    'code': 'Code',
+    'code': 'Code (facultatif : tiré du nom s\'il est vide)',
     'region': 'Région',
     'district_sanitaire': 'District sanitaire',
     'localite': 'Localité',
@@ -73,11 +73,20 @@ Future<bool> editerEtablissement(BuildContext context, WidgetRef ref, Map<String
   if (ok != true || !context.mounted) return false;
   final s = ref.read(servicesProvider);
   final droits = ref.read(sessionProvider)!.droits;
-  return executer(context, () async {
+  String? code;
+  final enregistre = await executer(context, () async {
     if (existant == null) {
-      await s.gestion.creerEtablissement(droits, donnees);
+      code = (await s.gestion.creerEtablissement(droits, donnees)).donnees['code'] as String?;
     } else {
       await s.gestion.modifierEtablissement(droits, existant['id'].toString(), donnees);
     }
-  }, succes: 'Établissement enregistré. Pensez à l\'affecter aux téléphones concernés.');
+  });
+  if (enregistre && context.mounted) {
+    message(
+        context,
+        'Établissement enregistré'
+        '${existant == null && donnees['code'] == null && code != null ? ' (code provisoire $code, modifiable)' : ''}. '
+        'Pensez à l\'affecter aux téléphones concernés.');
+  }
+  return enregistre;
 }

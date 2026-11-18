@@ -145,6 +145,27 @@ const List<TableSpec> registre = [
       Colonne('statut', TypeColonne.text, obligatoire: true, aValeurParDefaut: true),
     ],
   ),
+  // Effectifs d'une classe saisis à la main sur le poste central (classes sans
+  // liste d'élèves) : inscrits et visités, par sexe. Non envoyés aux téléphones.
+  TableSpec(
+    nom: 'effectif_classe',
+    surMobile: false,
+    surServeur: true,
+    envoiParTelephone: false,
+    receptionParTelephone: false,
+    parEtablissement: false,
+    ordreEnvoi: 0,
+    clesNaturelles: [['classe_id']],
+    colonnes: [
+      Colonne('classe_id', TypeColonne.uuid, obligatoire: true),
+      Colonne('garcons', TypeColonne.entier),
+      Colonne('filles', TypeColonne.entier),
+      Colonne('visites_garcons', TypeColonne.entier),
+      Colonne('visites_filles', TypeColonne.entier),
+      Colonne('aptitude_garcons', TypeColonne.entier),
+      Colonne('aptitude_filles', TypeColonne.entier),
+    ],
+  ),
   TableSpec(
     nom: 'appareil',
     surMobile: false,

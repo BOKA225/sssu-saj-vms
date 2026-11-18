@@ -133,15 +133,16 @@ BlocTableau tableauAptitudes(Statistiques s) => BlocTableau(
       largeurs: const [6, 1.3, 1.8],
       lignes: [
         for (final d in DecisionAptitude.values)
-          [d.libelle, s.aptitudes[d] ?? 0, pourcentage(taux(s.aptitudes[d] ?? 0, s.generale.examines))]
+          [d.libelle, s.aptitudes[d] ?? 0, pourcentage(taux(s.aptitudes[d] ?? 0, s.examinesListes))]
       ],
     );
 
 List<BlocRapport> _blocsPathologies(Statistiques s, JeuStatistiques jeu, {bool detail = true}) {
   final avecCas = s.pathologies.where((p) => p.cas > 0).toList()..sort((a, b) => b.cas.compareTo(a.cas));
   final blocs = <BlocRapport>[
-    BlocParagraphe('${s.elevesAvecPathologie} élève(s) examiné(s) sur ${s.generale.examines} présentent au moins une '
-        'pathologie (${pourcentage(taux(s.elevesAvecPathologie, s.generale.examines))}).'),
+    BlocParagraphe('${s.elevesAvecPathologie} élève(s) examiné(s) sur ${s.examinesListes} présentent au moins une '
+        'pathologie (${pourcentage(taux(s.elevesAvecPathologie, s.examinesListes))})'
+        '${s.saisis.examines > 0 ? ', sans les ${s.saisis.examines} élèves visités saisis à la main' : ''}.'),
     BlocTableau(
       titre: 'Cas par pathologie et par sexe',
       entetes: ['Pathologie', 'Cas', 'Garçons', 'Filles', 'Prévalence'],
@@ -253,6 +254,11 @@ DocumentRapport rapportStatistique(
       ('Visites médicales enregistrées', '${s.nbVisites}'),
       ('Taux de couverture', pourcentage(g.tauxCouverture)),
     ]),
+    if (s.saisis.effectif > 0)
+      BlocParagraphe('Dont ${s.saisis.effectif} élève(s) inscrit(s) et ${s.saisis.examines} visité(s) de '
+          '${s.nbClassesSaisies} classe(s) sans liste d\'élèves : effectifs saisis à la main, comptés dans l\'effectif, '
+          'les examinés et la couverture, mais pas dans les tranches d\'âge, les conclusions ni les pathologies.',
+          italique: true),
     titre('Couverture par sexe'),
     BlocTableau(
       entetes: ['Sexe', 'Effectif', 'Examinés', 'Couverture', 'Part des examinés'],
@@ -281,7 +287,8 @@ DocumentRapport rapportStatistique(
       entetes: ['Conclusion (dernière visite)', 'Élèves', 'Part des examinés'],
       largeurs: const [6, 1.3, 1.8],
       lignes: [
-        for (final c in ConclusionVisite.values) [c.libelle, s.conclusions[c] ?? 0, pourcentage(taux(s.conclusions[c] ?? 0, g.examines))]
+        for (final c in ConclusionVisite.values)
+          [c.libelle, s.conclusions[c] ?? 0, pourcentage(taux(s.conclusions[c] ?? 0, s.examinesListes))]
       ],
     ),
     titre('Profil des pathologies'),
